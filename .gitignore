@@ -33,3 +33,15 @@ results/*.joblib
 
 # Logs
 *.log
+
+# Local assistant/editor config (not part of the research artefact)
+CLAUDE.md
+docs/
+course-docs/
+.claude/
+
+# Packaging metadata
+*.egg-info/
+
+# Write up subrepo 
+msc-writeup/
