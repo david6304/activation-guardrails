@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-PARTITION="Teach-Standard"
+PARTITION="Teaching"
 GPU_GRES="gpu:1"
 GPU_CONSTRAINT="a40"
 TIME_LIMIT="08:00:00"
