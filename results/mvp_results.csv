@@ -1,2 +1,3 @@
-achieved_fpr,model_name,positive_predictions,roc_auc,split,threshold,tpr_at_threshold
-0.0,tfidf_lr,30,1.0,test,0.38752283945028637,1.0
+achieved_fpr,layer,model_name,positive_predictions,roc_auc,split,threshold,tpr_at_threshold
+0.0,,tfidf_lr,30,1.0,test,0.38752283945028637,1.0
+0.02631578947368421,24,activation_probe,16,0.9640350877192982,test,0.9996844059241947,0.5
