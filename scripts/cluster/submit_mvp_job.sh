@@ -74,12 +74,15 @@ done
 SBATCH_CMD=(
   sbatch
   -p "$PARTITION"
-  --gres="$GPU_GRES"
   --time="$TIME_LIMIT"
   --job-name="$JOB_NAME"
 )
 
-if [[ -n "$GPU_CONSTRAINT" && "$GPU_CONSTRAINT" != "any" ]]; then
+if [[ -n "$GPU_GRES" && "$GPU_GRES" != "none" ]]; then
+  SBATCH_CMD+=(--gres="$GPU_GRES")
+fi
+
+if [[ -n "$GPU_GRES" && "$GPU_GRES" != "none" && -n "$GPU_CONSTRAINT" && "$GPU_CONSTRAINT" != "any" ]]; then
   SBATCH_CMD+=(--constraint="$GPU_CONSTRAINT")
 fi
 
