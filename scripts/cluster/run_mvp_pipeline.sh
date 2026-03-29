@@ -89,6 +89,8 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null | whi
 export HF_HOME="$MODEL_CACHE"
 export HUGGINGFACE_HUB_CACHE="${MODEL_CACHE}/hub"
 export TRANSFORMERS_CACHE="${MODEL_CACHE}/transformers"
+export HF_HUB_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
 
 # Scratch: fast local disk for large intermediate files (activations, processed data)
 if [[ -n "$SCRATCH_DIR" ]]; then
