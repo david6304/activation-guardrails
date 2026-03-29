@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+from tqdm import tqdm
 
 from agguardrails.data import PromptExample
 from agguardrails.io import load_artifact, save_artifact, save_metadata
@@ -37,7 +38,8 @@ def extract_last_token_hidden_states(
     labels: list[int] = []
     example_ids: list[str] = []
 
-    for batch_examples in batched(examples, batch_size):
+    n_batches = (len(examples) + batch_size - 1) // batch_size
+    for batch_examples in tqdm(batched(examples, batch_size), total=n_batches, desc="extracting activations"):
         prompts = [format_prompt(tokenizer, example.prompt) for example in batch_examples]
         encoded = tokenizer(
             prompts,

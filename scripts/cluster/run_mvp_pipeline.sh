@@ -71,11 +71,18 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
+
 source "$TOOLCHAIN_RC"
 source "${VENV_PATH}/bin/activate"
 
 cd "$PROJECT_DIR"
 export PYTHONPATH=src:.
+
+log "=== MVP pipeline starting — stage: ${STAGE} ==="
+log "Node: $(hostname)  Job: ${SLURM_JOB_ID:-local}"
+log "Config: ${CONFIG}"
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null | while read line; do log "GPU: $line"; done
 
 # Model weights: always point to persistent NFS cache (compute nodes have no internet)
 export HF_HOME="$MODEL_CACHE"
@@ -88,38 +95,48 @@ if [[ -n "$SCRATCH_DIR" ]]; then
 fi
 
 run_dataset() {
+  log "--- stage: dataset ---"
   python scripts/mvp/build_dataset.py \
     --config "$CONFIG" \
     --output "$DATASET"
+  log "--- stage: dataset done ---"
 }
 
 run_text() {
+  log "--- stage: text baseline ---"
   python scripts/mvp/train_text_baseline.py \
     --config "$CONFIG" \
     --dataset "$DATASET" \
     --output-dir "$TEXT_DIR"
+  log "--- stage: text baseline done ---"
 }
 
 run_activations() {
+  log "--- stage: activations ---"
   python scripts/mvp/extract_activations.py \
     --config "$CONFIG" \
     --dataset "$DATASET" \
     --output-dir "$ACTIVATION_DIR"
+  log "--- stage: activations done ---"
 }
 
 run_probes() {
+  log "--- stage: probes ---"
   python scripts/mvp/train_activation_probes.py \
     --config "$CONFIG" \
     --input-dir "$ACTIVATION_DIR" \
     --output-dir "$PROBE_DIR"
+  log "--- stage: probes done ---"
 }
 
 run_report() {
+  log "--- stage: report ---"
   python scripts/mvp/make_results_table.py \
     --config "$CONFIG" \
     --text-metrics "${TEXT_DIR}/metrics.json" \
     --probe-metrics "${PROBE_DIR}/metrics.json" \
     --output "$RESULTS_PATH"
+  log "--- stage: report done ---"
 }
 
 case "$STAGE" in
