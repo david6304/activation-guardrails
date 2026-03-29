@@ -11,6 +11,7 @@ ACTIVATION_DIR="artifacts/activations/mvp"
 TEXT_DIR="artifacts/models/text_baseline"
 PROBE_DIR="artifacts/models/activation_probes"
 RESULTS_PATH="results/mvp_results.csv"
+METRICS_DIR="results/metrics"
 SCRATCH_DIR=""
 MODEL_CACHE="${HOME}/models"
 
@@ -110,7 +111,8 @@ run_text() {
   python scripts/mvp/train_text_baseline.py \
     --config "$CONFIG" \
     --dataset "$DATASET" \
-    --output-dir "$TEXT_DIR"
+    --output-dir "$TEXT_DIR" \
+    --metrics-dir "$METRICS_DIR"
   log "--- stage: text baseline done ---"
 }
 
@@ -128,7 +130,8 @@ run_probes() {
   python scripts/mvp/train_activation_probes.py \
     --config "$CONFIG" \
     --input-dir "$ACTIVATION_DIR" \
-    --output-dir "$PROBE_DIR"
+    --output-dir "$PROBE_DIR" \
+    --metrics-dir "$METRICS_DIR"
   log "--- stage: probes done ---"
 }
 
@@ -136,8 +139,8 @@ run_report() {
   log "--- stage: report ---"
   python scripts/mvp/make_results_table.py \
     --config "$CONFIG" \
-    --text-metrics "${TEXT_DIR}/metrics.json" \
-    --probe-metrics "${PROBE_DIR}/metrics.json" \
+    --text-metrics "${METRICS_DIR}/text_baseline_metrics.json" \
+    --probe-metrics "${METRICS_DIR}/probe_metrics.json" \
     --output "$RESULTS_PATH"
   log "--- stage: report done ---"
 }

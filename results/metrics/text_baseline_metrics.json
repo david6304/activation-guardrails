@@ -1,0 +1,25 @@
+{
+  "git_hash": "8617142",
+  "timestamp": "2026-03-29T14:10:05Z",
+  "config_path": "configs/mvp/mvp.yaml",
+  "dataset_path": "data/processed/mvp_prompts.jsonl",
+  "pipeline_path": "artifacts/models/text_baseline/tfidf_lr_pipeline.joblib",
+  "val_metrics": {
+    "model_name": "tfidf_lr",
+    "split": "val",
+    "roc_auc": 1.0,
+    "threshold": 0.38752283945028637,
+    "achieved_fpr": 0.0,
+    "tpr_at_threshold": 1.0,
+    "positive_predictions": 30
+  },
+  "test_metrics": {
+    "model_name": "tfidf_lr",
+    "split": "test",
+    "roc_auc": 1.0,
+    "threshold": 0.38752283945028637,
+    "achieved_fpr": 0.0,
+    "tpr_at_threshold": 1.0,
+    "positive_predictions": 30
+  }
+}

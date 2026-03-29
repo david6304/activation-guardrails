@@ -18,6 +18,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", default="configs/mvp/mvp.yaml")
     parser.add_argument("--input-dir", default="artifacts/activations/mvp")
     parser.add_argument("--output-dir", default="artifacts/models/activation_probes")
+    parser.add_argument("--metrics-dir", default="results/metrics")
     return parser.parse_args()
 
 
@@ -56,8 +57,10 @@ def main() -> None:
         save_artifact(result.probe, output_dir / f"layer_{layer}_probe")
 
     best = select_best_probe(probe_results)
+    metrics_dir = Path(args.metrics_dir)
+    metrics_dir.mkdir(parents=True, exist_ok=True)
     save_metadata(
-        output_dir / "metrics.json",
+        metrics_dir / "probe_metrics.json",
         config_path=args.config,
         input_dir=args.input_dir,
         best_layer=best.layer,

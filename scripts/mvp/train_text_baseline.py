@@ -22,6 +22,11 @@ def parse_args() -> argparse.Namespace:
         default="artifacts/models/text_baseline",
         help="Directory for saved pipeline and metadata.",
     )
+    parser.add_argument(
+        "--metrics-dir",
+        default="results/metrics",
+        help="Directory for committed metrics JSON.",
+    )
     return parser.parse_args()
 
 
@@ -59,8 +64,10 @@ def main() -> None:
         result=artifacts.test_result,
     )
 
+    metrics_dir = Path(args.metrics_dir)
+    metrics_dir.mkdir(parents=True, exist_ok=True)
     metadata_path = save_metadata(
-        output_dir / "metrics.json",
+        metrics_dir / "text_baseline_metrics.json",
         config_path=args.config,
         dataset_path=args.dataset,
         pipeline_path=str(pipeline_path),

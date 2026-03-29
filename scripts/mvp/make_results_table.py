@@ -15,11 +15,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", default="configs/mvp/mvp.yaml")
     parser.add_argument(
         "--text-metrics",
-        default="artifacts/models/text_baseline/metrics.json",
+        default="results/metrics/text_baseline_metrics.json",
     )
     parser.add_argument(
         "--probe-metrics",
-        default="artifacts/models/activation_probes/metrics.json",
+        default="results/metrics/probe_metrics.json",
     )
     parser.add_argument(
         "--output",
