@@ -30,13 +30,16 @@ def main() -> None:
     model_cfg = config["model"]
     feature_cfg = config["features"]
 
+    print(f"Loading model: {model_cfg['name']}", flush=True)
     model, tokenizer = load_model_and_tokenizer(
         model_cfg["name"],
         torch_dtype=model_cfg["dtype"],
     )
+    print("Model loaded.", flush=True)
 
     layers = [int(layer) for layer in feature_cfg["layers"]]
     for split_name in ("train", "val", "test"):
+        print(f"Extracting split: {split_name}", flush=True)
         activation_dataset = extract_last_token_hidden_states(
             model=model,
             tokenizer=tokenizer,

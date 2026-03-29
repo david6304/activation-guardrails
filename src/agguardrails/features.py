@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+import sys
+
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -39,7 +41,7 @@ def extract_last_token_hidden_states(
     example_ids: list[str] = []
 
     n_batches = (len(examples) + batch_size - 1) // batch_size
-    for batch_examples in tqdm(batched(examples, batch_size), total=n_batches, desc="extracting activations"):
+    for batch_examples in tqdm(batched(examples, batch_size), total=n_batches, desc="extracting activations", file=sys.stdout, disable=False):
         prompts = [format_prompt(tokenizer, example.prompt) for example in batch_examples]
         encoded = tokenizer(
             prompts,
