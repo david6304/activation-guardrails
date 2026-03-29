@@ -1,0 +1,97 @@
+{
+  "git_hash": "c78dd05",
+  "timestamp": "2026-03-29T18:53:46Z",
+  "config_path": "configs/mvp/mvp.yaml",
+  "input_dir": "artifacts/activations/mvp",
+  "best_layer": 24,
+  "per_layer": {
+    "8": {
+      "val": {
+        "model_name": "activation_probe",
+        "split": "val",
+        "roc_auc": 0.945045045045045,
+        "threshold": 0.9990360539208855,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.16666666666666666,
+        "positive_predictions": 5,
+        "layer": 8
+      },
+      "test": {
+        "model_name": "activation_probe",
+        "split": "test",
+        "roc_auc": 0.968421052631579,
+        "threshold": 0.9990360539208855,
+        "achieved_fpr": 0.02631578947368421,
+        "tpr_at_threshold": 0.16666666666666666,
+        "positive_predictions": 6,
+        "layer": 8
+      }
+    },
+    "16": {
+      "val": {
+        "model_name": "activation_probe",
+        "split": "val",
+        "roc_auc": 0.9648648648648648,
+        "threshold": 0.9993632002806541,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.36666666666666664,
+        "positive_predictions": 11,
+        "layer": 16
+      },
+      "test": {
+        "model_name": "activation_probe",
+        "split": "test",
+        "roc_auc": 0.9692982456140351,
+        "threshold": 0.9993632002806541,
+        "achieved_fpr": 0.02631578947368421,
+        "tpr_at_threshold": 0.36666666666666664,
+        "positive_predictions": 12,
+        "layer": 16
+      }
+    },
+    "24": {
+      "val": {
+        "model_name": "activation_probe",
+        "split": "val",
+        "roc_auc": 0.9720720720720721,
+        "threshold": 0.9996844059241947,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.5333333333333333,
+        "positive_predictions": 16,
+        "layer": 24
+      },
+      "test": {
+        "model_name": "activation_probe",
+        "split": "test",
+        "roc_auc": 0.9640350877192982,
+        "threshold": 0.9996844059241947,
+        "achieved_fpr": 0.02631578947368421,
+        "tpr_at_threshold": 0.5,
+        "positive_predictions": 16,
+        "layer": 24
+      }
+    },
+    "28": {
+      "val": {
+        "model_name": "activation_probe",
+        "split": "val",
+        "roc_auc": 0.918918918918919,
+        "threshold": 0.9999999302891069,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.3,
+        "positive_predictions": 9,
+        "layer": 28
+      },
+      "test": {
+        "model_name": "activation_probe",
+        "split": "test",
+        "roc_auc": 0.9491228070175439,
+        "threshold": 0.9999999302891069,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.26666666666666666,
+        "positive_predictions": 8,
+        "layer": 28
+      }
+    }
+  }
+}
