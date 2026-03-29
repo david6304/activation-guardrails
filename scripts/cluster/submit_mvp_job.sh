@@ -17,6 +17,7 @@ VENV_PATH="${HOME}/venvs/ml"
 TOOLCHAIN_RC="/home/htang2/toolchain-20251006/toolchain.rc"
 CONFIG="configs/mvp/mvp.yaml"
 SCRATCH_DIR="/disk/scratch/${USER}/activation-guardrails"
+MODEL_CACHE="${HOME}/models"
 PRINT_ONLY="0"
 
 while [[ $# -gt 0 ]]; do
@@ -61,6 +62,10 @@ while [[ $# -gt 0 ]]; do
       SCRATCH_DIR="$2"
       shift 2
       ;;
+    --model-cache)
+      MODEL_CACHE="$2"
+      shift 2
+      ;;
     --print-only)
       PRINT_ONLY="1"
       shift
@@ -102,7 +107,7 @@ esac
 
 SBATCH_CMD+=(
   --wrap
-  "bash ${PROJECT_DIR}/scripts/cluster/run_mvp_pipeline.sh --stage ${STAGE} --project-dir ${PROJECT_DIR} --venv-path ${VENV_PATH} --toolchain-rc ${TOOLCHAIN_RC} --config ${CONFIG} --scratch-dir ${SCRATCH_DIR}"
+  "bash ${PROJECT_DIR}/scripts/cluster/run_mvp_pipeline.sh --stage ${STAGE} --project-dir ${PROJECT_DIR} --venv-path ${VENV_PATH} --toolchain-rc ${TOOLCHAIN_RC} --config ${CONFIG} --scratch-dir ${SCRATCH_DIR} --model-cache ${MODEL_CACHE}"
 )
 
 printf 'Command:\n%s\n' "${SBATCH_CMD[*]}"

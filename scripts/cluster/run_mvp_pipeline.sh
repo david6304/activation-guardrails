@@ -12,6 +12,7 @@ TEXT_DIR="artifacts/models/text_baseline"
 PROBE_DIR="artifacts/models/activation_probes"
 RESULTS_PATH="results/mvp_results.csv"
 SCRATCH_DIR=""
+MODEL_CACHE="${HOME}/models"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -59,6 +60,10 @@ while [[ $# -gt 0 ]]; do
       SCRATCH_DIR="$2"
       shift 2
       ;;
+    --model-cache)
+      MODEL_CACHE="$2"
+      shift 2
+      ;;
     *)
       echo "Unknown argument: $1" >&2
       exit 1
@@ -72,11 +77,14 @@ source "${VENV_PATH}/bin/activate"
 cd "$PROJECT_DIR"
 export PYTHONPATH=src:.
 
+# Model weights: always point to persistent NFS cache (compute nodes have no internet)
+export HF_HOME="$MODEL_CACHE"
+export HUGGINGFACE_HUB_CACHE="${MODEL_CACHE}/hub"
+export TRANSFORMERS_CACHE="${MODEL_CACHE}/transformers"
+
+# Scratch: fast local disk for large intermediate files (activations, processed data)
 if [[ -n "$SCRATCH_DIR" ]]; then
   mkdir -p "$SCRATCH_DIR"
-  export HF_HOME="${SCRATCH_DIR}/hf"
-  export HUGGINGFACE_HUB_CACHE="${SCRATCH_DIR}/hf/hub"
-  export TRANSFORMERS_CACHE="${SCRATCH_DIR}/hf/transformers"
 fi
 
 run_dataset() {
