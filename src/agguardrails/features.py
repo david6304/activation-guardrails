@@ -48,7 +48,7 @@ def extract_last_token_hidden_states(
         )
         encoded = {key: value.to(model.device) for key, value in encoded.items()}
 
-        with torch.no_grad():
+        with torch.inference_mode():
             outputs = model(**encoded)
 
         attention_mask = encoded["attention_mask"]

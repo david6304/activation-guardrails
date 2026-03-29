@@ -22,7 +22,7 @@ data:
 features:
   layers: [8, 16, 24, 32]
   token_position: "last"  # last token of chat-template-formatted prompt
-  batch_size: 16
+  batch_size: 32
   max_length: 512
 
 probe:

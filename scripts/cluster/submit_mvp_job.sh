@@ -1,9 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
+# GPU type controls which GRES is requested:
+#   a40          → gpu:a40:1            (default; crannog nodes, 48 GB VRAM)
+#   a6000        → gpu:nvidia_rtx_a6000:1 (landonia11, 48 GB VRAM)
+#   any          → gpu:1 restricted to capable nodes (A40 or A6000)
+#   unrestricted → gpu:1 with no node filter (may land on 2080 Ti — not suitable for 7B models)
+
 PARTITION="Teaching"
-GPU_GRES="gpu:1"
-GPU_CONSTRAINT="a40"
+GPU_TYPE="a40"
 TIME_LIMIT="08:00:00"
 JOB_NAME="mvp-guardrails"
 STAGE="all"
@@ -20,12 +25,8 @@ while [[ $# -gt 0 ]]; do
       PARTITION="$2"
       shift 2
       ;;
-    --gpu-gres)
-      GPU_GRES="$2"
-      shift 2
-      ;;
     --gpu-type)
-      GPU_CONSTRAINT="$2"
+      GPU_TYPE="$2"
       shift 2
       ;;
     --time)
@@ -78,13 +79,26 @@ SBATCH_CMD=(
   --job-name="$JOB_NAME"
 )
 
-if [[ -n "$GPU_GRES" && "$GPU_GRES" != "none" ]]; then
-  SBATCH_CMD+=(--gres="$GPU_GRES")
-fi
-
-if [[ -n "$GPU_GRES" && "$GPU_GRES" != "none" && -n "$GPU_CONSTRAINT" && "$GPU_CONSTRAINT" != "any" ]]; then
-  SBATCH_CMD+=(--constraint="$GPU_CONSTRAINT")
-fi
+case "$GPU_TYPE" in
+  a40)
+    SBATCH_CMD+=(--gres=gpu:a40:1)
+    ;;
+  a6000)
+    SBATCH_CMD+=(--gres=gpu:nvidia_rtx_a6000:1)
+    ;;
+  any)
+    # Any GPU with enough VRAM for 7B models (A40 or A6000 nodes only)
+    SBATCH_CMD+=(--gres=gpu:1 --nodelist=crannog[01-02],landonia11)
+    ;;
+  unrestricted)
+    # No node filter — may land on a 2080 Ti (11 GB), which will OOM on 7B models
+    SBATCH_CMD+=(--gres=gpu:1)
+    ;;
+  *)
+    echo "Unknown --gpu-type: $GPU_TYPE (valid: a40, a6000, any, unrestricted)" >&2
+    exit 1
+    ;;
+esac
 
 SBATCH_CMD+=(
   --wrap
