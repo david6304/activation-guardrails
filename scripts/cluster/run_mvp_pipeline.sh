@@ -1,0 +1,144 @@
+#!/bin/bash
+set -euo pipefail
+
+STAGE="all"
+PROJECT_DIR="${HOME}/activation-guardrails"
+VENV_PATH="${HOME}/venvs/ml"
+TOOLCHAIN_RC="/home/htang2/toolchain-20251006/toolchain.rc"
+CONFIG="configs/mvp/mvp.yaml"
+DATASET="data/processed/mvp_prompts.jsonl"
+ACTIVATION_DIR="artifacts/activations/mvp"
+TEXT_DIR="artifacts/models/text_baseline"
+PROBE_DIR="artifacts/models/activation_probes"
+RESULTS_PATH="results/mvp_results.csv"
+SCRATCH_DIR=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --stage)
+      STAGE="$2"
+      shift 2
+      ;;
+    --project-dir)
+      PROJECT_DIR="$2"
+      shift 2
+      ;;
+    --venv-path)
+      VENV_PATH="$2"
+      shift 2
+      ;;
+    --toolchain-rc)
+      TOOLCHAIN_RC="$2"
+      shift 2
+      ;;
+    --config)
+      CONFIG="$2"
+      shift 2
+      ;;
+    --dataset)
+      DATASET="$2"
+      shift 2
+      ;;
+    --activation-dir)
+      ACTIVATION_DIR="$2"
+      shift 2
+      ;;
+    --text-dir)
+      TEXT_DIR="$2"
+      shift 2
+      ;;
+    --probe-dir)
+      PROBE_DIR="$2"
+      shift 2
+      ;;
+    --results-path)
+      RESULTS_PATH="$2"
+      shift 2
+      ;;
+    --scratch-dir)
+      SCRATCH_DIR="$2"
+      shift 2
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+source "$TOOLCHAIN_RC"
+source "${VENV_PATH}/bin/activate"
+
+cd "$PROJECT_DIR"
+export PYTHONPATH=src:.
+
+if [[ -n "$SCRATCH_DIR" ]]; then
+  mkdir -p "$SCRATCH_DIR"
+  export HF_HOME="${SCRATCH_DIR}/hf"
+  export HUGGINGFACE_HUB_CACHE="${SCRATCH_DIR}/hf/hub"
+  export TRANSFORMERS_CACHE="${SCRATCH_DIR}/hf/transformers"
+fi
+
+run_dataset() {
+  python scripts/mvp/build_dataset.py \
+    --config "$CONFIG" \
+    --output "$DATASET"
+}
+
+run_text() {
+  python scripts/mvp/train_text_baseline.py \
+    --config "$CONFIG" \
+    --dataset "$DATASET" \
+    --output-dir "$TEXT_DIR"
+}
+
+run_activations() {
+  python scripts/mvp/extract_activations.py \
+    --config "$CONFIG" \
+    --dataset "$DATASET" \
+    --output-dir "$ACTIVATION_DIR"
+}
+
+run_probes() {
+  python scripts/mvp/train_activation_probes.py \
+    --config "$CONFIG" \
+    --input-dir "$ACTIVATION_DIR" \
+    --output-dir "$PROBE_DIR"
+}
+
+run_report() {
+  python scripts/mvp/make_results_table.py \
+    --config "$CONFIG" \
+    --text-metrics "${TEXT_DIR}/metrics.json" \
+    --probe-metrics "${PROBE_DIR}/metrics.json" \
+    --output "$RESULTS_PATH"
+}
+
+case "$STAGE" in
+  dataset)
+    run_dataset
+    ;;
+  text)
+    run_text
+    ;;
+  activations)
+    run_activations
+    ;;
+  probes)
+    run_probes
+    ;;
+  report)
+    run_report
+    ;;
+  all)
+    run_dataset
+    run_text
+    run_activations
+    run_probes
+    run_report
+    ;;
+  *)
+    echo "Unsupported stage: $STAGE" >&2
+    exit 1
+    ;;
+esac
