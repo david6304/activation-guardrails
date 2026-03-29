@@ -1,8 +1,28 @@
 """Tests for agguardrails.features."""
 
-import numpy as np
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
-from agguardrails.features import ActivationDataset, load_activation_split, save_activation_dataset
+import numpy as np
+import pytest
+
+from agguardrails.features import ActivationDataset, load_activation_split, save_activation_dataset, validate_layer_indices
+
+
+def _mock_model(num_hidden_layers: int) -> MagicMock:
+    model = MagicMock()
+    model.config.num_hidden_layers = num_hidden_layers
+    return model
+
+
+def test_validate_layer_indices_valid():
+    # 28 transformer layers → hidden state indices 0–28
+    validate_layer_indices([0, 8, 16, 24, 28], _mock_model(28))
+
+
+def test_validate_layer_indices_out_of_range():
+    with pytest.raises(ValueError, match="out of range"):
+        validate_layer_indices([8, 16, 24, 32], _mock_model(28))
 
 
 def test_save_and_load_activation_split_round_trip(tmp_path):

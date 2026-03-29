@@ -26,6 +26,16 @@ class ActivationDataset:
     example_ids: list[str]
 
 
+def validate_layer_indices(layers: list[int], model: torch.nn.Module) -> None:
+    """Raise ValueError if any requested layer index exceeds the model's hidden state count."""
+    n_hidden = model.config.num_hidden_layers + 1  # +1 for embedding layer at index 0
+    invalid = [l for l in layers if l >= n_hidden]
+    if invalid:
+        raise ValueError(
+            f"Requested layers {invalid} out of range — model has {n_hidden} hidden states (indices 0–{n_hidden - 1})"
+        )
+
+
 def extract_last_token_hidden_states(
     *,
     model: torch.nn.Module,

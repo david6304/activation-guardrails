@@ -8,7 +8,7 @@ from pathlib import Path
 import yaml
 
 from agguardrails.data import read_prompt_dataset, split_prompt_dataset
-from agguardrails.features import extract_last_token_hidden_states, save_activation_dataset
+from agguardrails.features import extract_last_token_hidden_states, save_activation_dataset, validate_layer_indices
 from agguardrails.models import load_model_and_tokenizer
 
 
@@ -38,6 +38,7 @@ def main() -> None:
     print("Model loaded.", flush=True)
 
     layers = [int(layer) for layer in feature_cfg["layers"]]
+    validate_layer_indices(layers, model)
     for split_name in ("train", "val", "test"):
         print(f"Extracting split: {split_name}", flush=True)
         activation_dataset = extract_last_token_hidden_states(
