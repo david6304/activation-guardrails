@@ -51,7 +51,7 @@ def extract_last_token_hidden_states(
         encoded = {key: value.to(model.device) for key, value in encoded.items()}
 
         with torch.inference_mode():
-            outputs = model(**encoded)
+            outputs = model(**encoded, output_hidden_states=True)
 
         attention_mask = encoded["attention_mask"]
         last_positions = attention_mask.sum(dim=1) - 1

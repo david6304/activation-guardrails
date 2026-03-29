@@ -78,6 +78,7 @@ source "${VENV_PATH}/bin/activate"
 
 cd "$PROJECT_DIR"
 export PYTHONPATH=src:.
+export PYTHONUNBUFFERED=1
 
 log "=== MVP pipeline starting — stage: ${STAGE} ==="
 log "Node: $(hostname)  Job: ${SLURM_JOB_ID:-local}"
