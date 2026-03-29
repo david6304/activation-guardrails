@@ -19,8 +19,8 @@ Research standards for this repo:
 MVP task: compare a **text-only guardrail** vs an **activation-based guardrail** for harmful intent detection on a small, defensible benchmark setup.
 
 - Model: `Qwen2.5-7B-Instruct` (swappable later)
-- Harmful prompts: HarmBench sample
-- Benign prompts: XSTest-safe sample
+- Harmful prompts: local HarmBench sample (`data/raw/harmbench/harmbench.jsonl`, `N=200`)
+- Benign prompts: local XSTest-safe subset (`data/raw/xstest/xstest.jsonl`, `label=="safe"`, `N=250`)
 - Guardrails:
   - text baseline: `TF-IDF + LogisticRegression` (or frozen embeddings + LR later)
   - activation monitor: linear probe (`LogisticRegression`) on hidden states

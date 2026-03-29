@@ -9,10 +9,11 @@ model:
   dtype: "float16"
 
 data:
-  harmful_source: "harmbench"
-  benign_source: "xstest_safe"
-  n_harmful: 300
-  n_benign: 300
+  harmful_source: "data/raw/harmbench/harmbench.jsonl"
+  benign_source: "data/raw/xstest/xstest.jsonl"
+  benign_label: "safe"
+  n_harmful: 200
+  n_benign: 250
   splits:
     train: 0.70
     val: 0.15
