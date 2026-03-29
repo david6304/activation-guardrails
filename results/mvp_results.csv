@@ -1,0 +1,2 @@
+achieved_fpr,model_name,positive_predictions,roc_auc,split,threshold,tpr_at_threshold
+0.0,tfidf_lr,30,1.0,test,0.38752283945028637,1.0
