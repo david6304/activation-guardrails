@@ -331,7 +331,7 @@ def test_train_activation_probes_script_sweeps_layers_and_saves_metrics(monkeypa
 def test_encode_sae_features_script_encodes_requested_splits(monkeypatch, tmp_path):
     config_path = tmp_path / "main.yaml"
     _write_main_config(config_path, tmp_path / "unused.jsonl")
-    captured: dict[str, object] = {"saved": [], "loaded": []}
+    captured: dict[str, object] = {"saved": [], "loaded": [], "metadata_calls": []}
 
     dataset = ActivationDataset(
         features_by_layer={
@@ -349,6 +349,7 @@ def test_encode_sae_features_script_encodes_requested_splits(monkeypatch, tmp_pa
             config=str(config_path),
             input_dir="acts",
             output_dir=str(tmp_path / "sae"),
+            metrics_dir=str(tmp_path / "metrics"),
             splits=["train"],
             batch_size=32,
             device="cpu",
@@ -383,7 +384,8 @@ def test_encode_sae_features_script_encodes_requested_splits(monkeypatch, tmp_pa
     monkeypatch.setattr(
         encode_sae_features_script,
         "save_metadata",
-        lambda path, **kwargs: captured.setdefault("metadata", kwargs),
+        lambda path, **kwargs: captured["metadata_calls"].append((str(path), kwargs))
+        or Path(path),
     )
 
     encode_sae_features_script.main()
@@ -394,5 +396,11 @@ def test_encode_sae_features_script_encodes_requested_splits(monkeypatch, tmp_pa
     ]
     assert any("train_layer_9_sae_features" in path for path in captured["saved"])
     assert any("train_layer_20_sae_features" in path for path in captured["saved"])
-    assert captured["metadata"]["split"] == "train"
-    assert captured["metadata"]["layers"] == [9, 20]
+    assert len(captured["metadata_calls"]) == 2
+    split_meta = captured["metadata_calls"][0]
+    summary_meta = captured["metadata_calls"][1]
+    assert split_meta[1]["split"] == "train"
+    assert split_meta[1]["layers"] == [9, 20]
+    assert summary_meta[0].endswith("metrics/sae_encoding_summary.json")
+    assert summary_meta[1]["layers"] == [9, 20]
+    assert summary_meta[1]["splits"]["train"]["n_examples"] == 2

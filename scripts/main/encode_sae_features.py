@@ -25,6 +25,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input-dir", default="artifacts/activations/main")
     parser.add_argument("--output-dir", default="artifacts/features/main/sae")
     parser.add_argument(
+        "--metrics-dir",
+        default="results/main/metrics",
+        help="Directory for small tracked SAE encoding summaries.",
+    )
+    parser.add_argument(
         "--splits",
         nargs="+",
         default=None,
@@ -68,6 +73,8 @@ def main() -> None:
     input_dir = Path(args.input_dir)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
+    metrics_dir = Path(args.metrics_dir)
+    metrics_dir.mkdir(parents=True, exist_ok=True)
     splits = args.splits or _default_splits(input_dir)
 
     specs = [
@@ -91,9 +98,27 @@ def main() -> None:
             dtype=args.dtype,
         )
 
+    run_summary: dict[str, object] = {
+        "config_path": args.config,
+        "input_dir": str(input_dir),
+        "output_dir": str(output_dir),
+        "release": sae_cfg["release"],
+        "width": int(sae_cfg["width"]),
+        "layers": layers,
+        "batch_size": int(args.batch_size),
+        "device": args.device,
+        "dtype": args.dtype,
+        "splits": {},
+    }
+
     for split in splits:
         dataset = load_activation_split(input_dir=input_dir, split=split, layers=layers)
         feature_paths: dict[str, str] = {}
+        split_summary: dict[str, object] = {
+            "n_examples": len(dataset.example_ids),
+            "feature_paths": {},
+            "feature_shapes": {},
+        }
         for spec in specs:
             print(
                 f"Encoding split={split} layer={spec.layer} into SAE width {spec.width}",
@@ -109,6 +134,8 @@ def main() -> None:
                 output_dir / f"{split}_layer_{spec.layer}_sae_features",
             )
             feature_paths[str(spec.layer)] = str(path)
+            split_summary["feature_paths"][str(spec.layer)] = str(path)
+            split_summary["feature_shapes"][str(spec.layer)] = list(encoded.shape)
 
         labels_path = save_artifact(dataset.labels, output_dir / f"{split}_labels")
         ids_path = save_artifact(
@@ -130,7 +157,16 @@ def main() -> None:
             ids_path=str(ids_path),
             feature_paths=feature_paths,
         )
+        split_summary["labels_path"] = str(labels_path)
+        split_summary["ids_path"] = str(ids_path)
+        run_summary["splits"][split] = split_summary
         print(f"Saved SAE features for split={split}", flush=True)
+
+    summary_path = save_metadata(
+        metrics_dir / "sae_encoding_summary.json",
+        **run_summary,
+    )
+    print(f"SAE encoding summary saved: {summary_path}", flush=True)
 
 
 if __name__ == "__main__":
