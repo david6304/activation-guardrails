@@ -11,22 +11,23 @@ Normalised schema (one record per row):
     {"id": str, "prompt": str, "data_type": str, "source": "wildjailbreak"}
 
 data_type values:
-    - "vanilla_harmful"     — direct harmful request
-    - "vanilla_benign"      — benign prompt surface-similar to harmful one
-    - "adversarial_harmful" — jailbroken version of a vanilla harmful prompt
+    - "vanilla_harmful"      — direct harmful request
+    - "vanilla_benign"       — benign prompt surface-similar to harmful one
+    - "adversarial_harmful"  — jailbroken version of a vanilla harmful prompt
+    - "adversarial_benign"   — jailbreak-styled benign prompt
 
-The HuggingFace dataset (Jiang et al., NeurIPS 2024) has a train split where
-each row contains parallel variants of a prompt:
-    - "vanilla": the direct harmful request
-    - "adversarial": the jailbroken version
-    - "prompt": the corresponding benign prompt (surface-similar)
-    - "label": "harmful" or "benign" indicating whether the row is a harmful
-       or benign entry (some datasets include both in separate rows; see note
-       below)
+The current Hugging Face dataset card exposes configs ``train`` and ``eval``
+and TSV-backed rows with columns including:
+    - "vanilla"
+    - "adversarial"
+    - "data_type"
+    - "completion"
+    - "tactics"
 
-NOTE: The exact column names are printed below when the script runs. If the
-schema differs from what this script expects, adjust the COLUMN MAPPING section
-and rerun.
+Rows are single prompt-response pairs. We therefore choose the prompt field
+based on ``data_type``:
+    - vanilla_*      -> use the "vanilla" column
+    - adversarial_*  -> use the "adversarial" column
 """
 
 from __future__ import annotations
@@ -54,9 +55,15 @@ def parse_args() -> argparse.Namespace:
         help="HuggingFace dataset identifier.",
     )
     parser.add_argument(
+        "--config-name",
+        default="train",
+        choices=["train", "eval"],
+        help="HuggingFace dataset config to download (default: train).",
+    )
+    parser.add_argument(
         "--split",
         default="train",
-        help="HuggingFace dataset split to download (default: train).",
+        help="HuggingFace dataset split to download within the selected config (default: train).",
     )
     parser.add_argument(
         "--print-schema-only",
@@ -66,49 +73,41 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def normalise_record(record: dict, idx: int) -> list[dict]:
-    """Convert one HuggingFace WildJailbreak row into normalised records.
+def normalise_record(record: dict, idx: int) -> dict | None:
+    """Convert one HuggingFace WildJailbreak row into one normalised record.
 
-    WildJailbreak rows are structured as parallel data:
-        - "vanilla": direct harmful request (label=1)
-        - "adversarial": jailbroken version of "vanilla" (label=1)
-        - "prompt": benign prompt surface-similar to "vanilla" (label=0)
-
-    Each row yields up to three normalised records (one per data_type).
-    Records with empty prompts are skipped.
-
-    See the print-schema-only output to verify column names before trusting this.
+    The upstream dataset already carries the canonical ``data_type`` for each
+    row, so the main risk is selecting the wrong prompt column when Hugging Face
+    schema details drift. This function makes that mapping explicit.
     """
-    # ---------------------------------------------------------------------------
-    # COLUMN MAPPING — adjust here if the actual schema differs
-    # ---------------------------------------------------------------------------
-    vanilla_col = "vanilla"       # direct harmful prompt
-    adversarial_col = "adversarial"  # jailbroken version
-    benign_col = "prompt"            # benign surface-similar prompt
-    id_col = "id"                    # row identifier (may be absent)
-    # ---------------------------------------------------------------------------
+    data_type = str(record.get("data_type", "") or "").strip()
+    if not data_type:
+        msg = f"WildJailbreak row {idx} is missing required field 'data_type'."
+        raise ValueError(msg)
 
-    row_id = str(record.get(id_col, idx))
-    results = []
+    prompt_column_by_type = {
+        "vanilla_harmful": "vanilla",
+        "vanilla_benign": "vanilla",
+        "adversarial_harmful": "adversarial",
+        "adversarial_benign": "adversarial",
+    }
+    try:
+        prompt_column = prompt_column_by_type[data_type]
+    except KeyError as exc:
+        msg = f"Unsupported WildJailbreak data_type {data_type!r} at row {idx}."
+        raise ValueError(msg) from exc
 
-    for col, data_type in [
-        (vanilla_col, "vanilla_harmful"),
-        (adversarial_col, "adversarial_harmful"),
-        (benign_col, "vanilla_benign"),
-    ]:
-        text = str(record.get(col, "") or "").strip()
-        if not text:
-            continue
-        results.append(
-            {
-                "id": f"{row_id}_{data_type}",
-                "prompt": text,
-                "data_type": data_type,
-                "source": "wildjailbreak",
-            }
-        )
+    prompt = str(record.get(prompt_column, "") or "").strip()
+    if not prompt:
+        return None
 
-    return results
+    row_id = str(record.get("id", idx))
+    return {
+        "id": f"{row_id}_{data_type}",
+        "prompt": prompt,
+        "data_type": data_type,
+        "source": "wildjailbreak",
+    }
 
 
 def main() -> None:
@@ -120,8 +119,15 @@ def main() -> None:
         print("ERROR: 'datasets' not installed. Run: pip install datasets", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Downloading {args.hf_dataset} (split={args.split}) …")
-    ds = load_dataset(args.hf_dataset, split=args.split, trust_remote_code=False)
+    print(f"Downloading {args.hf_dataset} (config={args.config_name}, split={args.split}) …")
+    ds = load_dataset(
+        args.hf_dataset,
+        args.config_name,
+        split=args.split,
+        delimiter="\t",
+        keep_default_na=False,
+        trust_remote_code=False,
+    )
 
     print(f"\nDataset schema:")
     print(f"  Features: {ds.features}")
@@ -141,7 +147,9 @@ def main() -> None:
 
     records: list[dict] = []
     for idx, row in enumerate(ds):
-        records.extend(normalise_record(dict(row), idx))
+        normalised = normalise_record(dict(row), idx)
+        if normalised is not None:
+            records.append(normalised)
 
     write_jsonl(output_path, records)
 
