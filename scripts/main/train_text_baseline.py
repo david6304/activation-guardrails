@@ -11,9 +11,9 @@ from pathlib import Path
 
 import yaml
 
-from agguardrails.baselines import fit_text_baseline
+from agguardrails.baselines import examples_to_text_and_labels, fit_text_baseline
 from agguardrails.data import read_prompt_dataset, split_prompt_dataset
-from agguardrails.eval import format_results_row
+from agguardrails.eval import format_results_row, summarize_scores_at_threshold
 from agguardrails.io import save_artifact, save_metadata
 
 
@@ -23,6 +23,14 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--config", default="configs/main/main.yaml")
     parser.add_argument("--dataset", default="data/processed/main_prompts.jsonl")
+    parser.add_argument(
+        "--adversarial-dataset",
+        default=None,
+        help=(
+            "Optional adversarial harmful-only JSONL. If provided, report recall "
+            "at the validation-selected threshold."
+        ),
+    )
     parser.add_argument(
         "--output-dir",
         default="artifacts/models/main/text_baseline",
@@ -71,22 +79,48 @@ def main() -> None:
         split="test",
         result=artifacts.test_result,
     )
+    adversarial_row = None
+    if args.adversarial_dataset is not None:
+        adversarial = read_prompt_dataset(args.adversarial_dataset)
+        adv_texts, y_adv = examples_to_text_and_labels(adversarial)
+        adv_scores = artifacts.pipeline.predict_proba(adv_texts)[:, 1]
+        adversarial_row = {
+            "model_name": "tfidf_lr",
+            "split": "adversarial",
+            **summarize_scores_at_threshold(
+                y_adv,
+                adv_scores,
+                threshold=artifacts.val_result.threshold,
+            ),
+        }
 
     metrics_dir = Path(args.metrics_dir)
     metrics_dir.mkdir(parents=True, exist_ok=True)
+    metadata_kwargs = {
+        "config_path": args.config,
+        "dataset_path": args.dataset,
+        "pipeline_path": str(pipeline_path),
+        "val_metrics": val_row,
+        "test_metrics": test_row,
+    }
+    if args.adversarial_dataset is not None:
+        metadata_kwargs["adversarial_dataset_path"] = args.adversarial_dataset
+        metadata_kwargs["adversarial_metrics"] = adversarial_row
     metadata_path = save_metadata(
         metrics_dir / "text_baseline_metrics.json",
-        config_path=args.config,
-        dataset_path=args.dataset,
-        pipeline_path=str(pipeline_path),
-        val_metrics=val_row,
-        test_metrics=test_row,
+        **metadata_kwargs,
     )
 
     print(f"Pipeline saved: {pipeline_path}")
     print(f"Metrics saved:  {metadata_path}")
     print(f"Val  ROC-AUC: {artifacts.val_result.roc_auc:.4f}  TPR@1%FPR: {artifacts.val_result.tpr_at_threshold:.4f}")
     print(f"Test ROC-AUC: {artifacts.test_result.roc_auc:.4f}  TPR@1%FPR: {artifacts.test_result.tpr_at_threshold:.4f}")
+    if adversarial_row is not None:
+        print(
+            "Adv  Recall@val-threshold:"
+            f" {adversarial_row['tpr_at_threshold']:.4f}"
+            f"  Positives: {adversarial_row['positive_predictions']}/{adversarial_row['n_examples']}"
+        )
 
 
 if __name__ == "__main__":

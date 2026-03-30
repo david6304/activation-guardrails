@@ -88,11 +88,16 @@ run_activations() {
 
 run_text() {
   log "--- stage: text baseline ---"
+  ADV_ARGS=()
+  if [[ -n "$ADVERSARIAL_DATASET" ]]; then
+    ADV_ARGS=(--adversarial-dataset "$ADVERSARIAL_DATASET")
+  fi
   python scripts/main/train_text_baseline.py \
     --config      "$CONFIG" \
     --dataset     "$DATASET" \
     --output-dir  "$TEXT_DIR" \
-    --metrics-dir "$METRICS_DIR"
+    --metrics-dir "$METRICS_DIR" \
+    "${ADV_ARGS[@]}"
   log "--- stage: text baseline done ---"
 }
 

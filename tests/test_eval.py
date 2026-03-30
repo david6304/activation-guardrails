@@ -5,6 +5,7 @@ import numpy as np
 from agguardrails.eval import (
     evaluate_binary_classifier,
     format_results_row,
+    summarize_scores_at_threshold,
     threshold_at_target_fpr,
 )
 
@@ -53,3 +54,24 @@ def test_format_results_row_flattens_result():
     assert row["split"] == "test"
     assert row["layer"] == "none"
     assert row["roc_auc"] == 1.0
+
+
+def test_summarize_scores_at_threshold_handles_single_class_split():
+    y_true = np.array([1, 1, 1])
+    y_score = np.array([0.9, 0.2, 0.8])
+
+    summary = summarize_scores_at_threshold(
+        y_true,
+        y_score,
+        threshold=0.5,
+    )
+
+    assert summary["threshold"] == 0.5
+    assert summary["roc_auc"] is None
+    assert summary["achieved_fpr"] == 0.0
+    assert summary["tpr_at_threshold"] == 2 / 3
+    assert summary["positive_predictions"] == 2
+    assert summary["positive_prediction_rate"] == 2 / 3
+    assert summary["n_examples"] == 3
+    assert summary["n_positive"] == 3
+    assert summary["n_negative"] == 0

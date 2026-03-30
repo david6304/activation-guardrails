@@ -180,12 +180,18 @@ def test_train_text_baseline_script_saves_pipeline_and_metrics(monkeypatch, tmp_
         PromptExample("val-1", "val benign", 0, "val", "wildjailbreak", "2", "vanilla_benign"),
         PromptExample("test-1", "test harmful", 1, "test", "wildjailbreak", "3", "vanilla_harmful"),
     ]
+    adversarial_dataset = [
+        PromptExample("adv-1", "adv harmful", 1, "test", "wildjailbreak", "4", "adversarial_harmful")
+    ]
     captured: dict[str, object] = {}
 
     val_result = BinaryEvalResult(0.8, 0.7, 0.0, 0.6, 1)
     test_result = BinaryEvalResult(0.75, 0.7, 0.0, 0.5, 1)
+    fake_pipeline = SimpleNamespace(
+        predict_proba=lambda texts: np.array([[0.1, 0.9] for _ in texts], dtype=np.float64),
+    )
     fake_artifacts = SimpleNamespace(
-        pipeline=object(),
+        pipeline=fake_pipeline,
         val_result=val_result,
         test_result=test_result,
     )
@@ -196,11 +202,16 @@ def test_train_text_baseline_script_saves_pipeline_and_metrics(monkeypatch, tmp_
         lambda: Namespace(
             config=str(config_path),
             dataset="main.jsonl",
+            adversarial_dataset="adv.jsonl",
             output_dir=str(tmp_path / "models"),
             metrics_dir=str(tmp_path / "metrics"),
         ),
     )
-    monkeypatch.setattr(train_text_baseline_script, "read_prompt_dataset", lambda path: dataset)
+    monkeypatch.setattr(
+        train_text_baseline_script,
+        "read_prompt_dataset",
+        lambda path: adversarial_dataset if path == "adv.jsonl" else dataset,
+    )
     monkeypatch.setattr(
         train_text_baseline_script,
         "split_prompt_dataset",
@@ -225,12 +236,18 @@ def test_train_text_baseline_script_saves_pipeline_and_metrics(monkeypatch, tmp_
     assert metadata["dataset_path"] == "main.jsonl"
     assert metadata["val_metrics"]["split"] == "val"
     assert metadata["test_metrics"]["split"] == "test"
+    assert metadata["adversarial_dataset_path"] == "adv.jsonl"
+    assert metadata["adversarial_metrics"]["split"] == "adversarial"
+    assert metadata["adversarial_metrics"]["tpr_at_threshold"] == 1.0
 
 
 def test_train_activation_probes_script_sweeps_layers_and_saves_metrics(monkeypatch, tmp_path):
     config_path = tmp_path / "main.yaml"
     _write_main_config(config_path, tmp_path / "unused.jsonl")
     captured: dict[str, object] = {"layers": [], "saved_paths": []}
+    acts_dir = tmp_path / "acts"
+    acts_dir.mkdir()
+    (acts_dir / "adversarial_labels.npz").write_bytes(b"placeholder")
 
     train = ActivationDataset(
         features_by_layer={9: np.ones((2, 2), dtype=np.float32), 20: np.ones((2, 2), dtype=np.float32)},
@@ -247,18 +264,26 @@ def test_train_activation_probes_script_sweeps_layers_and_saves_metrics(monkeypa
         labels=np.array([0, 1], dtype=np.int64),
         example_ids=["e", "f"],
     )
+    adversarial = ActivationDataset(
+        features_by_layer={9: np.ones((2, 2), dtype=np.float32), 20: np.ones((2, 2), dtype=np.float32)},
+        labels=np.array([1, 1], dtype=np.int64),
+        example_ids=["g", "h"],
+    )
 
     def fake_load_activation_split(*, input_dir, split, layers):
         assert layers == [9, 20]
-        return {"train": train, "val": val, "test": test}[split]
+        return {"train": train, "val": val, "test": test, "adversarial": adversarial}[split]
 
     def fake_fit_probe_for_layer(**kwargs):
         layer = kwargs["layer"]
         captured["layers"].append(layer)
         score = 0.6 if layer == 9 else 0.7
+        fake_probe = SimpleNamespace(
+            predict_proba=lambda x: np.array([[0.1, 0.9] for _ in range(len(x))], dtype=np.float64)
+        )
         return ProbeResult(
             layer=layer,
-            probe=object(),
+            probe=fake_probe,
             val_result=BinaryEvalResult(score, 0.5, 0.0, score, 1),
             test_result=BinaryEvalResult(score - 0.1, 0.5, 0.0, score - 0.1, 1),
         )
@@ -268,7 +293,7 @@ def test_train_activation_probes_script_sweeps_layers_and_saves_metrics(monkeypa
         "parse_args",
         lambda: Namespace(
             config=str(config_path),
-            input_dir="acts",
+            input_dir=str(acts_dir),
             output_dir=str(tmp_path / "probes"),
             metrics_dir=str(tmp_path / "metrics"),
         ),
@@ -293,3 +318,5 @@ def test_train_activation_probes_script_sweeps_layers_and_saves_metrics(monkeypa
     assert any("layer_20_probe" in path for path in captured["saved_paths"])
     assert captured["metadata"]["best_layer"] == 20
     assert set(captured["metadata"]["per_layer"].keys()) == {"9", "20"}
+    assert captured["metadata"]["best_adversarial_metrics"]["split"] == "adversarial"
+    assert captured["metadata"]["per_layer"]["9"]["adversarial"]["tpr_at_threshold"] == 1.0

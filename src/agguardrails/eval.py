@@ -60,6 +60,45 @@ def evaluate_binary_classifier(
     )
 
 
+def summarize_scores_at_threshold(
+    y_true: np.ndarray,
+    y_score: np.ndarray,
+    *,
+    threshold: float,
+) -> dict[str, float | int | None]:
+    """Summarise classifier behaviour at a fixed pre-selected threshold.
+
+    This is used when a threshold is chosen on validation and then transferred
+    unchanged to another split such as test or adversarial holdout.
+    """
+    y_true = np.asarray(y_true)
+    y_score = np.asarray(y_score)
+    y_pred = y_score >= threshold
+
+    n_examples = int(len(y_true))
+    n_positive = int((y_true == 1).sum())
+    n_negative = int((y_true == 0).sum())
+    positive_predictions = int(y_pred.sum())
+    tpr = float(((y_pred == 1) & (y_true == 1)).sum() / max(n_positive, 1))
+    fpr = float(((y_pred == 1) & (y_true == 0)).sum() / max(n_negative, 1))
+
+    roc_auc: float | None = None
+    if len(np.unique(y_true)) > 1:
+        roc_auc = float(roc_auc_score(y_true, y_score))
+
+    return {
+        "threshold": float(threshold),
+        "roc_auc": roc_auc,
+        "achieved_fpr": fpr,
+        "tpr_at_threshold": tpr,
+        "positive_predictions": positive_predictions,
+        "positive_prediction_rate": float(positive_predictions / max(n_examples, 1)),
+        "n_examples": n_examples,
+        "n_positive": n_positive,
+        "n_negative": n_negative,
+    }
+
+
 def format_results_row(
     *,
     model_name: str,
