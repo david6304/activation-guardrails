@@ -5,8 +5,16 @@ from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
+import torch
 
-from agguardrails.features import ActivationDataset, load_activation_split, save_activation_dataset, validate_layer_indices
+from agguardrails.data import PromptExample
+from agguardrails.features import (
+    ActivationDataset,
+    extract_last_token_hidden_states,
+    load_activation_split,
+    save_activation_dataset,
+    validate_layer_indices,
+)
 
 
 def _mock_model(num_hidden_layers: int) -> MagicMock:
@@ -48,3 +56,53 @@ def test_save_and_load_activation_split_round_trip(tmp_path):
     np.testing.assert_array_equal(loaded.features_by_layer[16], dataset.features_by_layer[16])
     np.testing.assert_array_equal(loaded.labels, dataset.labels)
     assert loaded.example_ids == dataset.example_ids
+
+
+def test_extract_last_token_hidden_states_casts_bfloat16_to_float32(monkeypatch):
+    class FakeTokenizer:
+        def __call__(self, prompts, return_tensors, padding, truncation, max_length):
+            assert prompts == ["formatted::alpha", "formatted::beta"]
+            return {
+                "input_ids": torch.tensor([[10, 11, 12], [20, 21, 22]], dtype=torch.int64),
+                "attention_mask": torch.tensor([[1, 1, 1], [1, 1, 1]], dtype=torch.int64),
+            }
+
+    class FakeModel:
+        device = torch.device("cpu")
+
+        def __call__(self, **kwargs):
+            batch = kwargs["input_ids"].shape[0]
+            seq_len = kwargs["input_ids"].shape[1]
+            hidden_states = []
+            for layer_idx in range(3):
+                values = torch.arange(
+                    batch * seq_len * 2,
+                    dtype=torch.float32,
+                ).reshape(batch, seq_len, 2) + layer_idx
+                hidden_states.append(values.to(torch.bfloat16))
+            return SimpleNamespace(hidden_states=tuple(hidden_states))
+
+    examples = [
+        PromptExample("ex-1", "alpha", 1, "train", "wildjailbreak", "1", "vanilla_harmful"),
+        PromptExample("ex-2", "beta", 0, "train", "wildjailbreak", "2", "vanilla_benign"),
+    ]
+
+    monkeypatch.setattr(
+        "agguardrails.features.format_prompt",
+        lambda tokenizer, prompt: f"formatted::{prompt}",
+    )
+
+    dataset = extract_last_token_hidden_states(
+        model=FakeModel(),
+        tokenizer=FakeTokenizer(),
+        examples=examples,
+        layers=[1, 2],
+        batch_size=2,
+        max_length=16,
+    )
+
+    assert dataset.features_by_layer[1].dtype == np.float32
+    assert dataset.features_by_layer[2].dtype == np.float32
+    assert dataset.features_by_layer[1].shape == (2, 2)
+    np.testing.assert_array_equal(dataset.labels, np.array([1, 0], dtype=np.int64))
+    assert dataset.example_ids == ["ex-1", "ex-2"]

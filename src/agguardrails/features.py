@@ -74,7 +74,12 @@ def extract_last_token_hidden_states(
                 torch.arange(hidden.size(0), device=hidden.device),
                 last_positions,
             ]
-            all_features[layer].append(batch_vectors.detach().cpu().numpy().astype(np.float32))
+            # NumPy cannot reliably materialise some PyTorch dtypes such as
+            # bfloat16 directly. Cast in torch first so model dtype choices
+            # (for example Gemma in bfloat16) do not break extraction.
+            all_features[layer].append(
+                batch_vectors.detach().to(dtype=torch.float32).cpu().numpy()
+            )
 
         labels.extend(example.label for example in batch_examples)
         example_ids.extend(example.example_id for example in batch_examples)
