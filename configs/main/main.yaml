@@ -1,0 +1,64 @@
+# Main experiment config
+# Compare text-only (TF-IDF + LR) vs dense activation probe vs SAE probe
+# on WildJailbreak (Jiang et al., NeurIPS 2024) using Gemma 2 9B IT.
+#
+# Model choice: Gemma 2 9B IT — Gemma Scope provides pre-trained SAEs at
+# layers 9/20/31 for the instruct model (and all 42 layers for the base model).
+#
+# Benchmark choice: WildJailbreak vanilla split — benign prompts are
+# surface-form similar to harmful prompts, defeating lexical classifiers.
+# Adversarial split provides the held-out obfuscation test set.
+
+seed: 42
+
+model:
+  name: "google/gemma-2-9b-it"
+  dtype: "bfloat16"  # Gemma 2 9B recommended dtype
+
+data:
+  wildjailbreak_path: "data/raw/wildjailbreak/wildjailbreak.jsonl"
+  # Train/val pool: vanilla harmful + vanilla benign (balanced)
+  n_vanilla_harmful: 2000
+  n_vanilla_benign: 2000
+  # Adversarial held-out test set
+  n_adversarial: 1000
+  splits:
+    train: 0.70
+    val: 0.15
+    test: 0.15
+
+features:
+  # Layer sweep for dense probe: covers Gemma Scope IT layers + additional
+  # Gemma 2 9B IT has 42 transformer layers (hidden state indices 0–42)
+  # Gemma Scope IT SAE layers: 9, 20, 31
+  # Additional layers for dense probe sweep to find best layer
+  layers: [9, 15, 20, 25, 31, 36, 41]
+  token_position: "last"
+  batch_size: 16  # Smaller batch for 9B model (vs 32 for 7B)
+  max_length: 512
+
+probe:
+  model: "logistic_regression"
+  C: 1.0
+  max_iter: 1000
+
+baseline:
+  model: "tfidf_lr"
+  max_features: 10000
+  C: 1.0
+
+eval:
+  primary_metric: "tpr_at_fpr"
+  target_fpr: 0.01
+  secondary_metric: "roc_auc"
+
+# SAE configuration (used in Phase C)
+sae:
+  # Gemma Scope IT layers with pre-trained SAEs
+  # https://huggingface.co/google/gemma-scope-9b-it-res
+  layers: [9, 20, 31]
+  # SAE width (number of features); 16K is a reasonable starting point
+  # Gemma Scope provides widths: 16K, 32K, 65K, 131K
+  width: 16384
+  # SAELens release ID for Gemma Scope IT residual stream SAEs
+  release: "gemma-scope-9b-it-res"

@@ -5,8 +5,11 @@ from collections import Counter
 import pytest
 
 from agguardrails.data import (
+    build_adversarial_test_set,
+    build_main_dataset,
     build_mvp_dataset,
     load_harmbench_examples,
+    load_wildjailbreak_examples,
     load_xstest_examples,
     make_stratified_splits,
     sample_examples,
@@ -92,6 +95,121 @@ def test_make_stratified_splits_preserves_label_balance():
     assert split_label_counts[("test", 1)] == 3
     assert split_label_counts[("test", 0)] == 3
 
+
+# ---------------------------------------------------------------------------
+# WildJailbreak tests
+# ---------------------------------------------------------------------------
+
+def _write_wildjailbreak_jsonl(path, records):
+    """Helper: write normalised WildJailbreak JSONL for testing."""
+    write_jsonl(path, records)
+
+
+def _wj_records():
+    """Minimal normalised WildJailbreak records covering all three data_types."""
+    return [
+        {"id": f"h{i}", "prompt": f"harmful {i}", "data_type": "vanilla_harmful", "source": "wildjailbreak"}
+        for i in range(6)
+    ] + [
+        {"id": f"b{i}", "prompt": f"benign {i}", "data_type": "vanilla_benign", "source": "wildjailbreak"}
+        for i in range(6)
+    ] + [
+        {"id": f"a{i}", "prompt": f"adversarial {i}", "data_type": "adversarial_harmful", "source": "wildjailbreak"}
+        for i in range(4)
+    ] + [
+        # empty prompt should be skipped
+        {"id": "empty", "prompt": "  ", "data_type": "vanilla_harmful", "source": "wildjailbreak"},
+    ]
+
+
+def test_load_wildjailbreak_examples_filters_data_type(tmp_path):
+    path = tmp_path / "wildjailbreak.jsonl"
+    _write_wildjailbreak_jsonl(path, _wj_records())
+
+    harmful = load_wildjailbreak_examples(path, data_type="vanilla_harmful")
+    benign = load_wildjailbreak_examples(path, data_type="vanilla_benign")
+    adversarial = load_wildjailbreak_examples(path, data_type="adversarial_harmful")
+
+    assert len(harmful) == 6
+    assert len(benign) == 6
+    assert len(adversarial) == 4
+
+
+def test_load_wildjailbreak_examples_assigns_labels(tmp_path):
+    path = tmp_path / "wildjailbreak.jsonl"
+    _write_wildjailbreak_jsonl(path, _wj_records())
+
+    harmful = load_wildjailbreak_examples(path, data_type="vanilla_harmful")
+    benign = load_wildjailbreak_examples(path, data_type="vanilla_benign")
+    adversarial = load_wildjailbreak_examples(path, data_type="adversarial_harmful")
+
+    assert all(e["label"] == 1 for e in harmful)
+    assert all(e["label"] == 0 for e in benign)
+    assert all(e["label"] == 1 for e in adversarial)
+
+
+def test_load_wildjailbreak_examples_skips_empty_prompts(tmp_path):
+    path = tmp_path / "wildjailbreak.jsonl"
+    _write_wildjailbreak_jsonl(path, _wj_records())
+    # _wj_records includes one vanilla_harmful with empty prompt → should be excluded
+    harmful = load_wildjailbreak_examples(path, data_type="vanilla_harmful")
+    assert all(e["prompt"].strip() for e in harmful)
+
+
+def test_load_wildjailbreak_examples_raises_on_invalid_type(tmp_path):
+    path = tmp_path / "wildjailbreak.jsonl"
+    _write_wildjailbreak_jsonl(path, [])
+    with pytest.raises(ValueError, match="data_type must be one of"):
+        load_wildjailbreak_examples(path, data_type="unknown_type")
+
+
+def test_build_main_dataset_split_sizes_and_balance(tmp_path):
+    path = tmp_path / "wildjailbreak.jsonl"
+    # 20 harmful + 20 benign → ample for 70/15/15 split
+    records = (
+        [{"id": f"h{i}", "prompt": f"harmful {i}", "data_type": "vanilla_harmful", "source": "wildjailbreak"} for i in range(20)]
+        + [{"id": f"b{i}", "prompt": f"benign {i}", "data_type": "vanilla_benign", "source": "wildjailbreak"} for i in range(20)]
+    )
+    _write_wildjailbreak_jsonl(path, records)
+
+    dataset = build_main_dataset(
+        wildjailbreak_path=path,
+        n_vanilla_harmful=20,
+        n_vanilla_benign=20,
+        train_size=0.70,
+        val_size=0.15,
+        test_size=0.15,
+        seed=42,
+    )
+
+    assert len(dataset) == 40
+    counts = Counter((e.split, e.label) for e in dataset)
+    # Stratified: each split should have equal harmful/benign counts
+    assert counts[("train", 1)] == counts[("train", 0)]
+    assert counts[("val", 1)] == counts[("val", 0)]
+    assert counts[("test", 1)] == counts[("test", 0)]
+
+
+def test_build_adversarial_test_set(tmp_path):
+    path = tmp_path / "wildjailbreak.jsonl"
+    records = [
+        {"id": f"a{i}", "prompt": f"adversarial {i}", "data_type": "adversarial_harmful", "source": "wildjailbreak"}
+        for i in range(10)
+    ]
+    _write_wildjailbreak_jsonl(path, records)
+
+    test_set = build_adversarial_test_set(wildjailbreak_path=path, n_adversarial=8)
+
+    assert len(test_set) == 8
+    assert all(e.split == "test" for e in test_set)
+    assert all(e.label == 1 for e in test_set)
+    assert all(e.source == "wildjailbreak" for e in test_set)
+    assert all(e.source_label == "adversarial_harmful" for e in test_set)
+
+
+# ---------------------------------------------------------------------------
+# Legacy MVP tests
+# ---------------------------------------------------------------------------
 
 def test_build_mvp_dataset_and_write_round_trip(tmp_path):
     harmful_path = tmp_path / "harmbench.jsonl"
