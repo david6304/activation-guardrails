@@ -16,6 +16,7 @@ from agguardrails.io import read_jsonl, read_jsonl as _read_jsonl, write_jsonl
 from agguardrails.probes import ProbeResult
 from scripts.main import (
     build_dataset as build_dataset_script,
+    encode_sae_features as encode_sae_features_script,
     extract_activations as extract_activations_script,
     train_activation_probes as train_activation_probes_script,
     train_text_baseline as train_text_baseline_script,
@@ -39,6 +40,11 @@ def _write_main_config(path: Path, wildjailbreak_path: Path) -> None:
                 "probe": {"C": 1.0, "max_iter": 200},
                 "baseline": {"max_features": 100, "C": 0.5},
                 "eval": {"target_fpr": 0.01},
+                "sae": {
+                    "layers": [9, 20],
+                    "width": 16384,
+                    "release": "gemma-scope-9b-it-res",
+                },
             }
         )
     )
@@ -320,3 +326,73 @@ def test_train_activation_probes_script_sweeps_layers_and_saves_metrics(monkeypa
     assert set(captured["metadata"]["per_layer"].keys()) == {"9", "20"}
     assert captured["metadata"]["best_adversarial_metrics"]["split"] == "adversarial"
     assert captured["metadata"]["per_layer"]["9"]["adversarial"]["tpr_at_threshold"] == 1.0
+
+
+def test_encode_sae_features_script_encodes_requested_splits(monkeypatch, tmp_path):
+    config_path = tmp_path / "main.yaml"
+    _write_main_config(config_path, tmp_path / "unused.jsonl")
+    captured: dict[str, object] = {"saved": [], "loaded": []}
+
+    dataset = ActivationDataset(
+        features_by_layer={
+            9: np.ones((2, 3), dtype=np.float32),
+            20: np.ones((2, 3), dtype=np.float32) * 2,
+        },
+        labels=np.array([0, 1], dtype=np.int64),
+        example_ids=["a", "b"],
+    )
+
+    monkeypatch.setattr(
+        encode_sae_features_script,
+        "parse_args",
+        lambda: Namespace(
+            config=str(config_path),
+            input_dir="acts",
+            output_dir=str(tmp_path / "sae"),
+            splits=["train"],
+            batch_size=32,
+            device="cpu",
+            dtype="float32",
+        ),
+    )
+    monkeypatch.setattr(
+        encode_sae_features_script,
+        "load_activation_split",
+        lambda input_dir, split, layers: dataset,
+    )
+
+    def fake_load_pretrained_sae(**kwargs):
+        captured["loaded"].append((kwargs["release"], kwargs["sae_id"]))
+        return object()
+
+    monkeypatch.setattr(
+        encode_sae_features_script,
+        "load_pretrained_sae",
+        fake_load_pretrained_sae,
+    )
+    monkeypatch.setattr(
+        encode_sae_features_script,
+        "encode_with_sae",
+        lambda sae, activations, batch_size: activations + 3,
+    )
+    monkeypatch.setattr(
+        encode_sae_features_script,
+        "save_artifact",
+        lambda obj, path: captured["saved"].append(str(path)) or Path(path).with_suffix(".npz"),
+    )
+    monkeypatch.setattr(
+        encode_sae_features_script,
+        "save_metadata",
+        lambda path, **kwargs: captured.setdefault("metadata", kwargs),
+    )
+
+    encode_sae_features_script.main()
+
+    assert captured["loaded"] == [
+        ("gemma-scope-9b-it-res", "layer_9/width_16k/canonical"),
+        ("gemma-scope-9b-it-res", "layer_20/width_16k/canonical"),
+    ]
+    assert any("train_layer_9_sae_features" in path for path in captured["saved"])
+    assert any("train_layer_20_sae_features" in path for path in captured["saved"])
+    assert captured["metadata"]["split"] == "train"
+    assert captured["metadata"]["layers"] == [9, 20]

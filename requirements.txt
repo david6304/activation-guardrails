@@ -12,6 +12,7 @@ safetensors>=0.4
 datasets>=2.20
 huggingface-hub>=0.24
 sentencepiece>=0.2
+sae-lens>=6.28
 
 # Experiment / config / utilities
 PyYAML>=6.0
