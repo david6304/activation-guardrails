@@ -2,12 +2,14 @@
 # Run the SAE follow-on pipeline stages for the main experiment.
 #
 # Stages:
+#   cache   — head-node cache prefetch of SAE weights from Hugging Face
 #   encode  — GPU-intensive SAE feature encoding from cached dense activations
 #   probes  — CPU-only SAE probe training on encoded SAE features
 #   report  — CPU-only results-table refresh including SAE probe metrics
 #   all     — encode → probes → report
 #
 # Usage:
+#   bash scripts/cluster/run_sae_pipeline.sh --stage cache
 #   bash scripts/cluster/run_sae_pipeline.sh --stage encode
 #   bash scripts/cluster/run_sae_pipeline.sh --stage probes
 #   bash scripts/cluster/run_sae_pipeline.sh --stage report
@@ -68,15 +70,34 @@ nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null \
 export HF_HOME="$MODEL_CACHE"
 export HUGGINGFACE_HUB_CACHE="${MODEL_CACHE}/hub"
 export TRANSFORMERS_CACHE="${MODEL_CACHE}/transformers"
-export HF_HUB_OFFLINE=1
-export TRANSFORMERS_OFFLINE=1
 
 if [[ -n "$SCRATCH_DIR" ]]; then
   mkdir -p "$SCRATCH_DIR"
 fi
 
+enable_offline_mode() {
+  export HF_HUB_OFFLINE=1
+  export TRANSFORMERS_OFFLINE=1
+}
+
+disable_offline_mode() {
+  unset HF_HUB_OFFLINE || true
+  unset TRANSFORMERS_OFFLINE || true
+}
+
+run_cache() {
+  log "--- stage: cache ---"
+  disable_offline_mode
+  python scripts/main/cache_sae_models.py \
+    --config "$CONFIG" \
+    --device cpu \
+    --dtype "$DTYPE"
+  log "--- stage: cache done ---"
+}
+
 run_encode() {
   log "--- stage: encode ---"
+  enable_offline_mode
   python scripts/main/encode_sae_features.py \
     --config "$CONFIG" \
     --input-dir "$INPUT_DIR" \
@@ -90,6 +111,7 @@ run_encode() {
 
 run_probes() {
   log "--- stage: probes ---"
+  enable_offline_mode
   python scripts/main/train_sae_probes.py \
     --config "$CONFIG" \
     --input-dir "$FEATURE_DIR" \
@@ -100,6 +122,7 @@ run_probes() {
 
 run_report() {
   log "--- stage: report ---"
+  enable_offline_mode
   python scripts/main/make_results_table.py \
     --config "$CONFIG" \
     --text-metrics "${METRICS_DIR}/text_baseline_metrics.json" \
@@ -110,6 +133,7 @@ run_report() {
 }
 
 case "$STAGE" in
+  cache) run_cache ;;
   encode) run_encode ;;
   probes) run_probes ;;
   report) run_report ;;
@@ -119,7 +143,7 @@ case "$STAGE" in
     run_report
     ;;
   *)
-    echo "Unknown stage: $STAGE (valid: encode, probes, report, all)" >&2
+    echo "Unknown stage: $STAGE (valid: cache, encode, probes, report, all)" >&2
     exit 1
     ;;
 esac

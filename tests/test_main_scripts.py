@@ -17,6 +17,7 @@ from agguardrails.io import read_jsonl, read_jsonl as _read_jsonl, write_jsonl
 from agguardrails.probes import ProbeResult
 from scripts.main import (
     build_dataset as build_dataset_script,
+    cache_sae_models as cache_sae_models_script,
     encode_sae_features as encode_sae_features_script,
     extract_activations as extract_activations_script,
     make_results_table as make_results_table_script,
@@ -410,6 +411,34 @@ def test_encode_sae_features_script_encodes_requested_splits(monkeypatch, tmp_pa
     assert summary_meta[1]["layers"] == [9, 20]
     assert summary_meta[1]["variant"] == "average_l0_14"
     assert summary_meta[1]["splits"]["train"]["n_examples"] == 2
+
+
+def test_cache_sae_models_script_loads_all_configured_saes(monkeypatch, tmp_path):
+    config_path = tmp_path / "main.yaml"
+    _write_main_config(config_path, tmp_path / "unused.jsonl")
+    captured: dict[str, object] = {"loaded": []}
+
+    monkeypatch.setattr(
+        cache_sae_models_script,
+        "parse_args",
+        lambda: Namespace(
+            config=str(config_path),
+            device="cpu",
+            dtype="float32",
+        ),
+    )
+    monkeypatch.setattr(
+        cache_sae_models_script,
+        "load_pretrained_sae",
+        lambda **kwargs: captured["loaded"].append((kwargs["release"], kwargs["sae_id"])),
+    )
+
+    cache_sae_models_script.main()
+
+    assert captured["loaded"] == [
+        ("gemma-scope-9b-it-res", "layer_9/width_16k/average_l0_14"),
+        ("gemma-scope-9b-it-res", "layer_20/width_16k/average_l0_14"),
+    ]
 
 
 def test_train_sae_probes_script_sweeps_sae_layers_and_saves_metrics(monkeypatch, tmp_path):
