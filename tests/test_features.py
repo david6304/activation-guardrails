@@ -12,6 +12,7 @@ from agguardrails.features import (
     ActivationDataset,
     extract_last_token_hidden_states,
     load_activation_split,
+    load_layer_feature_split,
     save_activation_dataset,
     validate_layer_indices,
 )
@@ -56,6 +57,35 @@ def test_save_and_load_activation_split_round_trip(tmp_path):
     np.testing.assert_array_equal(loaded.features_by_layer[16], dataset.features_by_layer[16])
     np.testing.assert_array_equal(loaded.labels, dataset.labels)
     assert loaded.example_ids == dataset.example_ids
+
+
+def test_load_layer_feature_split_with_custom_feature_name(tmp_path):
+    np.savez_compressed(
+        tmp_path / "train_layer_9_sae_features.npz",
+        data=np.array([[1.0, 2.0]], dtype=np.float32),
+    )
+    np.savez_compressed(
+        tmp_path / "train_labels.npz",
+        data=np.array([1], dtype=np.int64),
+    )
+    np.savez_compressed(
+        tmp_path / "train_ids.npz",
+        data=np.array(["ex-1"]),
+    )
+
+    loaded = load_layer_feature_split(
+        input_dir=tmp_path,
+        split="train",
+        layers=[9],
+        feature_name="sae_features",
+    )
+
+    np.testing.assert_array_equal(
+        loaded.features_by_layer[9],
+        np.array([[1.0, 2.0]], dtype=np.float32),
+    )
+    np.testing.assert_array_equal(loaded.labels, np.array([1], dtype=np.int64))
+    assert loaded.example_ids == ["ex-1"]
 
 
 def test_extract_last_token_hidden_states_casts_bfloat16_to_float32(monkeypatch):

@@ -135,10 +135,26 @@ def load_activation_split(
     split: str,
     layers: list[int],
 ) -> ActivationDataset:
-    """Load cached activation features, labels, and ids for one split."""
+    """Load cached dense activation features, labels, and ids for one split."""
+    return load_layer_feature_split(
+        input_dir=input_dir,
+        split=split,
+        layers=layers,
+        feature_name="features",
+    )
+
+
+def load_layer_feature_split(
+    *,
+    input_dir: str | Path,
+    split: str,
+    layers: list[int],
+    feature_name: str,
+) -> ActivationDataset:
+    """Load cached per-layer features, labels, and ids for one split."""
     input_dir = Path(input_dir)
     features_by_layer = {
-        layer: load_artifact(input_dir / f"{split}_layer_{layer}_features.npz")
+        layer: load_artifact(input_dir / f"{split}_layer_{layer}_{feature_name}.npz")
         for layer in layers
     }
     labels = load_artifact(input_dir / f"{split}_labels.npz")

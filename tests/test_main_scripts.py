@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from argparse import Namespace
 from pathlib import Path
 from types import SimpleNamespace
@@ -18,7 +19,9 @@ from scripts.main import (
     build_dataset as build_dataset_script,
     encode_sae_features as encode_sae_features_script,
     extract_activations as extract_activations_script,
+    make_results_table as make_results_table_script,
     train_activation_probes as train_activation_probes_script,
+    train_sae_probes as train_sae_probes_script,
     train_text_baseline as train_text_baseline_script,
 )
 
@@ -404,3 +407,166 @@ def test_encode_sae_features_script_encodes_requested_splits(monkeypatch, tmp_pa
     assert summary_meta[0].endswith("metrics/sae_encoding_summary.json")
     assert summary_meta[1]["layers"] == [9, 20]
     assert summary_meta[1]["splits"]["train"]["n_examples"] == 2
+
+
+def test_train_sae_probes_script_sweeps_sae_layers_and_saves_metrics(monkeypatch, tmp_path):
+    config_path = tmp_path / "main.yaml"
+    _write_main_config(config_path, tmp_path / "unused.jsonl")
+    captured: dict[str, object] = {"layers": [], "saved_paths": []}
+    features_dir = tmp_path / "sae"
+    features_dir.mkdir()
+    (features_dir / "adversarial_labels.npz").write_bytes(b"placeholder")
+
+    train = ActivationDataset(
+        features_by_layer={9: np.ones((2, 2), dtype=np.float32), 20: np.ones((2, 2), dtype=np.float32)},
+        labels=np.array([0, 1], dtype=np.int64),
+        example_ids=["a", "b"],
+    )
+    val = ActivationDataset(
+        features_by_layer={9: np.ones((2, 2), dtype=np.float32), 20: np.ones((2, 2), dtype=np.float32)},
+        labels=np.array([0, 1], dtype=np.int64),
+        example_ids=["c", "d"],
+    )
+    test = ActivationDataset(
+        features_by_layer={9: np.ones((2, 2), dtype=np.float32), 20: np.ones((2, 2), dtype=np.float32)},
+        labels=np.array([0, 1], dtype=np.int64),
+        example_ids=["e", "f"],
+    )
+    adversarial = ActivationDataset(
+        features_by_layer={9: np.ones((2, 2), dtype=np.float32), 20: np.ones((2, 2), dtype=np.float32)},
+        labels=np.array([1, 1], dtype=np.int64),
+        example_ids=["g", "h"],
+    )
+
+    def fake_load_layer_feature_split(*, input_dir, split, layers, feature_name):
+        assert layers == [9, 20]
+        assert feature_name == "sae_features"
+        return {"train": train, "val": val, "test": test, "adversarial": adversarial}[split]
+
+    def fake_fit_probe_for_layer(**kwargs):
+        layer = kwargs["layer"]
+        captured["layers"].append(layer)
+        score = 0.61 if layer == 9 else 0.74
+        fake_probe = SimpleNamespace(
+            predict_proba=lambda x: np.array([[0.2, 0.8] for _ in range(len(x))], dtype=np.float64)
+        )
+        return ProbeResult(
+            layer=layer,
+            probe=fake_probe,
+            val_result=BinaryEvalResult(score, 0.5, 0.0, score, 1),
+            test_result=BinaryEvalResult(score - 0.1, 0.5, 0.0, score - 0.1, 1),
+        )
+
+    monkeypatch.setattr(
+        train_sae_probes_script,
+        "parse_args",
+        lambda: Namespace(
+            config=str(config_path),
+            input_dir=str(features_dir),
+            output_dir=str(tmp_path / "sae_probes"),
+            metrics_dir=str(tmp_path / "metrics"),
+        ),
+    )
+    monkeypatch.setattr(
+        train_sae_probes_script,
+        "load_layer_feature_split",
+        fake_load_layer_feature_split,
+    )
+    monkeypatch.setattr(train_sae_probes_script, "fit_probe_for_layer", fake_fit_probe_for_layer)
+    monkeypatch.setattr(
+        train_sae_probes_script,
+        "save_artifact",
+        lambda obj, path: captured["saved_paths"].append(str(path)),
+    )
+    monkeypatch.setattr(
+        train_sae_probes_script,
+        "save_metadata",
+        lambda path, **kwargs: captured.setdefault("metadata", kwargs),
+    )
+
+    train_sae_probes_script.main()
+
+    assert captured["layers"] == [9, 20]
+    assert any("layer_9_sae_probe" in path for path in captured["saved_paths"])
+    assert any("layer_20_sae_probe" in path for path in captured["saved_paths"])
+    assert captured["metadata"]["best_layer"] == 20
+    assert captured["metadata"]["release"] == "gemma-scope-9b-it-res"
+    assert captured["metadata"]["width"] == 16384
+    assert set(captured["metadata"]["per_layer"].keys()) == {"9", "20"}
+    assert captured["metadata"]["best_adversarial_metrics"]["split"] == "adversarial"
+    assert captured["metadata"]["per_layer"]["9"]["adversarial"]["tpr_at_threshold"] == 1.0
+
+
+def test_main_results_table_script_writes_all_available_rows(monkeypatch, tmp_path):
+    text_metrics = tmp_path / "text.json"
+    probe_metrics = tmp_path / "probe.json"
+    sae_metrics = tmp_path / "sae.json"
+    output_path = tmp_path / "results.csv"
+    captured: dict[str, object] = {}
+
+    text_metrics.write_text(
+        json.dumps(
+            {
+                "val_metrics": {"model_name": "tfidf_lr", "split": "val", "roc_auc": 0.9},
+                "test_metrics": {"model_name": "tfidf_lr", "split": "test", "roc_auc": 0.8},
+                "adversarial_metrics": {
+                    "model_name": "tfidf_lr",
+                    "split": "adversarial",
+                    "tpr_at_threshold": 0.7,
+                },
+            }
+        )
+    )
+    probe_metrics.write_text(
+        json.dumps(
+            {
+                "best_layer": 20,
+                "per_layer": {
+                    "20": {
+                        "val": {"model_name": "dense_probe", "split": "val", "layer": 20},
+                        "test": {"model_name": "dense_probe", "split": "test", "layer": 20},
+                    }
+                },
+            }
+        )
+    )
+    sae_metrics.write_text(
+        json.dumps(
+            {
+                "best_layer": 9,
+                "per_layer": {
+                    "9": {
+                        "val": {"model_name": "sae_probe", "split": "val", "layer": 9},
+                        "test": {"model_name": "sae_probe", "split": "test", "layer": 9},
+                        "adversarial": {
+                            "model_name": "sae_probe",
+                            "split": "adversarial",
+                            "layer": 9,
+                        },
+                    }
+                },
+            }
+        )
+    )
+
+    monkeypatch.setattr(
+        make_results_table_script,
+        "parse_args",
+        lambda: Namespace(
+            config="configs/main/main.yaml",
+            text_metrics=str(text_metrics),
+            probe_metrics=str(probe_metrics),
+            sae_probe_metrics=str(sae_metrics),
+            output=str(output_path),
+        ),
+    )
+    monkeypatch.setattr(
+        make_results_table_script,
+        "save_metadata",
+        lambda path, **kwargs: captured.setdefault("metadata", kwargs),
+    )
+
+    make_results_table_script.main()
+
+    assert output_path.exists()
+    assert captured["metadata"]["n_rows"] == 8
