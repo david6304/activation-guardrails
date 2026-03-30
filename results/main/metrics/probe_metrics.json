@@ -1,0 +1,163 @@
+{
+  "git_hash": "c8c29df",
+  "timestamp": "2026-03-30T15:21:27Z",
+  "config_path": "configs/main/main.yaml",
+  "input_dir": "artifacts/activations/main",
+  "best_layer": 20,
+  "per_layer": {
+    "9": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9441055555555556,
+        "threshold": 0.9996814678813998,
+        "achieved_fpr": 0.01,
+        "tpr_at_threshold": 0.5566666666666666,
+        "positive_predictions": 170,
+        "layer": 9
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9512444444444446,
+        "threshold": 0.9996814678813998,
+        "achieved_fpr": 0.023333333333333334,
+        "tpr_at_threshold": 0.4866666666666667,
+        "positive_predictions": 153,
+        "layer": 9
+      }
+    },
+    "15": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9478277777777778,
+        "threshold": 0.9999955905543152,
+        "achieved_fpr": 0.01,
+        "tpr_at_threshold": 0.53,
+        "positive_predictions": 162,
+        "layer": 15
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9551555555555556,
+        "threshold": 0.9999955905543152,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.47,
+        "positive_predictions": 141,
+        "layer": 15
+      }
+    },
+    "20": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9457055555555555,
+        "threshold": 0.9999985934462863,
+        "achieved_fpr": 0.01,
+        "tpr_at_threshold": 0.56,
+        "positive_predictions": 171,
+        "layer": 20
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9352,
+        "threshold": 0.9999985934462863,
+        "achieved_fpr": 0.016666666666666666,
+        "tpr_at_threshold": 0.5133333333333333,
+        "positive_predictions": 159,
+        "layer": 20
+      }
+    },
+    "25": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9365166666666667,
+        "threshold": 0.9999999911595713,
+        "achieved_fpr": 0.006666666666666667,
+        "tpr_at_threshold": 0.4666666666666667,
+        "positive_predictions": 142,
+        "layer": 25
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9496555555555556,
+        "threshold": 0.9999999911595713,
+        "achieved_fpr": 0.0033333333333333335,
+        "tpr_at_threshold": 0.41,
+        "positive_predictions": 124,
+        "layer": 25
+      }
+    },
+    "31": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9054444444444444,
+        "threshold": 0.999999999995669,
+        "achieved_fpr": 0.01,
+        "tpr_at_threshold": 0.39,
+        "positive_predictions": 120,
+        "layer": 31
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9209333333333333,
+        "threshold": 0.999999999995669,
+        "achieved_fpr": 0.006666666666666667,
+        "tpr_at_threshold": 0.33666666666666667,
+        "positive_predictions": 103,
+        "layer": 31
+      }
+    },
+    "36": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.8959944444444444,
+        "threshold": 0.9999999999999993,
+        "achieved_fpr": 0.01,
+        "tpr_at_threshold": 0.2966666666666667,
+        "positive_predictions": 92,
+        "layer": 36
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9128333333333334,
+        "threshold": 0.9999999999999993,
+        "achieved_fpr": 0.013333333333333334,
+        "tpr_at_threshold": 0.29333333333333333,
+        "positive_predictions": 92,
+        "layer": 36
+      }
+    },
+    "41": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.8915055555555556,
+        "threshold": Infinity,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.0,
+        "positive_predictions": 0,
+        "layer": 41
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9025166666666666,
+        "threshold": Infinity,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.0,
+        "positive_predictions": 0,
+        "layer": 41
+      }
+    }
+  }
+}

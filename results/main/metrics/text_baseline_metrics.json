@@ -1,0 +1,25 @@
+{
+  "git_hash": "c8c29df",
+  "timestamp": "2026-03-30T15:17:48Z",
+  "config_path": "configs/main/main.yaml",
+  "dataset_path": "data/processed/main_prompts.jsonl",
+  "pipeline_path": "artifacts/models/main/text_baseline/tfidf_lr_pipeline.joblib",
+  "val_metrics": {
+    "model_name": "tfidf_lr",
+    "split": "val",
+    "roc_auc": 0.986588888888889,
+    "threshold": 0.7047026704014787,
+    "achieved_fpr": 0.01,
+    "tpr_at_threshold": 0.7633333333333333,
+    "positive_predictions": 232
+  },
+  "test_metrics": {
+    "model_name": "tfidf_lr",
+    "split": "test",
+    "roc_auc": 0.9872777777777778,
+    "threshold": 0.7047026704014787,
+    "achieved_fpr": 0.0,
+    "tpr_at_threshold": 0.7933333333333333,
+    "positive_predictions": 238
+  }
+}
