@@ -1,0 +1,133 @@
+{
+  "git_hash": "733990a",
+  "timestamp": "2026-03-30T17:05:10Z",
+  "config_path": "configs/main/main.yaml",
+  "input_dir": "artifacts/features/main/sae",
+  "release": "gemma-scope-9b-it-res",
+  "width": 16384,
+  "best_layer": 20,
+  "per_layer": {
+    "9": {
+      "val": {
+        "model_name": "sae_probe",
+        "split": "val",
+        "roc_auc": 0.85495,
+        "threshold": 0.999988626105087,
+        "achieved_fpr": 0.01,
+        "tpr_at_threshold": 0.18333333333333332,
+        "positive_predictions": 58,
+        "layer": 9
+      },
+      "test": {
+        "model_name": "sae_probe",
+        "split": "test",
+        "roc_auc": 0.8861833333333333,
+        "threshold": 0.999988626105087,
+        "achieved_fpr": 0.016666666666666666,
+        "tpr_at_threshold": 0.19,
+        "positive_predictions": 62,
+        "layer": 9
+      },
+      "adversarial": {
+        "model_name": "sae_probe",
+        "split": "adversarial",
+        "layer": 9,
+        "threshold": 0.999988626105087,
+        "roc_auc": null,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.189,
+        "positive_predictions": 189,
+        "positive_prediction_rate": 0.189,
+        "n_examples": 1000,
+        "n_positive": 1000,
+        "n_negative": 0
+      }
+    },
+    "20": {
+      "val": {
+        "model_name": "sae_probe",
+        "split": "val",
+        "roc_auc": 0.9268166666666666,
+        "threshold": 0.9997775475869339,
+        "achieved_fpr": 0.01,
+        "tpr_at_threshold": 0.48333333333333334,
+        "positive_predictions": 148,
+        "layer": 20
+      },
+      "test": {
+        "model_name": "sae_probe",
+        "split": "test",
+        "roc_auc": 0.903061111111111,
+        "threshold": 0.9997775475869339,
+        "achieved_fpr": 0.023333333333333334,
+        "tpr_at_threshold": 0.4166666666666667,
+        "positive_predictions": 132,
+        "layer": 20
+      },
+      "adversarial": {
+        "model_name": "sae_probe",
+        "split": "adversarial",
+        "layer": 20,
+        "threshold": 0.9997775475869339,
+        "roc_auc": null,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.329,
+        "positive_predictions": 329,
+        "positive_prediction_rate": 0.329,
+        "n_examples": 1000,
+        "n_positive": 1000,
+        "n_negative": 0
+      }
+    },
+    "31": {
+      "val": {
+        "model_name": "sae_probe",
+        "split": "val",
+        "roc_auc": 0.869638888888889,
+        "threshold": 0.9999997830052221,
+        "achieved_fpr": 0.01,
+        "tpr_at_threshold": 0.25333333333333335,
+        "positive_predictions": 79,
+        "layer": 31
+      },
+      "test": {
+        "model_name": "sae_probe",
+        "split": "test",
+        "roc_auc": 0.8742777777777778,
+        "threshold": 0.9999997830052221,
+        "achieved_fpr": 0.006666666666666667,
+        "tpr_at_threshold": 0.21,
+        "positive_predictions": 65,
+        "layer": 31
+      },
+      "adversarial": {
+        "model_name": "sae_probe",
+        "split": "adversarial",
+        "layer": 31,
+        "threshold": 0.9999997830052221,
+        "roc_auc": null,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.192,
+        "positive_predictions": 192,
+        "positive_prediction_rate": 0.192,
+        "n_examples": 1000,
+        "n_positive": 1000,
+        "n_negative": 0
+      }
+    }
+  },
+  "best_adversarial_metrics": {
+    "model_name": "sae_probe",
+    "split": "adversarial",
+    "layer": 20,
+    "threshold": 0.9997775475869339,
+    "roc_auc": null,
+    "achieved_fpr": 0.0,
+    "tpr_at_threshold": 0.329,
+    "positive_predictions": 329,
+    "positive_prediction_rate": 0.329,
+    "n_examples": 1000,
+    "n_positive": 1000,
+    "n_negative": 0
+  }
+}

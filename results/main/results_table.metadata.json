@@ -1,0 +1,9 @@
+{
+  "git_hash": "733990a",
+  "timestamp": "2026-03-30T17:06:11Z",
+  "config_path": "configs/main/main.yaml",
+  "text_metrics_path": "results/main/metrics/text_baseline_metrics.json",
+  "probe_metrics_path": "results/main/metrics/probe_metrics.json",
+  "sae_probe_metrics_path": "results/main/metrics/sae_probe_metrics.json",
+  "n_rows": 9
+}
