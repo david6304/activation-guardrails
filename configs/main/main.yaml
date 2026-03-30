@@ -34,7 +34,7 @@ features:
   # Additional layers for dense probe sweep to find best layer
   layers: [9, 15, 20, 25, 31, 36, 41]
   token_position: "last"
-  batch_size: 16  # Smaller batch for 9B model (vs 32 for 7B)
+  batch_size: 8  # Reduced to fit longer adversarial prompts on A40/A6000 GPUs
   max_length: 512
 
 probe:
