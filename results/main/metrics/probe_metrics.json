@@ -1,6 +1,6 @@
 {
-  "git_hash": "c8c29df",
-  "timestamp": "2026-03-30T15:21:27Z",
+  "git_hash": "cd0eb1a",
+  "timestamp": "2026-03-30T15:41:07Z",
   "config_path": "configs/main/main.yaml",
   "input_dir": "artifacts/activations/main",
   "best_layer": 20,
@@ -25,6 +25,20 @@
         "tpr_at_threshold": 0.4866666666666667,
         "positive_predictions": 153,
         "layer": 9
+      },
+      "adversarial": {
+        "model_name": "dense_probe",
+        "split": "adversarial",
+        "layer": 9,
+        "threshold": 0.9996814678813998,
+        "roc_auc": null,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.416,
+        "positive_predictions": 416,
+        "positive_prediction_rate": 0.416,
+        "n_examples": 1000,
+        "n_positive": 1000,
+        "n_negative": 0
       }
     },
     "15": {
@@ -47,6 +61,20 @@
         "tpr_at_threshold": 0.47,
         "positive_predictions": 141,
         "layer": 15
+      },
+      "adversarial": {
+        "model_name": "dense_probe",
+        "split": "adversarial",
+        "layer": 15,
+        "threshold": 0.9999955905543152,
+        "roc_auc": null,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.428,
+        "positive_predictions": 428,
+        "positive_prediction_rate": 0.428,
+        "n_examples": 1000,
+        "n_positive": 1000,
+        "n_negative": 0
       }
     },
     "20": {
@@ -69,6 +97,20 @@
         "tpr_at_threshold": 0.5133333333333333,
         "positive_predictions": 159,
         "layer": 20
+      },
+      "adversarial": {
+        "model_name": "dense_probe",
+        "split": "adversarial",
+        "layer": 20,
+        "threshold": 0.9999985934462863,
+        "roc_auc": null,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.499,
+        "positive_predictions": 499,
+        "positive_prediction_rate": 0.499,
+        "n_examples": 1000,
+        "n_positive": 1000,
+        "n_negative": 0
       }
     },
     "25": {
@@ -91,6 +133,20 @@
         "tpr_at_threshold": 0.41,
         "positive_predictions": 124,
         "layer": 25
+      },
+      "adversarial": {
+        "model_name": "dense_probe",
+        "split": "adversarial",
+        "layer": 25,
+        "threshold": 0.9999999911595713,
+        "roc_auc": null,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.316,
+        "positive_predictions": 316,
+        "positive_prediction_rate": 0.316,
+        "n_examples": 1000,
+        "n_positive": 1000,
+        "n_negative": 0
       }
     },
     "31": {
@@ -113,6 +169,20 @@
         "tpr_at_threshold": 0.33666666666666667,
         "positive_predictions": 103,
         "layer": 31
+      },
+      "adversarial": {
+        "model_name": "dense_probe",
+        "split": "adversarial",
+        "layer": 31,
+        "threshold": 0.999999999995669,
+        "roc_auc": null,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.345,
+        "positive_predictions": 345,
+        "positive_prediction_rate": 0.345,
+        "n_examples": 1000,
+        "n_positive": 1000,
+        "n_negative": 0
       }
     },
     "36": {
@@ -135,6 +205,20 @@
         "tpr_at_threshold": 0.29333333333333333,
         "positive_predictions": 92,
         "layer": 36
+      },
+      "adversarial": {
+        "model_name": "dense_probe",
+        "split": "adversarial",
+        "layer": 36,
+        "threshold": 0.9999999999999993,
+        "roc_auc": null,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.336,
+        "positive_predictions": 336,
+        "positive_prediction_rate": 0.336,
+        "n_examples": 1000,
+        "n_positive": 1000,
+        "n_negative": 0
       }
     },
     "41": {
@@ -157,7 +241,35 @@
         "tpr_at_threshold": 0.0,
         "positive_predictions": 0,
         "layer": 41
+      },
+      "adversarial": {
+        "model_name": "dense_probe",
+        "split": "adversarial",
+        "layer": 41,
+        "threshold": Infinity,
+        "roc_auc": null,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.0,
+        "positive_predictions": 0,
+        "positive_prediction_rate": 0.0,
+        "n_examples": 1000,
+        "n_positive": 1000,
+        "n_negative": 0
       }
     }
+  },
+  "best_adversarial_metrics": {
+    "model_name": "dense_probe",
+    "split": "adversarial",
+    "layer": 20,
+    "threshold": 0.9999985934462863,
+    "roc_auc": null,
+    "achieved_fpr": 0.0,
+    "tpr_at_threshold": 0.499,
+    "positive_predictions": 499,
+    "positive_prediction_rate": 0.499,
+    "n_examples": 1000,
+    "n_positive": 1000,
+    "n_negative": 0
   }
 }
