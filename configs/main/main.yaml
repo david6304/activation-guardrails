@@ -60,5 +60,8 @@ sae:
   # SAE width (number of features); 16K is a reasonable starting point
   # Gemma Scope provides widths: 16K, 32K, 65K, 131K
   width: 16384
+  # Gemma Scope SAEs are keyed by explicit sparsity variants rather than
+  # a "canonical" alias. Use one variant that exists for every selected layer.
+  variant: "average_l0_14"
   # SAELens release ID for Gemma Scope IT residual stream SAEs
   release: "gemma-scope-9b-it-res"

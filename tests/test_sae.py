@@ -68,6 +68,26 @@ def test_load_pretrained_sae_accepts_tuple_return(monkeypatch):
     assert hasattr(sae, "eval")
 
 
+def test_load_pretrained_sae_adds_helpful_hint_for_missing_variant(monkeypatch):
+    class FakeSAEClass:
+        @staticmethod
+        def from_pretrained(**kwargs):
+            raise ValueError(
+                "ID layer_9/width_16k/canonical not found in release "
+                "gemma-scope-9b-it-res. Valid IDs are ['layer_9/width_16k/average_l0_14']."
+            )
+
+    fake_module = ModuleType("sae_lens")
+    fake_module.SAE = FakeSAEClass
+    monkeypatch.setitem(sys.modules, "sae_lens", fake_module)
+
+    with pytest.raises(ValueError, match="Set `sae.variant` in the config"):
+        load_pretrained_sae(
+            release="gemma-scope-9b-it-res",
+            sae_id="layer_9/width_16k/canonical",
+        )
+
+
 def test_encode_with_sae_batches_and_returns_float32():
     class FakeSAE:
         cfg = SimpleNamespace(device="cpu")

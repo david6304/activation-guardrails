@@ -46,6 +46,7 @@ def _write_main_config(path: Path, wildjailbreak_path: Path) -> None:
                 "sae": {
                     "layers": [9, 20],
                     "width": 16384,
+                    "variant": "average_l0_14",
                     "release": "gemma-scope-9b-it-res",
                 },
             }
@@ -394,8 +395,8 @@ def test_encode_sae_features_script_encodes_requested_splits(monkeypatch, tmp_pa
     encode_sae_features_script.main()
 
     assert captured["loaded"] == [
-        ("gemma-scope-9b-it-res", "layer_9/width_16k/canonical"),
-        ("gemma-scope-9b-it-res", "layer_20/width_16k/canonical"),
+        ("gemma-scope-9b-it-res", "layer_9/width_16k/average_l0_14"),
+        ("gemma-scope-9b-it-res", "layer_20/width_16k/average_l0_14"),
     ]
     assert any("train_layer_9_sae_features" in path for path in captured["saved"])
     assert any("train_layer_20_sae_features" in path for path in captured["saved"])
@@ -404,8 +405,10 @@ def test_encode_sae_features_script_encodes_requested_splits(monkeypatch, tmp_pa
     summary_meta = captured["metadata_calls"][1]
     assert split_meta[1]["split"] == "train"
     assert split_meta[1]["layers"] == [9, 20]
+    assert split_meta[1]["variant"] == "average_l0_14"
     assert summary_meta[0].endswith("metrics/sae_encoding_summary.json")
     assert summary_meta[1]["layers"] == [9, 20]
+    assert summary_meta[1]["variant"] == "average_l0_14"
     assert summary_meta[1]["splits"]["train"]["n_examples"] == 2
 
 

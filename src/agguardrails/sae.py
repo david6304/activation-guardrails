@@ -75,12 +75,22 @@ def load_pretrained_sae(
         )
         raise ImportError(msg) from exc
 
-    loaded = SAE.from_pretrained(
-        release=release,
-        sae_id=sae_id,
-        device=device,
-        dtype=dtype,
-    )
+    try:
+        loaded = SAE.from_pretrained(
+            release=release,
+            sae_id=sae_id,
+            device=device,
+            dtype=dtype,
+        )
+    except ValueError as exc:
+        if "not found in release" in str(exc):
+            msg = (
+                f"{exc} Hint: many Gemma Scope releases use explicit SAE variants "
+                "such as `average_l0_14` rather than a `canonical` alias. "
+                "Set `sae.variant` in the config to one of the valid IDs listed in the error."
+            )
+            raise ValueError(msg) from exc
+        raise
     sae = loaded[0] if isinstance(loaded, tuple) else loaded
     if hasattr(sae, "eval"):
         sae.eval()

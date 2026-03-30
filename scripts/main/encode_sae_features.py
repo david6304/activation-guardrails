@@ -70,6 +70,7 @@ def main() -> None:
 
     sae_cfg = config["sae"]
     layers = [int(layer) for layer in sae_cfg["layers"]]
+    variant = sae_cfg.get("variant", "average_l0_14")
     input_dir = Path(args.input_dir)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -82,6 +83,7 @@ def main() -> None:
             release=sae_cfg["release"],
             layer=layer,
             width=int(sae_cfg["width"]),
+            variant=variant,
         )
         for layer in layers
     ]
@@ -104,6 +106,7 @@ def main() -> None:
         "output_dir": str(output_dir),
         "release": sae_cfg["release"],
         "width": int(sae_cfg["width"]),
+        "variant": variant,
         "layers": layers,
         "batch_size": int(args.batch_size),
         "device": args.device,
@@ -149,6 +152,7 @@ def main() -> None:
             split=split,
             release=sae_cfg["release"],
             width=int(sae_cfg["width"]),
+            variant=variant,
             layers=layers,
             batch_size=int(args.batch_size),
             device=args.device,
