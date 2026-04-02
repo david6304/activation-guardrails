@@ -19,6 +19,7 @@ from scripts.main import (
     build_dataset as build_dataset_script,
     build_refusal_dataset as build_refusal_dataset_script,
     cache_sae_models as cache_sae_models_script,
+    download_advbench_alpaca as download_advbench_alpaca_script,
     encode_sae_features as encode_sae_features_script,
     extract_activations as extract_activations_script,
     generate_responses as generate_responses_script,
@@ -123,6 +124,52 @@ def test_build_dataset_script_writes_vanilla_and_adversarial_outputs(tmp_path, m
     assert {row["source"] for row in dataset_meta} == {"wildjailbreak"}
     assert output_path.with_suffix(".metadata.json").exists()
     assert adversarial_output.with_suffix(".metadata.json").exists()
+
+
+def test_download_advbench_alpaca_script_falls_back_to_working_alpaca_url(tmp_path, monkeypatch):
+    calls: list[str] = []
+
+    def fake_urlretrieve(url, dest):
+        calls.append(url)
+        path = Path(dest)
+        if "stanford_alpaca" not in url and "alpaca_data.json" in path.name:
+            raise download_advbench_alpaca_script.urllib.error.HTTPError(
+                url=url,
+                code=404,
+                msg="not found",
+                hdrs=None,
+                fp=None,
+            )
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("ok")
+        return str(path), None
+
+    monkeypatch.setattr(
+        download_advbench_alpaca_script,
+        "parse_args",
+        lambda: Namespace(output_dir=str(tmp_path)),
+    )
+    monkeypatch.setattr(
+        download_advbench_alpaca_script.urllib.request,
+        "urlretrieve",
+        fake_urlretrieve,
+    )
+    monkeypatch.setattr(
+        download_advbench_alpaca_script,
+        "ALPACA_URLS",
+        (
+            "https://example.com/alpaca-dead.json",
+            "https://example.com/stanford_alpaca/alpaca_data.json",
+        ),
+    )
+
+    download_advbench_alpaca_script.main()
+
+    assert calls[0] == download_advbench_alpaca_script.ADVBENCH_URL
+    assert calls[1] == "https://example.com/alpaca-dead.json"
+    assert calls[2] == "https://example.com/stanford_alpaca/alpaca_data.json"
+    assert (tmp_path / "advbench" / "harmful_behaviors.csv").exists()
+    assert (tmp_path / "alpaca" / "alpaca_data.json").exists()
 
 
 def test_extract_activations_script_wires_requested_splits_and_adversarial(monkeypatch, tmp_path):

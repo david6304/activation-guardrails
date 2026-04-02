@@ -16,6 +16,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -23,8 +24,9 @@ ADVBENCH_URL = (
     "https://raw.githubusercontent.com/llm-attacks/llm-attacks/main"
     "/data/advbench/harmful_behaviors.csv"
 )
-ALPACA_URL = (
-    "https://raw.githubusercontent.com/tatsu-lab/alpaca/main/alpaca_data.json"
+ALPACA_URLS = (
+    "https://raw.githubusercontent.com/tatsu-lab/stanford_alpaca/main/alpaca_data.json",
+    "https://raw.githubusercontent.com/tatsu-lab/alpaca/main/alpaca_data.json",
 )
 
 
@@ -37,6 +39,28 @@ def download_file(url: str, dest: Path) -> None:
     print(f"  Downloading {url} -> {dest}")
     urllib.request.urlretrieve(url, dest)
     print(f"  Saved: {dest} ({dest.stat().st_size:,} bytes)")
+
+
+def download_first_available(urls: tuple[str, ...], dest: Path) -> None:
+    """Download the first reachable URL in *urls* to *dest*."""
+    if dest.exists():
+        print(f"  Already exists, skipping: {dest}")
+        return
+
+    last_error: Exception | None = None
+    for url in urls:
+        try:
+            download_file(url, dest)
+            return
+        except urllib.error.HTTPError as exc:
+            last_error = exc
+            print(f"  Failed ({exc.code}) for {url}")
+        except urllib.error.URLError as exc:
+            last_error = exc
+            print(f"  Failed (URL error) for {url}: {exc.reason}")
+
+    urls_text = ", ".join(urls)
+    raise RuntimeError(f"Failed to download dataset from any source: {urls_text}") from last_error
 
 
 def parse_args() -> argparse.Namespace:
@@ -59,7 +83,7 @@ def main() -> None:
     download_file(ADVBENCH_URL, root / "advbench" / "harmful_behaviors.csv")
 
     print("Downloading Alpaca...")
-    download_file(ALPACA_URL, root / "alpaca" / "alpaca_data.json")
+    download_first_available(ALPACA_URLS, root / "alpaca" / "alpaca_data.json")
 
     print("Done.")
 
