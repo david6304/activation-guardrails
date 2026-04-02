@@ -1,0 +1,22 @@
+{
+  "git_hash": "a57a837",
+  "timestamp": "2026-04-02T18:28:59Z",
+  "input_dir": "artifacts/cipher_transfer/reverse/sae",
+  "split": "test",
+  "probe_dir": "artifacts/models/refusal/sae_probes",
+  "plain_metrics_path": "results/refusal/metrics/sae_probe_metrics.json",
+  "transfer_metrics": {
+    "threshold": 0.9987741390673619,
+    "roc_auc": 0.8432163330437016,
+    "achieved_fpr": 0.014732965009208104,
+    "tpr_at_threshold": 0.1661721068249258,
+    "positive_predictions": 64,
+    "positive_prediction_rate": 0.07272727272727272,
+    "n_examples": 880,
+    "n_positive": 337,
+    "n_negative": 543,
+    "model_name": "sae_probe",
+    "split": "reverse",
+    "layer": 20
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "git_hash": "a57a837",
+  "timestamp": "2026-04-02T18:19:01Z",
+  "dataset_path": "artifacts/cipher_transfer/rot9/data/rot9_labelled.jsonl",
+  "pipeline_path": "artifacts/models/refusal/text_baseline/tfidf_lr_pipeline.joblib",
+  "plain_metrics_path": "results/refusal/metrics/text_baseline_metrics.json",
+  "transfer_metrics": {
+    "threshold": 0.5775822418952236,
+    "roc_auc": 0.49930389462035485,
+    "achieved_fpr": 0.0,
+    "tpr_at_threshold": 0.0,
+    "positive_predictions": 0,
+    "positive_prediction_rate": 0.0,
+    "n_examples": 880,
+    "n_positive": 109,
+    "n_negative": 771,
+    "model_name": "tfidf_lr",
+    "split": "rot9"
+  }
+}

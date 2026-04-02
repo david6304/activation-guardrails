@@ -1,0 +1,9 @@
+{
+  "git_hash": "a57a837",
+  "timestamp": "2026-04-02T18:30:22Z",
+  "text_metrics_path": "results/refusal/metrics/text_baseline_metrics.json",
+  "probe_metrics_path": "results/refusal/metrics/probe_metrics.json",
+  "sae_probe_metrics_path": "results/refusal/metrics/sae_probe_metrics.json",
+  "transfer_metrics_dir": "results/refusal/cipher_transfer",
+  "n_rows": 15
+}

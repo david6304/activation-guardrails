@@ -1,0 +1,22 @@
+{
+  "git_hash": "a57a837",
+  "timestamp": "2026-04-02T18:27:33Z",
+  "input_dir": "artifacts/cipher_transfer/reverse/activations",
+  "split": "test",
+  "probe_dir": "artifacts/models/refusal/activation_probes",
+  "plain_metrics_path": "results/refusal/metrics/probe_metrics.json",
+  "transfer_metrics": {
+    "threshold": 0.9999987371006205,
+    "roc_auc": 0.765868266745359,
+    "achieved_fpr": 0.141804788213628,
+    "tpr_at_threshold": 0.35014836795252224,
+    "positive_predictions": 195,
+    "positive_prediction_rate": 0.2215909090909091,
+    "n_examples": 880,
+    "n_positive": 337,
+    "n_negative": 543,
+    "model_name": "dense_probe",
+    "split": "reverse",
+    "layer": 9
+  }
+}
