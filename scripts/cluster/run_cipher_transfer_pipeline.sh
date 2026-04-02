@@ -60,6 +60,13 @@ source "${VENV_PATH}/bin/activate"
 cd "$PROJECT_DIR"
 export PYTHONPATH=src:.
 export PYTHONUNBUFFERED=1
+
+log "=== Cipher-transfer pipeline starting - stage: ${STAGE} cipher: ${CIPHER} ==="
+log "Node: $(hostname)  Job: ${SLURM_JOB_ID:-local}"
+log "Config: ${CONFIG}"
+nvidia-smi --query-gpu=name,memory.total --format=csv,noheader 2>/dev/null \
+  | while read -r line; do log "GPU: $line"; done || true
+
 export HF_HOME="$MODEL_CACHE"
 export HUGGINGFACE_HUB_CACHE="${MODEL_CACHE}/hub"
 export TRANSFORMERS_CACHE="${MODEL_CACHE}/transformers"
@@ -67,31 +74,38 @@ export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 
 run_build() {
+  log "--- stage: build ---"
   mkdir -p "$DATA_DIR"
   python scripts/main/build_cipher_dataset.py \
     --dataset "$PLAIN_DATASET" \
     --cipher "$CIPHER" \
     --split test \
     --output "$CIPHER_DATASET"
+  log "--- stage: build done ---"
 }
 
 run_responses() {
+  log "--- stage: responses ---"
   mkdir -p "$RESPONSES_DIR"
   python scripts/main/generate_responses.py \
     --config "$CONFIG" \
     --dataset "$CIPHER_DATASET" \
     --output "$RESPONSES_PATH"
+  log "--- stage: responses done ---"
 }
 
 run_judge() {
+  log "--- stage: judge ---"
   mkdir -p "$RESPONSES_DIR"
   python scripts/main/label_refusals.py \
     --config "$CONFIG" \
     --responses "$RESPONSES_PATH" \
     --output "$LABELLED_RESPONSES"
+  log "--- stage: judge done ---"
 }
 
 run_relabel() {
+  log "--- stage: relabel ---"
   mkdir -p "$DATA_DIR"
   python scripts/main/build_refusal_dataset.py \
     --config "$CONFIG" \
@@ -99,18 +113,22 @@ run_relabel() {
     --source-dataset "$CIPHER_DATASET" \
     --labelled-responses "$LABELLED_RESPONSES" \
     --output "$RELABELLED_DATASET"
+  log "--- stage: relabel done ---"
 }
 
 run_activations() {
+  log "--- stage: activations ---"
   mkdir -p "$ACTIVATIONS_DIR"
   python scripts/main/extract_activations.py \
     --config "$CONFIG" \
     --dataset "$RELABELLED_DATASET" \
     --output-dir "$ACTIVATIONS_DIR" \
     --splits test
+  log "--- stage: activations done ---"
 }
 
 run_encode() {
+  log "--- stage: encode ---"
   mkdir -p "$FEATURES_DIR" "$METRICS_DIR"
   python scripts/main/encode_sae_features.py \
     --config "$CONFIG" \
@@ -119,6 +137,7 @@ run_encode() {
     --metrics-dir "$METRICS_DIR" \
     --splits test \
     --device cuda
+  log "--- stage: encode done ---"
 }
 
 case "$STAGE" in
@@ -142,4 +161,4 @@ case "$STAGE" in
     ;;
 esac
 
-log "Cipher-transfer pipeline complete for cipher=${CIPHER} stage=${STAGE}"
+log "=== Cipher-transfer pipeline done - stage: ${STAGE} cipher: ${CIPHER} ==="
