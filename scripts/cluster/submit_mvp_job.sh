@@ -80,6 +80,7 @@ done
 SBATCH_CMD=(
   sbatch
   -p "$PARTITION"
+  --nodes=1
   --time="$TIME_LIMIT"
   --job-name="$JOB_NAME"
 )

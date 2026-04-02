@@ -34,6 +34,7 @@ def test_submit_main_job_prints_expected_sbatch_command():
     )
 
     assert "--gres=gpu:1 --nodelist=crannog[01-02],landonia11" in result.stdout
+    assert "--nodes=1" in result.stdout
     assert "run_main_pipeline.sh" in result.stdout
     assert "--stage all" in result.stdout
     assert "--model-cache /tmp/home/models" in result.stdout
@@ -76,6 +77,7 @@ def test_submit_mvp_job_prints_expected_sbatch_command():
     )
 
     assert "--gres=gpu:nvidia_rtx_a6000:1" in result.stdout
+    assert "--nodes=1" in result.stdout
     assert "run_mvp_pipeline.sh" in result.stdout
     assert "--stage report" in result.stdout
     assert "--model-cache /tmp/home/models" in result.stdout
@@ -103,6 +105,7 @@ def test_submit_sae_encoding_job_prints_expected_sbatch_command():
     )
 
     assert "--gres=gpu:1 --nodelist=crannog[01-02],landonia11" in result.stdout
+    assert "--nodes=1" in result.stdout
     assert "run_sae_pipeline.sh" in result.stdout
     assert "--stage encode" in result.stdout
     assert "--batch-size 128" in result.stdout
@@ -136,6 +139,7 @@ def test_submit_sae_job_prints_expected_sbatch_command():
     )
 
     assert "--gres=gpu:nvidia_rtx_a6000:1" in result.stdout
+    assert "--nodes=1" in result.stdout
     assert "run_sae_pipeline.sh" in result.stdout
     assert "--stage all" in result.stdout
     assert "--probe-dir artifacts/models/main/sae_probes" in result.stdout
@@ -167,6 +171,7 @@ def test_submit_refusal_job_prints_expected_sbatch_command():
     )
 
     assert "--gres=gpu:1 --nodelist=crannog[01-02],landonia11" in result.stdout
+    assert "--nodes=1" in result.stdout
     assert "--time=12:00:00" in result.stdout
     assert "run_refusal_pipeline.sh" in result.stdout
     assert "--stage activations" in result.stdout
@@ -213,6 +218,7 @@ def test_submit_cipher_transfer_job_prints_expected_sbatch_command():
     )
 
     assert "--gres=gpu:1 --nodelist=crannog[01-02],landonia11" in result.stdout
+    assert "--nodes=1" in result.stdout
     assert "--time=06:00:00" in result.stdout
     assert "run_cipher_transfer_pipeline.sh" in result.stdout
     assert "--stage encode" in result.stdout
