@@ -15,6 +15,7 @@ __pycache__/
 artifacts/activations/
 artifacts/features/
 artifacts/models/
+artifacts/responses/
 
 # Local datasets
 data/raw/
