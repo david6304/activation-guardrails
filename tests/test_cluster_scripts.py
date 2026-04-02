@@ -187,3 +187,48 @@ def test_submit_refusal_job_rejects_unknown_stage():
 
     assert result.returncode != 0
     assert "Unknown --stage: badstage" in result.stderr
+
+
+def test_submit_cipher_transfer_job_prints_expected_sbatch_command():
+    script = REPO_ROOT / "scripts" / "cluster" / "submit_cipher_transfer_job.sh"
+    env = {**os.environ, "USER": "pytest-user", "HOME": "/tmp/home"}
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(script),
+            "--print-only",
+            "--gpu-type",
+            "any",
+            "--stage",
+            "encode",
+            "--cipher",
+            "rot13",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert "--gres=gpu:1 --nodelist=crannog[01-02],landonia11" in result.stdout
+    assert "--time=06:00:00" in result.stdout
+    assert "run_cipher_transfer_pipeline.sh" in result.stdout
+    assert "--stage encode" in result.stdout
+    assert "--cipher rot13" in result.stdout
+    assert "--model-cache /tmp/home/models" in result.stdout
+
+
+def test_submit_cipher_transfer_job_requires_cipher():
+    script = REPO_ROOT / "scripts" / "cluster" / "submit_cipher_transfer_job.sh"
+
+    result = subprocess.run(
+        ["bash", str(script), "--print-only"],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode != 0
+    assert "--cipher is required" in result.stderr

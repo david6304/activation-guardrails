@@ -15,6 +15,7 @@ from typing import Any
 
 from sklearn.model_selection import train_test_split
 
+from agguardrails.ciphers import encode_text
 from agguardrails.io import read_jsonl, write_jsonl
 
 
@@ -208,6 +209,37 @@ def split_prompt_dataset(
     for example in dataset:
         grouped.setdefault(example.split, []).append(example)
     return grouped
+
+
+def build_cipher_dataset(
+    dataset: list[PromptExample],
+    *,
+    cipher: str,
+    split: str = "test",
+) -> list[PromptExample]:
+    """Build a deterministic cipher-transformed dataset from one split.
+
+    The output keeps the canonical ``PromptExample`` schema so the existing
+    refusal scripts can reuse it unchanged. Cipher provenance is encoded in the
+    derived ids.
+    """
+    cipher_examples: list[PromptExample] = []
+    for example in dataset:
+        if example.split != split:
+            continue
+        cipher_examples.append(
+            PromptExample(
+                example_id=f"{example.example_id}::cipher::{cipher}",
+                prompt=encode_text(example.prompt, cipher),
+                label=example.label,
+                split=example.split,
+                source=example.source,
+                source_id=f"{example.source_id}::cipher::{cipher}",
+                source_label=example.source_label,
+            )
+        )
+
+    return cipher_examples
 
 
 # ---------------------------------------------------------------------------
