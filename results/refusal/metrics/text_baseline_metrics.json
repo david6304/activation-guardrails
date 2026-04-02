@@ -1,0 +1,25 @@
+{
+  "git_hash": "5340782",
+  "timestamp": "2026-04-02T16:02:03Z",
+  "config_path": "configs/main/refusal.yaml",
+  "dataset_path": "data/processed/refusal_labelled.jsonl",
+  "pipeline_path": "artifacts/models/refusal/text_baseline/tfidf_lr_pipeline.joblib",
+  "val_metrics": {
+    "model_name": "tfidf_lr",
+    "split": "val",
+    "roc_auc": 1.0,
+    "threshold": 0.5775822418952236,
+    "achieved_fpr": 0.0,
+    "tpr_at_threshold": 1.0,
+    "positive_predictions": 19
+  },
+  "test_metrics": {
+    "model_name": "tfidf_lr",
+    "split": "test",
+    "roc_auc": 0.9811431877828521,
+    "threshold": 0.5775822418952236,
+    "achieved_fpr": 0.0069124423963133645,
+    "tpr_at_threshold": 0.820627802690583,
+    "positive_predictions": 369
+  }
+}

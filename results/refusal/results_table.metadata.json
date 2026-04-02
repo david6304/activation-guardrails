@@ -1,0 +1,9 @@
+{
+  "git_hash": "5340782",
+  "timestamp": "2026-04-02T16:17:03Z",
+  "config_path": "configs/main/main.yaml",
+  "text_metrics_path": "results/refusal/metrics/text_baseline_metrics.json",
+  "probe_metrics_path": "results/refusal/metrics/probe_metrics.json",
+  "sae_probe_metrics_path": "results/refusal/metrics/sae_probe_metrics.json",
+  "n_rows": 6
+}

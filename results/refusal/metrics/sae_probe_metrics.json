@@ -1,0 +1,77 @@
+{
+  "git_hash": "5340782",
+  "timestamp": "2026-04-02T16:16:14Z",
+  "config_path": "configs/main/refusal.yaml",
+  "input_dir": "artifacts/features/refusal/sae",
+  "release": "gemma-scope-9b-it-res",
+  "width": 16384,
+  "best_layer": 20,
+  "per_layer": {
+    "9": {
+      "val": {
+        "model_name": "sae_probe",
+        "split": "val",
+        "roc_auc": 0.7619047619047619,
+        "threshold": 0.9997169971156414,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.3157894736842105,
+        "positive_predictions": 6,
+        "layer": 9
+      },
+      "test": {
+        "model_name": "sae_probe",
+        "split": "test",
+        "roc_auc": 0.9032903845756443,
+        "threshold": 0.9997169971156414,
+        "achieved_fpr": 0.009216589861751152,
+        "tpr_at_threshold": 0.3273542600896861,
+        "positive_predictions": 150,
+        "layer": 9
+      }
+    },
+    "20": {
+      "val": {
+        "model_name": "sae_probe",
+        "split": "val",
+        "roc_auc": 0.8070175438596491,
+        "threshold": 0.9987741390673619,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.3684210526315789,
+        "positive_predictions": 7,
+        "layer": 20
+      },
+      "test": {
+        "model_name": "sae_probe",
+        "split": "test",
+        "roc_auc": 0.9441528383377076,
+        "threshold": 0.9987741390673619,
+        "achieved_fpr": 0.004608294930875576,
+        "tpr_at_threshold": 0.5269058295964125,
+        "positive_predictions": 237,
+        "layer": 20
+      }
+    },
+    "31": {
+      "val": {
+        "model_name": "sae_probe",
+        "split": "val",
+        "roc_auc": 0.7994987468671679,
+        "threshold": 0.9993177269315215,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.2631578947368421,
+        "positive_predictions": 5,
+        "layer": 31
+      },
+      "test": {
+        "model_name": "sae_probe",
+        "split": "test",
+        "roc_auc": 0.9322084685168729,
+        "threshold": 0.9993177269315215,
+        "achieved_fpr": 0.01152073732718894,
+        "tpr_at_threshold": 0.4080717488789238,
+        "positive_predictions": 187,
+        "layer": 31
+      }
+    }
+  }
+}

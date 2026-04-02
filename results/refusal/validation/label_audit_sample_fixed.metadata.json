@@ -1,0 +1,22 @@
+{
+  "git_hash": "5340782",
+  "timestamp": "2026-04-02T15:47:50Z",
+  "labelled_responses_path": "artifacts/responses/refusal/labelled_responses_fixed.jsonl",
+  "output_path": "results/refusal/validation/label_audit_sample_fixed.csv",
+  "n_total_records": 1040,
+  "sample_size": 100,
+  "requested_sample_size": 100,
+  "seed": 42,
+  "full_counts": {
+    "benign:0": 511,
+    "benign:1": 9,
+    "harmful:0": 5,
+    "harmful:1": 515
+  },
+  "sample_counts": {
+    "benign:0": 43,
+    "benign:1": 9,
+    "harmful:0": 5,
+    "harmful:1": 43
+  }
+}
