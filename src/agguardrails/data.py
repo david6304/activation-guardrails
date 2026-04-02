@@ -2,10 +2,13 @@
 
 MVP loaders (HarmBench, XSTest) are pilot-only — kept for reference.
 Main experiment uses WildJailbreak loaders below.
+Refusal-probing experiment uses AdvBench + Alpaca loaders below.
 """
 
 from __future__ import annotations
 
+import csv
+import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -296,6 +299,184 @@ def build_main_dataset(
     )
     combined = harmful + benign
     return make_stratified_splits(
+        combined,
+        train_size=train_size,
+        val_size=val_size,
+        test_size=test_size,
+        seed=seed,
+    )
+
+
+# ---------------------------------------------------------------------------
+# AdvBench + Alpaca loaders (refusal-probing experiment)
+# ---------------------------------------------------------------------------
+# AdvBench: CSV with columns "goal" and "target" (Zou et al., 2023).
+#   Download via scripts/main/download_advbench_alpaca.py.
+#   File: data/raw/advbench/harmful_behaviors.csv
+#
+# Alpaca: JSON array of dicts with keys "instruction", "input", "output"
+#   (Taori et al., 2023; tatsu-lab/alpaca on HuggingFace).
+#   File: data/raw/alpaca/alpaca_data.json
+#
+# Label semantics (refusal experiment): after response generation and
+#   LLM-as-judge labelling, label=1 means the model *refused*, label=0 means
+#   it *complied*.  At dataset-build time these source labels just mark the
+#   origin (harmful / benign) before the judge assigns refusal labels.
+
+
+def load_advbench_examples(path: str | Path) -> list[dict[str, Any]]:
+    """Load harmful prompts from AdvBench CSV (Zou et al., 2023).
+
+    Expects a CSV with at least a ``goal`` column.  The ``target`` column
+    (ideal jailbroken response prefix) is ignored.
+    """
+    path = Path(path)
+    examples: list[dict[str, Any]] = []
+
+    with path.open(newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for idx, row in enumerate(reader):
+            prompt = row.get("goal", "").strip()
+            if not prompt:
+                continue
+            examples.append(
+                {
+                    "source": "advbench",
+                    "source_id": str(idx),
+                    "source_label": "harmful",
+                    "label": 1,
+                    "prompt": prompt,
+                }
+            )
+
+    return examples
+
+
+def load_alpaca_examples(path: str | Path) -> list[dict[str, Any]]:
+    """Load benign instructions from the Alpaca dataset (Taori et al., 2023).
+
+    Expects a JSON array of dicts with ``instruction`` and optional ``input``
+    fields.  If ``input`` is non-empty, it is appended to the instruction
+    separated by a newline, matching the original Alpaca prompt format.
+    """
+    path = Path(path)
+    with path.open(encoding="utf-8") as f:
+        records = json.load(f)
+
+    examples: list[dict[str, Any]] = []
+    for idx, record in enumerate(records):
+        instruction = record.get("instruction", "").strip()
+        inp = record.get("input", "").strip()
+        if not instruction:
+            continue
+        prompt = f"{instruction}\n{inp}" if inp else instruction
+        examples.append(
+            {
+                "source": "alpaca",
+                "source_id": str(idx),
+                "source_label": "benign",
+                "label": 0,
+                "prompt": prompt,
+            }
+        )
+
+    return examples
+
+
+def make_fixed_splits(
+    examples: list[dict[str, Any]],
+    *,
+    train_size: int,
+    val_size: int,
+    test_size: int,
+    seed: int,
+) -> list[PromptExample]:
+    """Assign stratified train/val/test splits using absolute example counts.
+
+    Unlike ``make_stratified_splits``, this function takes absolute counts
+    rather than fractions.  Useful when matching a specific published split
+    (e.g. SAE4Safety: 160 train / 880 test).
+
+    Args:
+        examples: Raw example dicts with ``label``, ``source``, etc.
+        train_size: Number of examples in the training split.
+        val_size: Number of examples in the validation split.
+        test_size: Number of examples in the test split.
+        seed: Random seed for stratified splitting.
+    """
+    total = train_size + val_size + test_size
+    if len(examples) != total:
+        msg = (
+            f"train_size + val_size + test_size = {total} "
+            f"but got {len(examples)} examples"
+        )
+        raise ValueError(msg)
+
+    labels = [e["label"] for e in examples]
+    indices = list(range(total))
+
+    train_idx, temp_idx = train_test_split(
+        indices,
+        train_size=train_size,
+        stratify=labels,
+        random_state=seed,
+    )
+
+    temp_labels = [labels[i] for i in temp_idx]
+    val_idx, test_idx = train_test_split(
+        temp_idx,
+        train_size=val_size,
+        stratify=temp_labels,
+        random_state=seed,
+    )
+
+    split_lookup = {
+        **{i: "train" for i in train_idx},
+        **{i: "val" for i in val_idx},
+        **{i: "test" for i in test_idx},
+    }
+
+    dataset: list[PromptExample] = []
+    for idx, example in enumerate(examples):
+        example_id = f"{example['source']}::{example['source_id']}"
+        dataset.append(
+            PromptExample(
+                example_id=example_id,
+                prompt=example["prompt"],
+                label=example["label"],
+                split=split_lookup[idx],
+                source=example["source"],
+                source_id=example["source_id"],
+                source_label=example["source_label"],
+            )
+        )
+
+    return dataset
+
+
+def build_advbench_alpaca_dataset(
+    *,
+    advbench_path: str | Path,
+    alpaca_path: str | Path,
+    n_harmful: int,
+    n_benign: int,
+    train_size: int,
+    val_size: int,
+    test_size: int,
+    seed: int,
+) -> list[PromptExample]:
+    """Build the refusal-probing prompt dataset from AdvBench + Alpaca.
+
+    Balances harmful and benign examples, then assigns stratified splits
+    using absolute counts.  Labels reflect source origin (harmful=1,
+    benign=0); the refusal-probing label (did the model refuse?) is
+    assigned later by ``scripts/main/build_refusal_dataset.py`` after
+    LLM-as-judge labelling.
+    """
+    harmful = sample_examples(load_advbench_examples(advbench_path), n=n_harmful)
+    benign = sample_examples(load_alpaca_examples(alpaca_path), n=n_benign)
+    combined = harmful + benign
+    return make_fixed_splits(
         combined,
         train_size=train_size,
         val_size=val_size,

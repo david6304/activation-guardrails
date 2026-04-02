@@ -79,6 +79,7 @@ def main() -> None:
             c=float(probe_cfg["C"]),
             max_iter=int(probe_cfg["max_iter"]),
             target_fpr=float(eval_cfg["target_fpr"]),
+            penalty=str(probe_cfg.get("penalty", "l2")),
             random_state=seed,
         )
         probe_results.append(result)

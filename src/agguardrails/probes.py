@@ -32,11 +32,28 @@ def fit_probe_for_layer(
     c: float,
     max_iter: int,
     target_fpr: float,
+    penalty: str = "l2",
     random_state: int = 42,
 ) -> ProbeResult:
-    """Train and evaluate one logistic probe on a single layer."""
+    """Train and evaluate one logistic probe on a single layer.
+
+    Args:
+        penalty: Regularisation type — ``"l1"`` or ``"l2"``.  SAE4Safety uses
+            ``"l1"`` with ``C=500`` (penalty=0.002).  The main experiment uses
+            ``"l2"`` with ``C=1.0``.  The ``"liblinear"`` solver supports both.
+
+    Note:
+        sklearn >= 1.8 deprecated the ``penalty`` parameter in favour of
+        ``l1_ratio`` (0 = L2, 1 = L1).  We map internally to suppress the
+        FutureWarning.
+    """
+    _l1_ratio_map = {"l1": 1.0, "l2": 0.0}
+    if penalty not in _l1_ratio_map:
+        msg = f"penalty must be 'l1' or 'l2', got {penalty!r}"
+        raise ValueError(msg)
     probe = LogisticRegression(
         C=c,
+        l1_ratio=_l1_ratio_map[penalty],
         max_iter=max_iter,
         random_state=random_state,
         solver="liblinear",

@@ -17,9 +17,12 @@ from agguardrails.io import read_jsonl, read_jsonl as _read_jsonl, write_jsonl
 from agguardrails.probes import ProbeResult
 from scripts.main import (
     build_dataset as build_dataset_script,
+    build_refusal_dataset as build_refusal_dataset_script,
     cache_sae_models as cache_sae_models_script,
     encode_sae_features as encode_sae_features_script,
     extract_activations as extract_activations_script,
+    generate_responses as generate_responses_script,
+    label_refusals as label_refusals_script,
     make_results_table as make_results_table_script,
     train_activation_probes as train_activation_probes_script,
     train_sae_probes as train_sae_probes_script,
@@ -602,3 +605,280 @@ def test_main_results_table_script_writes_all_available_rows(monkeypatch, tmp_pa
 
     assert output_path.exists()
     assert captured["metadata"]["n_rows"] == 8
+
+
+# ---------------------------------------------------------------------------
+# Refusal pipeline script tests
+# ---------------------------------------------------------------------------
+
+def _write_refusal_config(path: Path, advbench_path: Path, alpaca_path: Path) -> None:
+    path.write_text(
+        yaml.safe_dump(
+            {
+                "seed": 42,
+                "model": {"name": "google/gemma-2-9b-it", "dtype": "bfloat16"},
+                "data": {
+                    "dataset": "advbench_alpaca",
+                    "advbench_path": str(advbench_path),
+                    "alpaca_path": str(alpaca_path),
+                    "n_harmful": 4,
+                    "n_benign": 4,
+                    "train_size": 2,
+                    "val_size": 2,
+                    "test_size": 4,
+                },
+                "generation": {
+                    "max_new_tokens": 64,
+                    "temperature": 0.0,
+                    "batch_size": 2,
+                    "checkpoint_every": 10,
+                },
+                "judge": {
+                    "model": "self",
+                    "max_new_tokens": 16,
+                    "temperature": 0.0,
+                    "batch_size": 2,
+                },
+                "features": {"layers": [9], "batch_size": 2, "max_length": 64},
+                "probe": {"penalty": "l1", "C": 500, "max_iter": 100},
+                "baseline": {"max_features": 100, "C": 1.0},
+                "eval": {"target_fpr": 0.01},
+                "sae": {
+                    "layers": [9],
+                    "width": 16384,
+                    "variant": "average_l0_14",
+                    "release": "gemma-scope-9b-it-res",
+                },
+            }
+        )
+    )
+
+
+def _write_advbench_csv(path: Path, goals: list[str]) -> None:
+    import csv
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=["goal", "target"])
+        writer.writeheader()
+        for goal in goals:
+            writer.writerow({"goal": goal, "target": "Sure"})
+
+
+def _write_alpaca_json(path: Path, instructions: list[str]) -> None:
+    import json as _json
+    path.parent.mkdir(parents=True, exist_ok=True)
+    records = [{"instruction": inst, "input": "", "output": "ok"} for inst in instructions]
+    with path.open("w") as f:
+        _json.dump(records, f)
+
+
+def test_build_refusal_dataset_source_mode(tmp_path):
+    advbench_path = tmp_path / "advbench" / "harmful_behaviors.csv"
+    alpaca_path = tmp_path / "alpaca" / "alpaca_data.json"
+    config_path = tmp_path / "refusal.yaml"
+    output_path = tmp_path / "refusal_prompts.jsonl"
+
+    _write_advbench_csv(advbench_path, [f"harmful {i}" for i in range(6)])
+    _write_alpaca_json(alpaca_path, [f"benign {i}" for i in range(6)])
+    _write_refusal_config(config_path, advbench_path, alpaca_path)
+
+    monkeypatch_ns = SimpleNamespace()
+
+    import scripts.main.build_refusal_dataset as brd
+    # Can call main() directly since it does file I/O only (no GPU).
+    import unittest.mock as mock
+    with mock.patch.object(
+        brd,
+        "parse_args",
+        return_value=Namespace(
+            config=str(config_path),
+            mode="source",
+            labelled_responses="unused",
+            source_dataset="unused",
+            output=str(output_path),
+        ),
+    ):
+        brd.main()
+
+    from agguardrails.data import read_prompt_dataset
+    dataset = read_prompt_dataset(output_path)
+    assert len(dataset) == 8  # 4+4
+    assert {e.split for e in dataset} == {"train", "val", "test"}
+
+
+def test_build_refusal_dataset_relabel_mode(tmp_path):
+    import json as _json
+    advbench_path = tmp_path / "advbench" / "harmful_behaviors.csv"
+    alpaca_path = tmp_path / "alpaca" / "alpaca_data.json"
+    config_path = tmp_path / "refusal.yaml"
+    source_path = tmp_path / "source.jsonl"
+    labelled_path = tmp_path / "labelled.jsonl"
+    output_path = tmp_path / "relabelled.jsonl"
+
+    _write_advbench_csv(advbench_path, [f"harmful {i}" for i in range(6)])
+    _write_alpaca_json(alpaca_path, [f"benign {i}" for i in range(6)])
+    _write_refusal_config(config_path, advbench_path, alpaca_path)
+
+    # Build source dataset first.
+    import scripts.main.build_refusal_dataset as brd
+    import unittest.mock as mock
+    with mock.patch.object(
+        brd,
+        "parse_args",
+        return_value=Namespace(
+            config=str(config_path),
+            mode="source",
+            labelled_responses="unused",
+            source_dataset="unused",
+            output=str(source_path),
+        ),
+    ):
+        brd.main()
+
+    from agguardrails.data import read_prompt_dataset
+    source = read_prompt_dataset(source_path)
+
+    # Write fake labelled responses assigning refusal_label=1 to all.
+    labelled_records = [
+        {"example_id": e.example_id, "prompt": e.prompt, "response": "r",
+         "source": e.source, "source_label": e.source_label, "label": e.label,
+         "refusal_label": 1, "judge_output": "refusal"}
+        for e in source
+    ]
+    labelled_path.write_text(
+        "\n".join(_json.dumps(r) for r in labelled_records) + "\n"
+    )
+
+    with mock.patch.object(
+        brd,
+        "parse_args",
+        return_value=Namespace(
+            config=str(config_path),
+            mode="relabel",
+            labelled_responses=str(labelled_path),
+            source_dataset=str(source_path),
+            output=str(output_path),
+        ),
+    ):
+        brd.main()
+
+    relabelled = read_prompt_dataset(output_path)
+    assert len(relabelled) == len(source)
+    assert all(e.label == 1 for e in relabelled)
+
+
+def test_generate_responses_script_wires_correctly(monkeypatch, tmp_path):
+    advbench_path = tmp_path / "advbench" / "harmful_behaviors.csv"
+    alpaca_path = tmp_path / "alpaca" / "alpaca_data.json"
+    config_path = tmp_path / "refusal.yaml"
+    dataset_path = tmp_path / "prompts.jsonl"
+    output_path = tmp_path / "responses.jsonl"
+
+    _write_advbench_csv(advbench_path, [f"harmful {i}" for i in range(6)])
+    _write_alpaca_json(alpaca_path, [f"benign {i}" for i in range(6)])
+    _write_refusal_config(config_path, advbench_path, alpaca_path)
+
+    examples = [
+        PromptExample("ex_0", "prompt 0", 1, "train", "advbench", "0", "harmful"),
+        PromptExample("ex_1", "prompt 1", 0, "test", "alpaca", "1", "benign"),
+    ]
+    captured: dict = {}
+
+    monkeypatch.setattr(
+        generate_responses_script,
+        "parse_args",
+        lambda: Namespace(
+            config=str(config_path),
+            dataset=str(dataset_path),
+            output=str(output_path),
+        ),
+    )
+    monkeypatch.setattr(
+        generate_responses_script,
+        "load_model_and_tokenizer",
+        lambda *args, **kwargs: (object(), object()),
+    )
+    monkeypatch.setattr(
+        generate_responses_script,
+        "read_prompt_dataset",
+        lambda path: examples,
+    )
+    monkeypatch.setattr(
+        generate_responses_script,
+        "generate_responses",
+        lambda model, tokenizer, examples, **kwargs: (
+            captured.__setitem__("kwargs", kwargs) or [
+                {"example_id": e.example_id, "response": "r"} for e in examples
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        generate_responses_script,
+        "save_metadata",
+        lambda path, **kwargs: captured.setdefault("metadata", kwargs),
+    )
+
+    generate_responses_script.main()
+
+    assert captured["metadata"]["n_responses"] == 2
+    assert captured["kwargs"]["max_new_tokens"] == 64
+    assert captured["kwargs"]["temperature"] == 0.0
+
+
+def test_label_refusals_script_writes_labelled_jsonl(monkeypatch, tmp_path):
+    advbench_path = tmp_path / "advbench" / "harmful_behaviors.csv"
+    alpaca_path = tmp_path / "alpaca" / "alpaca_data.json"
+    config_path = tmp_path / "refusal.yaml"
+    responses_path = tmp_path / "responses.jsonl"
+    output_path = tmp_path / "labelled.jsonl"
+
+    _write_advbench_csv(advbench_path, [f"harmful {i}" for i in range(6)])
+    _write_alpaca_json(alpaca_path, [f"benign {i}" for i in range(6)])
+    _write_refusal_config(config_path, advbench_path, alpaca_path)
+
+    raw_records = [
+        {"example_id": "h0", "prompt": "p", "response": "r", "source": "advbench",
+         "source_label": "harmful", "label": 1},
+        {"example_id": "b0", "prompt": "p", "response": "r", "source": "alpaca",
+         "source_label": "benign", "label": 0},
+    ]
+    write_jsonl(responses_path, raw_records)
+
+    labelled_output = [
+        {**r, "refusal_label": i, "judge_output": ["refusal", "compliance"][i]}
+        for i, r in enumerate(raw_records)
+    ]
+
+    monkeypatch.setattr(
+        label_refusals_script,
+        "parse_args",
+        lambda: Namespace(
+            config=str(config_path),
+            responses=str(responses_path),
+            output=str(output_path),
+        ),
+    )
+    monkeypatch.setattr(
+        label_refusals_script,
+        "load_model_and_tokenizer",
+        lambda *args, **kwargs: (object(), object()),
+    )
+    monkeypatch.setattr(
+        label_refusals_script,
+        "label_refusals",
+        lambda *args, **kwargs: labelled_output,
+    )
+    captured: dict = {}
+    monkeypatch.setattr(
+        label_refusals_script,
+        "save_metadata",
+        lambda path, **kwargs: captured.setdefault("metadata", kwargs),
+    )
+
+    label_refusals_script.main()
+
+    written = read_jsonl(output_path)
+    assert len(written) == 2
+    assert written[0]["refusal_label"] == 0
+    assert written[1]["refusal_label"] == 1
+    assert captured["metadata"]["n_labelled"] == 2
