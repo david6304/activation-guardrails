@@ -35,7 +35,7 @@ data:
 generation:
   max_new_tokens: 512
   temperature: 0.0  # greedy decoding for reproducibility
-  batch_size: 4
+  batch_size: 8
   checkpoint_every: 100  # write partial JSONL every N examples
 
 judge:
