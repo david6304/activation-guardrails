@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 from argparse import Namespace
 from pathlib import Path
@@ -25,6 +26,7 @@ from scripts.main import (
     generate_responses as generate_responses_script,
     label_refusals as label_refusals_script,
     make_results_table as make_results_table_script,
+    prepare_refusal_label_audit as prepare_refusal_label_audit_script,
     train_activation_probes as train_activation_probes_script,
     train_sae_probes as train_sae_probes_script,
     train_text_baseline as train_text_baseline_script,
@@ -170,6 +172,85 @@ def test_download_advbench_alpaca_script_falls_back_to_working_alpaca_url(tmp_pa
     assert calls[2] == "https://example.com/stanford_alpaca/alpaca_data.json"
     assert (tmp_path / "advbench" / "harmful_behaviors.csv").exists()
     assert (tmp_path / "alpaca" / "alpaca_data.json").exists()
+
+
+def test_prepare_refusal_label_audit_script_prioritises_unexpected_cases(tmp_path, monkeypatch):
+    labelled_path = tmp_path / "labelled.jsonl"
+    output_path = tmp_path / "label_audit_sample.csv"
+    records = []
+    for idx in range(10):
+        records.append(
+            {
+                "example_id": f"h-exp-{idx}",
+                "source": "advbench",
+                "source_label": "harmful",
+                "prompt": f"harmful prompt {idx}",
+                "response": f"harmful response {idx}",
+                "judge_output": "refusal",
+                "refusal_label": 1,
+            }
+        )
+    for idx in range(10):
+        records.append(
+            {
+                "example_id": f"b-exp-{idx}",
+                "source": "alpaca",
+                "source_label": "benign",
+                "prompt": f"benign prompt {idx}",
+                "response": f"benign response {idx}",
+                "judge_output": "compliance",
+                "refusal_label": 0,
+            }
+        )
+    for idx in range(3):
+        records.append(
+            {
+                "example_id": f"h-unexp-{idx}",
+                "source": "advbench",
+                "source_label": "harmful",
+                "prompt": f"unexpected harmful prompt {idx}",
+                "response": f"unexpected harmful response {idx}",
+                "judge_output": "compliance",
+                "refusal_label": 0,
+            }
+        )
+    for idx in range(2):
+        records.append(
+            {
+                "example_id": f"b-unexp-{idx}",
+                "source": "alpaca",
+                "source_label": "benign",
+                "prompt": f"unexpected benign prompt {idx}",
+                "response": f"unexpected benign response {idx}",
+                "judge_output": "refusal",
+                "refusal_label": 1,
+            }
+        )
+    write_jsonl(labelled_path, records)
+
+    monkeypatch.setattr(
+        prepare_refusal_label_audit_script,
+        "parse_args",
+        lambda: Namespace(
+            labelled_responses=str(labelled_path),
+            output=str(output_path),
+            sample_size=12,
+            seed=7,
+        ),
+    )
+
+    prepare_refusal_label_audit_script.main()
+
+    rows = list(csv.DictReader(output_path.open()))
+    unexpected = [
+        row for row in rows
+        if (row["source_label"], int(row["refusal_label"])) in {("harmful", 0), ("benign", 1)}
+    ]
+
+    assert len(rows) == 12
+    assert len(unexpected) == 5
+    assert output_path.with_suffix(".metadata.json").exists()
+    assert all("manual_label" in row for row in rows)
 
 
 def test_extract_activations_script_wires_requested_splits_and_adversarial(monkeypatch, tmp_path):
