@@ -1,0 +1,83 @@
+{
+  "git_hash": "2f0d957",
+  "timestamp": "2026-04-03T10:55:17Z",
+  "config_path": "configs/main/refusal_large_train.yaml",
+  "input_dir": "artifacts/features/refusal_large_train/sae",
+  "release": "gemma-scope-9b-it-res",
+  "width": 16384,
+  "best_layer": 20,
+  "per_layer": {
+    "9": {
+      "val": {
+        "model_name": "sae_probe",
+        "split": "val",
+        "roc_auc": 0.8717486994797918,
+        "threshold": 0.972870851517287,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.23529411764705882,
+        "positive_predictions": 12,
+        "layer": 9,
+        "best_c": 0.1
+      },
+      "test": {
+        "model_name": "sae_probe",
+        "split": "test",
+        "roc_auc": 0.9549371134736988,
+        "threshold": 0.972870851517287,
+        "achieved_fpr": 0.008547008547008548,
+        "tpr_at_threshold": 0.2845528455284553,
+        "positive_predictions": 36,
+        "layer": 9,
+        "best_c": 0.1
+      }
+    },
+    "20": {
+      "val": {
+        "model_name": "sae_probe",
+        "split": "val",
+        "roc_auc": 0.9151660664265706,
+        "threshold": 0.9929101732352975,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.5882352941176471,
+        "positive_predictions": 30,
+        "layer": 20,
+        "best_c": 0.1
+      },
+      "test": {
+        "model_name": "sae_probe",
+        "split": "test",
+        "roc_auc": 0.9724828017510945,
+        "threshold": 0.9929101732352975,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.6666666666666666,
+        "positive_predictions": 82,
+        "layer": 20,
+        "best_c": 0.1
+      }
+    },
+    "31": {
+      "val": {
+        "model_name": "sae_probe",
+        "split": "val",
+        "roc_auc": 0.8857543017206883,
+        "threshold": 0.9953059445693516,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.47058823529411764,
+        "positive_predictions": 24,
+        "layer": 31,
+        "best_c": 0.1
+      },
+      "test": {
+        "model_name": "sae_probe",
+        "split": "test",
+        "roc_auc": 0.9619553887846571,
+        "threshold": 0.9953059445693516,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.5284552845528455,
+        "positive_predictions": 65,
+        "layer": 31,
+        "best_c": 0.1
+      }
+    }
+  }
+}

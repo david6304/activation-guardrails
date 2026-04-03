@@ -1,0 +1,177 @@
+{
+  "git_hash": "2f0d957",
+  "timestamp": "2026-04-03T10:54:13Z",
+  "config_path": "configs/main/refusal_large_train.yaml",
+  "input_dir": "artifacts/activations/refusal_large_train",
+  "best_layer": 31,
+  "per_layer": {
+    "9": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.8953581432573029,
+        "threshold": 0.9659804112737753,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.5686274509803921,
+        "positive_predictions": 29,
+        "layer": 9,
+        "best_c": 0.1
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9722395941908137,
+        "threshold": 0.9659804112737753,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.6910569105691057,
+        "positive_predictions": 85,
+        "layer": 9,
+        "best_c": 0.1
+      }
+    },
+    "15": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9437775110044019,
+        "threshold": 0.9996780522146486,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.7254901960784313,
+        "positive_predictions": 37,
+        "layer": 15,
+        "best_c": 10.0
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9787019665068446,
+        "threshold": 0.9996780522146486,
+        "achieved_fpr": 0.008547008547008548,
+        "tpr_at_threshold": 0.7804878048780488,
+        "positive_predictions": 97,
+        "layer": 15,
+        "best_c": 10.0
+      }
+    },
+    "20": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9429771908763505,
+        "threshold": 0.9990535010645851,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.7647058823529411,
+        "positive_predictions": 39,
+        "layer": 20,
+        "best_c": 10.0
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9814119936071155,
+        "threshold": 0.9990535010645851,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.8455284552845529,
+        "positive_predictions": 104,
+        "layer": 20,
+        "best_c": 10.0
+      }
+    },
+    "25": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9365746298519408,
+        "threshold": 0.9614820219077514,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.7843137254901961,
+        "positive_predictions": 40,
+        "layer": 25,
+        "best_c": 0.1
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9768257938989646,
+        "threshold": 0.9614820219077514,
+        "achieved_fpr": 0.017094017094017096,
+        "tpr_at_threshold": 0.8373983739837398,
+        "positive_predictions": 105,
+        "layer": 25,
+        "best_c": 0.1
+      }
+    },
+    "31": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9509803921568628,
+        "threshold": 0.9346760218130081,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.8627450980392157,
+        "positive_predictions": 44,
+        "layer": 31,
+        "best_c": 0.1
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9803001876172609,
+        "threshold": 0.9346760218130081,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.8780487804878049,
+        "positive_predictions": 108,
+        "layer": 31,
+        "best_c": 0.1
+      }
+    },
+    "36": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9417767106842737,
+        "threshold": 0.9818126224593465,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.7843137254901961,
+        "positive_predictions": 40,
+        "layer": 36,
+        "best_c": 0.1
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9766173302758668,
+        "threshold": 0.9818126224593465,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.8373983739837398,
+        "positive_predictions": 103,
+        "layer": 36,
+        "best_c": 0.1
+      }
+    },
+    "41": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9305722288915567,
+        "threshold": 0.9937966027167553,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.8235294117647058,
+        "positive_predictions": 42,
+        "layer": 41,
+        "best_c": 1.0
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9749496212910846,
+        "threshold": 0.9937966027167553,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.8943089430894309,
+        "positive_predictions": 110,
+        "layer": 41,
+        "best_c": 1.0
+      }
+    }
+  }
+}

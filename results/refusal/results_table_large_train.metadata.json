@@ -1,0 +1,9 @@
+{
+  "git_hash": "2f0d957",
+  "timestamp": "2026-04-03T10:55:35Z",
+  "config_path": "configs/main/refusal_large_train.yaml",
+  "text_metrics_path": "results/refusal/metrics_cv_large_train/text_baseline_metrics.json",
+  "probe_metrics_path": "results/refusal/metrics_cv_large_train/probe_metrics.json",
+  "sae_probe_metrics_path": "results/refusal/metrics_cv_large_train/sae_probe_metrics.json",
+  "n_rows": 6
+}

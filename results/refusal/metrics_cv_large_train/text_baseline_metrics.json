@@ -1,0 +1,25 @@
+{
+  "git_hash": "2f0d957",
+  "timestamp": "2026-04-03T10:55:29Z",
+  "config_path": "configs/main/refusal_large_train.yaml",
+  "dataset_path": "data/processed/refusal_large_train_labelled.jsonl",
+  "pipeline_path": "artifacts/models/main/text_baseline/tfidf_lr_pipeline.joblib",
+  "val_metrics": {
+    "model_name": "tfidf_lr",
+    "split": "val",
+    "roc_auc": 0.9791916766706682,
+    "threshold": 0.6045881096268684,
+    "achieved_fpr": 0.0,
+    "tpr_at_threshold": 0.9019607843137255,
+    "positive_predictions": 46
+  },
+  "test_metrics": {
+    "model_name": "tfidf_lr",
+    "split": "test",
+    "roc_auc": 0.9767215620874158,
+    "threshold": 0.6045881096268684,
+    "achieved_fpr": 0.017094017094017096,
+    "tpr_at_threshold": 0.8943089430894309,
+    "positive_predictions": 112
+  }
+}
