@@ -8,8 +8,8 @@
 #   bash scripts/cluster/submit_transfer_eval_job.sh
 #   bash scripts/cluster/submit_transfer_eval_job.sh \
 #     --config configs/main/refusal_large_train.yaml \
-#     --probe-dir artifacts/models/refusal_large_train/activation_probes_cv \
-#     --sae-probe-dir artifacts/models/refusal_large_train/sae_probes_cv \
+#     --probe-dir artifacts/models/refusal/activation_probes_cv \
+#     --sae-probe-dir artifacts/models/refusal/sae_probes_cv \
 #     --plain-metrics-dir results/refusal/metrics_cv_large_train \
 #     --output-dir results/refusal/cipher_transfer_large_train
 #   bash scripts/cluster/submit_transfer_eval_job.sh --print-only
@@ -22,8 +22,8 @@ PROJECT_DIR="${HOME}/activation-guardrails"
 VENV_PATH="${HOME}/venvs/ml"
 TOOLCHAIN_RC="/home/htang2/toolchain-20251006/toolchain.rc"
 CONFIG="configs/main/refusal_large_train.yaml"
-PROBE_DIR="artifacts/models/refusal_large_train/activation_probes_cv"
-SAE_PROBE_DIR="artifacts/models/refusal_large_train/sae_probes_cv"
+PROBE_DIR="artifacts/models/refusal/activation_probes_cv"
+SAE_PROBE_DIR="artifacts/models/refusal/sae_probes_cv"
 TEXT_PIPELINE="artifacts/models/main/text_baseline/tfidf_lr_pipeline.joblib"
 PLAIN_METRICS_DIR="results/refusal/metrics_cv_large_train"
 CIPHER_BASE_DIR="artifacts/cipher_transfer"

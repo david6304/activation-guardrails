@@ -277,3 +277,36 @@ def test_submit_cipher_transfer_job_requires_cipher():
 
     assert result.returncode != 0
     assert "--cipher is required" in result.stderr
+
+
+def test_submit_transfer_eval_job_prints_expected_sbatch_command():
+    script = REPO_ROOT / "scripts" / "cluster" / "submit_transfer_eval_job.sh"
+    env = {**os.environ, "USER": "pytest-user", "HOME": "/tmp/home"}
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(script),
+            "--print-only",
+            "--cipher-base-dir",
+            "artifacts/cipher_transfer_large_train",
+            "--output-dir",
+            "results/refusal/cipher_transfer_large_train",
+            "--ciphers",
+            "reverse",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert "--time=00:30:00" in result.stdout
+    assert "run_transfer_eval.sh" in result.stdout
+    assert "--probe-dir artifacts/models/refusal/activation_probes_cv" in result.stdout
+    assert "--sae-probe-dir artifacts/models/refusal/sae_probes_cv" in result.stdout
+    assert "--plain-metrics-dir results/refusal/metrics_cv_large_train" in result.stdout
+    assert "--cipher-base-dir artifacts/cipher_transfer_large_train" in result.stdout
+    assert "--output-dir results/refusal/cipher_transfer_large_train" in result.stdout
+    assert "--ciphers reverse" in result.stdout
