@@ -43,6 +43,7 @@ from agguardrails.data import (
     write_prompt_dataset,
 )
 from agguardrails.io import read_jsonl, save_metadata
+from agguardrails.judge import _parse_refusal_label
 from agguardrails.utils import seed_everything
 
 
@@ -107,10 +108,14 @@ def _relabel(
     labelled_records = read_jsonl(labelled_responses_path)
 
     # Build lookup: example_id → refusal_label.
-    refusal_lookup: dict[str, int] = {
-        rec["example_id"]: int(rec["refusal_label"])
-        for rec in labelled_records
-    }
+    # Always reparse from judge_output using the current parser so that label
+    # corrections in judge.py are picked up automatically. The cached
+    # refusal_label field in labelled_responses.jsonl is ignored here.
+    fallback_label = 0
+    refusal_lookup: dict[str, int] = {}
+    for rec in labelled_records:
+        parsed = _parse_refusal_label(str(rec.get("judge_output", "")))
+        refusal_lookup[rec["example_id"]] = parsed if parsed is not None else fallback_label
 
     missing = [
         e.example_id for e in source_dataset
