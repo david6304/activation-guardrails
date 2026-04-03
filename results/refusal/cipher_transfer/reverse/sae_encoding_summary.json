@@ -1,9 +1,9 @@
 {
-  "git_hash": "a57a837",
-  "timestamp": "2026-04-02T18:18:26Z",
-  "config_path": "configs/main/refusal.yaml",
-  "input_dir": "artifacts/cipher_transfer/reverse/activations",
-  "output_dir": "artifacts/cipher_transfer/reverse/sae",
+  "git_hash": "accc096",
+  "timestamp": "2026-04-03T14:22:35Z",
+  "config_path": "configs/main/refusal_large_train.yaml",
+  "input_dir": "artifacts/cipher_transfer_large_train/reverse/activations",
+  "output_dir": "artifacts/cipher_transfer_large_train/reverse/sae",
   "release": "gemma-scope-9b-it-res",
   "width": 16384,
   "variant": "average_l0_14",
@@ -17,28 +17,28 @@
   "dtype": "float32",
   "splits": {
     "test": {
-      "n_examples": 880,
+      "n_examples": 240,
       "feature_paths": {
-        "9": "artifacts/cipher_transfer/reverse/sae/test_layer_9_sae_features.npz",
-        "20": "artifacts/cipher_transfer/reverse/sae/test_layer_20_sae_features.npz",
-        "31": "artifacts/cipher_transfer/reverse/sae/test_layer_31_sae_features.npz"
+        "9": "artifacts/cipher_transfer_large_train/reverse/sae/test_layer_9_sae_features.npz",
+        "20": "artifacts/cipher_transfer_large_train/reverse/sae/test_layer_20_sae_features.npz",
+        "31": "artifacts/cipher_transfer_large_train/reverse/sae/test_layer_31_sae_features.npz"
       },
       "feature_shapes": {
         "9": [
-          880,
+          240,
           16384
         ],
         "20": [
-          880,
+          240,
           16384
         ],
         "31": [
-          880,
+          240,
           16384
         ]
       },
-      "labels_path": "artifacts/cipher_transfer/reverse/sae/test_labels.npz",
-      "ids_path": "artifacts/cipher_transfer/reverse/sae/test_ids.npz"
+      "labels_path": "artifacts/cipher_transfer_large_train/reverse/sae/test_labels.npz",
+      "ids_path": "artifacts/cipher_transfer_large_train/reverse/sae/test_ids.npz"
     }
   }
 }
