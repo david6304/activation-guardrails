@@ -14,6 +14,7 @@ TOOLCHAIN_RC="/home/htang2/toolchain-20251006/toolchain.rc"
 CONFIG="configs/main/refusal.yaml"
 PLAIN_DATASET="data/processed/refusal_prompts.jsonl"
 BASE_DIR="artifacts/cipher_transfer"
+EXISTING_BASE_DIR=""
 MODEL_CACHE="${HOME}/models"
 PRINT_ONLY="0"
 
@@ -31,6 +32,7 @@ while [[ $# -gt 0 ]]; do
     --config) CONFIG="$2"; shift 2 ;;
     --plain-dataset) PLAIN_DATASET="$2"; shift 2 ;;
     --base-dir) BASE_DIR="$2"; shift 2 ;;
+    --existing-base-dir) EXISTING_BASE_DIR="$2"; shift 2 ;;
     --model-cache) MODEL_CACHE="$2"; shift 2 ;;
     --print-only) PRINT_ONLY="1"; shift ;;
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
@@ -43,22 +45,23 @@ if [[ -z "$CIPHER" ]]; then
 fi
 
 case "$STAGE" in
-  build|responses|judge|relabel|activations|encode|all)
+  build|filter|responses|judge|relabel|activations|encode|all|subset_fill)
     ;;
   *)
-    echo "Unknown --stage: $STAGE (valid: build, responses, judge, relabel, activations, encode, all)" >&2
+    echo "Unknown --stage: $STAGE (valid: build, filter, responses, judge, relabel, activations, encode, all, subset_fill)" >&2
     exit 1
     ;;
 esac
 
 if [[ -z "$TIME_LIMIT" ]]; then
   case "$STAGE" in
-    build|relabel) TIME_LIMIT="00:30:00" ;;
-    responses) TIME_LIMIT="06:00:00" ;;
-    judge) TIME_LIMIT="02:00:00" ;;
-    activations) TIME_LIMIT="06:00:00" ;;
-    encode) TIME_LIMIT="06:00:00" ;;
-    all) TIME_LIMIT="18:00:00" ;;
+    build|filter|relabel) TIME_LIMIT="00:30:00" ;;
+    responses) TIME_LIMIT="02:00:00" ;;
+    judge) TIME_LIMIT="01:00:00" ;;
+    activations) TIME_LIMIT="01:00:00" ;;
+    encode) TIME_LIMIT="01:00:00" ;;
+    all) TIME_LIMIT="02:00:00" ;;
+    subset_fill) TIME_LIMIT="02:00:00" ;;
   esac
 fi
 
@@ -104,6 +107,10 @@ PIPELINE_ARGS=(
   "--base-dir" "$BASE_DIR"
   "--model-cache" "$MODEL_CACHE"
 )
+
+if [[ -n "$EXISTING_BASE_DIR" ]]; then
+  PIPELINE_ARGS+=("--existing-base-dir" "$EXISTING_BASE_DIR")
+fi
 
 SBATCH_CMD+=(
   --wrap

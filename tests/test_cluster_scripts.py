@@ -219,11 +219,50 @@ def test_submit_cipher_transfer_job_prints_expected_sbatch_command():
 
     assert "--gres=gpu:1 --nodelist=crannog[01-02],landonia11" in result.stdout
     assert "--nodes=1" in result.stdout
-    assert "--time=06:00:00" in result.stdout
+    assert "--time=01:00:00" in result.stdout
     assert "run_cipher_transfer_pipeline.sh" in result.stdout
     assert "--stage encode" in result.stdout
     assert "--cipher rot13" in result.stdout
     assert "--model-cache /tmp/home/models" in result.stdout
+
+
+def test_submit_cipher_transfer_subset_fill_prints_expected_sbatch_command():
+    script = REPO_ROOT / "scripts" / "cluster" / "submit_cipher_transfer_job.sh"
+    env = {**os.environ, "USER": "pytest-user", "HOME": "/tmp/home"}
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(script),
+            "--print-only",
+            "--stage",
+            "subset_fill",
+            "--cipher",
+            "reverse",
+            "--config",
+            "configs/main/refusal_large_train.yaml",
+            "--plain-dataset",
+            "data/processed/refusal_large_train_prompts.jsonl",
+            "--base-dir",
+            "artifacts/cipher_transfer_large_train",
+            "--existing-base-dir",
+            "artifacts/cipher_transfer",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert "--time=02:00:00" in result.stdout
+    assert "run_cipher_transfer_pipeline.sh" in result.stdout
+    assert "--stage subset_fill" in result.stdout
+    assert "--cipher reverse" in result.stdout
+    assert "--config configs/main/refusal_large_train.yaml" in result.stdout
+    assert "--plain-dataset data/processed/refusal_large_train_prompts.jsonl" in result.stdout
+    assert "--base-dir artifacts/cipher_transfer_large_train" in result.stdout
+    assert "--existing-base-dir artifacts/cipher_transfer" in result.stdout
 
 
 def test_submit_cipher_transfer_job_requires_cipher():
