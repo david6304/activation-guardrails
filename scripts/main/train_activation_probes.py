@@ -17,7 +17,7 @@ import yaml
 from agguardrails.eval import format_results_row, summarize_scores_at_threshold
 from agguardrails.features import load_activation_split
 from agguardrails.io import save_artifact, save_metadata
-from agguardrails.probes import fit_probe_for_layer, select_best_probe
+from agguardrails.probes import fit_probe_for_layer, fit_probe_for_layer_cv, select_best_probe
 
 
 def parse_args() -> argparse.Namespace:
@@ -65,23 +65,48 @@ def main() -> None:
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    c_values = probe_cfg.get("c_values")
+    use_cv = c_values is not None
+    if use_cv:
+        c_values = [float(c) for c in c_values]
+        print(f"CV mode: searching C in {c_values} with {probe_cfg.get('cv_folds', 5)}-fold stratified CV")
+    else:
+        print(f"Fixed C={probe_cfg['C']}")
+
     probe_results = []
     per_layer_metrics: dict[str, dict[str, dict[str, str | int | float | None]]] = {}
     for layer in layers:
-        result = fit_probe_for_layer(
-            layer=layer,
-            x_train=train.features_by_layer[layer],
-            y_train=train.labels,
-            x_val=val.features_by_layer[layer],
-            y_val=val.labels,
-            x_test=test.features_by_layer[layer],
-            y_test=test.labels,
-            c=float(probe_cfg["C"]),
-            max_iter=int(probe_cfg["max_iter"]),
-            target_fpr=float(eval_cfg["target_fpr"]),
-            penalty=str(probe_cfg.get("penalty", "l2")),
-            random_state=seed,
-        )
+        if use_cv:
+            result = fit_probe_for_layer_cv(
+                layer=layer,
+                x_train=train.features_by_layer[layer],
+                y_train=train.labels,
+                x_val=val.features_by_layer[layer],
+                y_val=val.labels,
+                x_test=test.features_by_layer[layer],
+                y_test=test.labels,
+                c_values=c_values,
+                max_iter=int(probe_cfg["max_iter"]),
+                target_fpr=float(eval_cfg["target_fpr"]),
+                penalty=str(probe_cfg.get("penalty", "l2")),
+                random_state=seed,
+                cv_folds=int(probe_cfg.get("cv_folds", 5)),
+            )
+        else:
+            result = fit_probe_for_layer(
+                layer=layer,
+                x_train=train.features_by_layer[layer],
+                y_train=train.labels,
+                x_val=val.features_by_layer[layer],
+                y_val=val.labels,
+                x_test=test.features_by_layer[layer],
+                y_test=test.labels,
+                c=float(probe_cfg["C"]),
+                max_iter=int(probe_cfg["max_iter"]),
+                target_fpr=float(eval_cfg["target_fpr"]),
+                penalty=str(probe_cfg.get("penalty", "l2")),
+                random_state=seed,
+            )
         probe_results.append(result)
         save_artifact(result.probe, output_dir / f"layer_{layer}_probe")
         layer_metrics: dict[str, dict[str, str | int | float | None]] = {
@@ -89,13 +114,13 @@ def main() -> None:
                 model_name="dense_probe",
                 split="val",
                 result=result.val_result,
-                metadata={"layer": result.layer},
+                metadata={"layer": result.layer, "best_c": result.best_c},
             ),
             "test": format_results_row(
                 model_name="dense_probe",
                 split="test",
                 result=result.test_result,
-                metadata={"layer": result.layer},
+                metadata={"layer": result.layer, "best_c": result.best_c},
             ),
         }
         if adversarial is not None:
@@ -113,9 +138,11 @@ def main() -> None:
                 ),
             }
         per_layer_metrics[str(result.layer)] = layer_metrics
+        best_c_str = f"  best_C={result.best_c}" if result.best_c is not None else ""
         print(
             f"Layer {layer:2d}: val ROC-AUC={result.val_result.roc_auc:.4f}"
             f"  val TPR@1%FPR={result.val_result.tpr_at_threshold:.4f}"
+            f"{best_c_str}"
         )
 
     best = select_best_probe(probe_results)

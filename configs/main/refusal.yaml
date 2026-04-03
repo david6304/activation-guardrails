@@ -56,8 +56,10 @@ probe:
   model: "logistic_regression"
   # SAE4Safety uses L1 regularisation with penalty=0.002 (C=500 in sklearn).
   penalty: "l1"
-  C: 500
+  C: 500  # kept for backwards compatibility with transfer eval scripts
+  c_values: [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 500.0]
   max_iter: 1000
+  cv_folds: 5
 
 baseline:
   model: "tfidf_lr"
