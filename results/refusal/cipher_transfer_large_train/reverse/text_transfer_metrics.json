@@ -1,0 +1,20 @@
+{
+  "git_hash": "ed5bc05",
+  "timestamp": "2026-04-03T16:43:18Z",
+  "dataset_path": "artifacts/cipher_transfer_large_train/reverse/data/reverse_labelled.jsonl",
+  "pipeline_path": "artifacts/models/main/text_baseline/tfidf_lr_pipeline.joblib",
+  "plain_metrics_path": "results/refusal/metrics_cv_large_train/text_baseline_metrics.json",
+  "transfer_metrics": {
+    "threshold": 0.6045881096268684,
+    "roc_auc": 0.9428530092592593,
+    "achieved_fpr": 0.1597222222222222,
+    "tpr_at_threshold": 0.9166666666666666,
+    "positive_predictions": 111,
+    "positive_prediction_rate": 0.4625,
+    "n_examples": 240,
+    "n_positive": 96,
+    "n_negative": 144,
+    "model_name": "tfidf_lr",
+    "split": "reverse"
+  }
+}

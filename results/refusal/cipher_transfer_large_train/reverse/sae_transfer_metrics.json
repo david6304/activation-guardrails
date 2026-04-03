@@ -1,0 +1,22 @@
+{
+  "git_hash": "ed5bc05",
+  "timestamp": "2026-04-03T16:43:06Z",
+  "input_dir": "artifacts/cipher_transfer_large_train/reverse/sae",
+  "split": "test",
+  "probe_dir": "artifacts/models/refusal/sae_probes_cv",
+  "plain_metrics_path": "results/refusal/metrics_cv_large_train/sae_probe_metrics.json",
+  "transfer_metrics": {
+    "threshold": 0.9929101732352975,
+    "roc_auc": 0.8494646990740741,
+    "achieved_fpr": 0.0,
+    "tpr_at_threshold": 0.22916666666666666,
+    "positive_predictions": 22,
+    "positive_prediction_rate": 0.09166666666666666,
+    "n_examples": 240,
+    "n_positive": 96,
+    "n_negative": 144,
+    "model_name": "sae_probe",
+    "split": "reverse",
+    "layer": 20
+  }
+}

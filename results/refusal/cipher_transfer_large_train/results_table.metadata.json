@@ -1,0 +1,9 @@
+{
+  "git_hash": "ed5bc05",
+  "timestamp": "2026-04-03T16:43:24Z",
+  "text_metrics_path": "results/refusal/metrics_cv_large_train/text_baseline_metrics.json",
+  "probe_metrics_path": "results/refusal/metrics_cv_large_train/probe_metrics.json",
+  "sae_probe_metrics_path": "results/refusal/metrics_cv_large_train/sae_probe_metrics.json",
+  "transfer_metrics_dir": "results/refusal/cipher_transfer_large_train",
+  "n_rows": 9
+}
