@@ -26,6 +26,10 @@ def parse_args() -> argparse.Namespace:
         default="results/main/metrics/sae_probe_metrics.json",
     )
     parser.add_argument(
+        "--latent-guard-metrics",
+        default="results/main/metrics/latent_guard_metrics.json",
+    )
+    parser.add_argument(
         "--output",
         default="results/main/results_table.csv",
     )
@@ -49,7 +53,9 @@ def maybe_text_rows(path: str | Path) -> list[dict[str, str | int | float | None
     return rows
 
 
-def maybe_best_layer_rows(path: str | Path) -> list[dict[str, str | int | float | None]]:
+def maybe_best_layer_rows(
+    path: str | Path,
+) -> list[dict[str, str | int | float | None]]:
     metrics_path = Path(path)
     if not metrics_path.exists():
         return []
@@ -67,6 +73,7 @@ def main() -> None:
         *maybe_text_rows(args.text_metrics),
         *maybe_best_layer_rows(args.probe_metrics),
         *maybe_best_layer_rows(args.sae_probe_metrics),
+        *maybe_best_layer_rows(args.latent_guard_metrics),
     ]
 
     output_path = Path(args.output)
@@ -84,6 +91,7 @@ def main() -> None:
         text_metrics_path=args.text_metrics,
         probe_metrics_path=args.probe_metrics,
         sae_probe_metrics_path=args.sae_probe_metrics,
+        latent_guard_metrics_path=args.latent_guard_metrics,
         n_rows=len(rows),
     )
 

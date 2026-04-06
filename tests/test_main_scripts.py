@@ -763,8 +763,9 @@ def test_train_latent_guard_script_sweeps_layers_and_saves_metrics(
         example_ids=["g", "h"],
     )
 
-    def fake_load_activation_split(*, input_dir, split, layers):
+    def fake_load_activation_split(*, input_dir, split, layers, label_key):
         assert layers == [9, 20]
+        assert label_key == "source_label"
         return {"train": train, "val": val, "test": test, "adversarial": adversarial}[
             split
         ]
@@ -788,6 +789,7 @@ def test_train_latent_guard_script_sweeps_layers_and_saves_metrics(
             input_dir=str(acts_dir),
             output_dir=str(tmp_path / "latent_guard"),
             metrics_dir=str(tmp_path / "metrics"),
+            label_key="source_label",
         ),
     )
     monkeypatch.setattr(
@@ -817,6 +819,7 @@ def test_train_latent_guard_script_sweeps_layers_and_saves_metrics(
     assert any("layer_9_direction" in path for path in captured["saved_paths"])
     assert any("layer_20_direction" in path for path in captured["saved_paths"])
     assert captured["metadata"]["best_layer"] == 20
+    assert captured["metadata"]["label_key"] == "source_label"
     assert set(captured["metadata"]["per_layer"].keys()) == {"9", "20"}
     assert captured["metadata"]["best_adversarial_metrics"]["split"] == "adversarial"
     assert (
@@ -1272,6 +1275,7 @@ def test_main_results_table_script_writes_all_available_rows(monkeypatch, tmp_pa
     text_metrics = tmp_path / "text.json"
     probe_metrics = tmp_path / "probe.json"
     sae_metrics = tmp_path / "sae.json"
+    latent_guard_metrics = tmp_path / "latent_guard.json"
     output_path = tmp_path / "results.csv"
     captured: dict[str, object] = {}
 
@@ -1339,6 +1343,27 @@ def test_main_results_table_script_writes_all_available_rows(monkeypatch, tmp_pa
             }
         )
     )
+    latent_guard_metrics.write_text(
+        json.dumps(
+            {
+                "best_layer": 20,
+                "per_layer": {
+                    "20": {
+                        "val": {
+                            "model_name": "latent_guard",
+                            "split": "val",
+                            "layer": 20,
+                        },
+                        "test": {
+                            "model_name": "latent_guard",
+                            "split": "test",
+                            "layer": 20,
+                        },
+                    }
+                },
+            }
+        )
+    )
 
     monkeypatch.setattr(
         make_results_table_script,
@@ -1348,6 +1373,7 @@ def test_main_results_table_script_writes_all_available_rows(monkeypatch, tmp_pa
             text_metrics=str(text_metrics),
             probe_metrics=str(probe_metrics),
             sae_probe_metrics=str(sae_metrics),
+            latent_guard_metrics=str(latent_guard_metrics),
             output=str(output_path),
         ),
     )
@@ -1360,7 +1386,7 @@ def test_main_results_table_script_writes_all_available_rows(monkeypatch, tmp_pa
     make_results_table_script.main()
 
     assert output_path.exists()
-    assert captured["metadata"]["n_rows"] == 8
+    assert captured["metadata"]["n_rows"] == 10
 
 
 # ---------------------------------------------------------------------------

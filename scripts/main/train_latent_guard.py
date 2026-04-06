@@ -33,6 +33,12 @@ def parse_args() -> argparse.Namespace:
         default="results/main/metrics",
         help="Directory for committed metrics JSON.",
     )
+    parser.add_argument(
+        "--label-key",
+        choices=["label", "source_label"],
+        default="label",
+        help="Which binary label target to train on.",
+    )
     return parser.parse_args()
 
 
@@ -46,10 +52,23 @@ def main() -> None:
     eval_cfg = config["eval"]
 
     train = load_activation_split(
-        input_dir=args.input_dir, split="train", layers=layers
+        input_dir=args.input_dir,
+        split="train",
+        layers=layers,
+        label_key=args.label_key,
     )
-    val = load_activation_split(input_dir=args.input_dir, split="val", layers=layers)
-    test = load_activation_split(input_dir=args.input_dir, split="test", layers=layers)
+    val = load_activation_split(
+        input_dir=args.input_dir,
+        split="val",
+        layers=layers,
+        label_key=args.label_key,
+    )
+    test = load_activation_split(
+        input_dir=args.input_dir,
+        split="test",
+        layers=layers,
+        label_key=args.label_key,
+    )
     adversarial = None
     adversarial_labels_path = Path(args.input_dir) / "adversarial_labels.npz"
     if adversarial_labels_path.exists():
@@ -57,6 +76,7 @@ def main() -> None:
             input_dir=args.input_dir,
             split="adversarial",
             layers=layers,
+            label_key=args.label_key,
         )
 
     output_dir = Path(args.output_dir)
@@ -120,6 +140,7 @@ def main() -> None:
     metadata_kwargs: dict[str, object] = {
         "config_path": args.config,
         "input_dir": args.input_dir,
+        "label_key": args.label_key,
         "best_layer": best.layer,
         "per_layer": per_layer_metrics,
     }

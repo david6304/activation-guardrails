@@ -6,7 +6,6 @@ import os
 import subprocess
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -38,7 +37,9 @@ def test_submit_main_job_prints_expected_sbatch_command():
     assert "run_main_pipeline.sh" in result.stdout
     assert "--stage all" in result.stdout
     assert "--model-cache /tmp/home/models" in result.stdout
-    assert "--adversarial-dataset data/processed/main_adversarial.jsonl" in result.stdout
+    assert (
+        "--adversarial-dataset data/processed/main_adversarial.jsonl" in result.stdout
+    )
 
 
 def test_submit_main_job_rejects_unknown_gpu_type():
@@ -180,6 +181,35 @@ def test_submit_refusal_job_prints_expected_sbatch_command():
     assert "--model-cache /tmp/home/models" in result.stdout
 
 
+def test_submit_refusal_source_job_omits_gpu_request():
+    script = REPO_ROOT / "scripts" / "cluster" / "submit_refusal_job.sh"
+    env = {**os.environ, "USER": "pytest-user", "HOME": "/tmp/home"}
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(script),
+            "--print-only",
+            "--stage",
+            "source",
+            "--config",
+            "configs/main/refusal_wildjailbreak.yaml",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert "--time=00:15:00" in result.stdout
+    assert "run_refusal_pipeline.sh" in result.stdout
+    assert "--stage source" in result.stdout
+    assert "--config configs/main/refusal_wildjailbreak.yaml" in result.stdout
+    assert "--gres=" not in result.stdout
+    assert "--nodelist=" not in result.stdout
+
+
 def test_submit_refusal_job_rejects_unknown_stage():
     script = REPO_ROOT / "scripts" / "cluster" / "submit_refusal_job.sh"
 
@@ -260,7 +290,10 @@ def test_submit_cipher_transfer_subset_fill_prints_expected_sbatch_command():
     assert "--stage subset_fill" in result.stdout
     assert "--cipher reverse" in result.stdout
     assert "--config configs/main/refusal_large_train.yaml" in result.stdout
-    assert "--plain-dataset data/processed/refusal_large_train_prompts.jsonl" in result.stdout
+    assert (
+        "--plain-dataset data/processed/refusal_large_train_prompts.jsonl"
+        in result.stdout
+    )
     assert "--base-dir artifacts/cipher_transfer_large_train" in result.stdout
     assert "--existing-base-dir artifacts/cipher_transfer" in result.stdout
 
@@ -310,3 +343,125 @@ def test_submit_transfer_eval_job_prints_expected_sbatch_command():
     assert "--cipher-base-dir artifacts/cipher_transfer_large_train" in result.stdout
     assert "--output-dir results/refusal/cipher_transfer_large_train" in result.stdout
     assert "--ciphers reverse" in result.stdout
+
+
+def test_submit_probe_training_job_prints_target_aware_command():
+    script = REPO_ROOT / "scripts" / "cluster" / "submit_probe_training_job.sh"
+    env = {**os.environ, "USER": "pytest-user", "HOME": "/tmp/home"}
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(script),
+            "--print-only",
+            "--config",
+            "configs/main/refusal_wildjailbreak.yaml",
+            "--dataset",
+            "data/processed/refusal_wildjailbreak/refusal_labelled.jsonl",
+            "--adversarial-dataset",
+            "data/processed/refusal_wildjailbreak/refusal_labelled_adversarial.jsonl",
+            "--label-key",
+            "source_label",
+            "--feature-dir",
+            "artifacts/features/refusal_wildjailbreak/sae",
+            "--with-latent-guard",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert "--time=02:00:00" in result.stdout
+    assert "run_probe_training.sh" in result.stdout
+    assert "--feature-dir artifacts/features/refusal_wildjailbreak/sae" in result.stdout
+    assert (
+        "--dataset data/processed/refusal_wildjailbreak/refusal_labelled.jsonl"
+        in result.stdout
+    )
+    assert (
+        "--adversarial-dataset "
+        "data/processed/refusal_wildjailbreak/"
+        "refusal_labelled_adversarial.jsonl" in result.stdout
+    )
+    assert "--label-key source_label" in result.stdout
+    assert "--with-latent-guard" in result.stdout
+
+
+def test_submit_wildjailbreak_c1_refusal_pipeline_prints_derived_command():
+    script = REPO_ROOT / "scripts" / "cluster" / "submit_wildjailbreak_c1.sh"
+    env = {**os.environ, "USER": "pytest-user", "HOME": "/tmp/home"}
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(script),
+            "--print-only",
+            "--stage",
+            "refusal-pipeline",
+            "--run-tag",
+            "wjb_c1_a6000",
+            "--gpu-type",
+            "a6000",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert "run_tag=wjb_c1_a6000" in result.stdout
+    assert (
+        "vanilla_source_dataset="
+        "data/processed/wjb_c1_a6000/refusal_prompts.jsonl" in result.stdout
+    )
+    assert "Command:" in result.stdout
+    assert "submit_refusal_job.sh" in result.stdout
+    assert "--stage all" in result.stdout
+    assert "--gpu-type a6000" in result.stdout
+    assert "--job-name wjb_c1_a6000-refusal-pipeline" in result.stdout
+    assert "--activation-dir artifacts/activations/wjb_c1_a6000" in result.stdout
+
+
+def test_submit_wildjailbreak_c1_harmfulness_train_prints_target_command():
+    script = REPO_ROOT / "scripts" / "cluster" / "submit_wildjailbreak_c1.sh"
+    env = {**os.environ, "USER": "pytest-user", "HOME": "/tmp/home"}
+
+    result = subprocess.run(
+        [
+            "bash",
+            str(script),
+            "--print-only",
+            "--stage",
+            "harmfulness-train",
+            "--run-tag",
+            "wjb_harm",
+        ],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+
+    assert (
+        "harmfulness_results_root=results/refusal/wjb_harm/harmfulness" in result.stdout
+    )
+    assert "submit_probe_training_job.sh" in result.stdout
+    assert "--label-key source_label" in result.stdout
+    assert "--dataset data/processed/wjb_harm/refusal_labelled.jsonl" in result.stdout
+    assert (
+        "--adversarial-dataset "
+        "data/processed/wjb_harm/refusal_labelled_adversarial.jsonl" in result.stdout
+    )
+    assert (
+        "--text-model-dir artifacts/models/wjb_harm/harmfulness/text_baseline"
+        in result.stdout
+    )
+    assert (
+        "--results-output results/refusal/wjb_harm/harmfulness/results_table.csv"
+        in result.stdout
+    )
+    assert "--job-name wjb_harm-harmfulness-train" in result.stdout
