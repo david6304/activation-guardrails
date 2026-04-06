@@ -1,0 +1,70 @@
+# Refusal-probing config on WildJailbreak.
+#
+# Vanilla split:
+#   - train/val/test built from WildJailbreak vanilla_harmful + vanilla_benign
+#   - label is later overwritten with refusal/compliance after judge labelling
+#   - source_label preserves the original harmfulness target for 0c comparisons
+#
+# Adversarial split:
+#   - separate adversarial_harmful-only evaluation set
+#   - run through generate_responses.py / label_refusals.py / relabel mode
+#     separately, then pass to extract_activations.py with --adversarial-dataset
+
+seed: 42
+
+model:
+  name: "google/gemma-2-9b-it"
+  dtype: "bfloat16"
+
+data:
+  dataset: "wildjailbreak"
+  wildjailbreak_path: "data/raw/wildjailbreak/wildjailbreak.jsonl"
+  n_vanilla_harmful: 2000
+  n_vanilla_benign: 2000
+  n_adversarial: 2000
+  splits:
+    train: 0.70
+    val: 0.15
+    test: 0.15
+
+generation:
+  max_new_tokens: 512
+  temperature: 0.0
+  batch_size: 8
+  checkpoint_every: 100
+
+judge:
+  model: "self"
+  max_new_tokens: 64
+  temperature: 0.0
+  batch_size: 8
+
+features:
+  layers: [9, 15, 20, 25, 31, 36, 41]
+  token_position: "last"
+  batch_size: 8
+  max_length: 512
+
+probe:
+  model: "logistic_regression"
+  penalty: "l1"
+  C: 500
+  c_values: [0.001, 0.01, 0.1, 1.0, 10.0, 100.0, 500.0]
+  max_iter: 1000
+  cv_folds: 5
+
+baseline:
+  model: "tfidf_lr"
+  max_features: 10000
+  C: 1.0
+
+eval:
+  primary_metric: "tpr_at_fpr"
+  target_fpr: 0.01
+  secondary_metric: "roc_auc"
+
+sae:
+  layers: [9, 20, 31]
+  width: 16384
+  variant: "average_l0_14"
+  release: "gemma-scope-9b-it-res"

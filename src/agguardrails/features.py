@@ -24,9 +24,46 @@ class ActivationDataset:
     features_by_layer: dict[int, np.ndarray]
     labels: np.ndarray
     example_ids: list[str]
+    label_arrays: dict[str, np.ndarray] | None = None
 
 
 TokenPosition = Literal["last", "last_instruction"]
+
+_SOURCE_LABEL_TO_BINARY = {
+    "harmful": 1,
+    "unsafe": 1,
+    "vanilla_harmful": 1,
+    "adversarial_harmful": 1,
+    "benign": 0,
+    "safe": 0,
+    "vanilla_benign": 0,
+}
+
+
+def _label_artifact_path(
+    input_dir: str | Path,
+    *,
+    split: str,
+    label_key: str,
+) -> Path:
+    input_dir = Path(input_dir)
+    if label_key == "label":
+        return input_dir / f"{split}_labels.npz"
+    return input_dir / f"{split}_labels_{label_key}.npz"
+
+
+def _load_label_arrays(input_dir: str | Path, *, split: str) -> dict[str, np.ndarray]:
+    input_dir = Path(input_dir)
+    label_arrays = {
+        "label": load_artifact(
+            _label_artifact_path(input_dir, split=split, label_key="label")
+        )
+    }
+    prefix = f"{split}_labels_"
+    for path in sorted(input_dir.glob(f"{prefix}*.npz")):
+        key = path.stem.removeprefix(prefix)
+        label_arrays[key] = load_artifact(path)
+    return label_arrays
 
 
 def validate_layer_indices(layers: list[int], model: torch.nn.Module) -> None:
@@ -95,6 +132,8 @@ def extract_last_token_hidden_states(
     token_position = validate_token_position(token_position)
     all_features = {layer: [] for layer in layers}
     labels: list[int] = []
+    source_labels: list[int] = []
+    has_binary_source_labels = True
     example_ids: list[str] = []
 
     n_batches = (len(examples) + batch_size - 1) // batch_size
@@ -106,8 +145,7 @@ def extract_last_token_hidden_states(
         disable=False,
     ):
         prompts = [
-            format_prompt(tokenizer, example.prompt)
-            for example in batch_examples
+            format_prompt(tokenizer, example.prompt) for example in batch_examples
         ]
         encoded = tokenizer(
             prompts,
@@ -163,15 +201,28 @@ def extract_last_token_hidden_states(
             )
 
         labels.extend(example.label for example in batch_examples)
+        for example in batch_examples:
+            if not has_binary_source_labels:
+                break
+            binary_source_label = _SOURCE_LABEL_TO_BINARY.get(example.source_label)
+            if binary_source_label is None:
+                has_binary_source_labels = False
+                source_labels.clear()
+                break
+            source_labels.append(binary_source_label)
         example_ids.extend(example.example_id for example in batch_examples)
 
     features_by_layer = {
         layer: np.concatenate(chunks, axis=0) for layer, chunks in all_features.items()
     }
+    label_arrays = {"label": np.array(labels, dtype=np.int64)}
+    if has_binary_source_labels and len(source_labels) == len(example_ids):
+        label_arrays["source_label"] = np.array(source_labels, dtype=np.int64)
     return ActivationDataset(
         features_by_layer=features_by_layer,
-        labels=np.array(labels, dtype=np.int64),
+        labels=label_arrays["label"],
         example_ids=example_ids,
+        label_arrays=label_arrays,
     )
 
 
@@ -196,7 +247,21 @@ def save_activation_dataset(
             output_dir / f"{split}_layer_{layer}_features",
         )
 
-    labels_path = save_artifact(dataset.labels, output_dir / f"{split}_labels")
+    label_arrays = {"label": dataset.labels}
+    if dataset.label_arrays is not None:
+        label_arrays.update(dataset.label_arrays)
+
+    label_paths = {
+        key: str(
+            save_artifact(
+                values,
+                _label_artifact_path(
+                    output_dir, split=split, label_key=key
+                ).with_suffix(""),
+            )
+        )
+        for key, values in sorted(label_arrays.items())
+    }
     ids_path = save_artifact(
         np.array(dataset.example_ids, dtype=str),
         output_dir / f"{split}_ids",
@@ -208,8 +273,10 @@ def save_activation_dataset(
         split=split,
         token_position=token_position,
         n_examples=len(dataset.example_ids),
+        label_keys=sorted(label_arrays.keys()),
         layers=sorted(dataset.features_by_layer.keys()),
-        labels_path=str(labels_path),
+        labels_path=label_paths["label"],
+        label_paths=label_paths,
         ids_path=str(ids_path),
         feature_paths={
             str(layer): str(path) for layer, path in sorted(saved_paths.items())
@@ -223,6 +290,7 @@ def load_activation_split(
     input_dir: str | Path,
     split: str,
     layers: list[int],
+    label_key: str = "label",
 ) -> ActivationDataset:
     """Load cached dense activation features, labels, and ids for one split."""
     return load_layer_feature_split(
@@ -230,6 +298,7 @@ def load_activation_split(
         split=split,
         layers=layers,
         feature_name="features",
+        label_key=label_key,
     )
 
 
@@ -239,6 +308,7 @@ def load_layer_feature_split(
     split: str,
     layers: list[int],
     feature_name: str,
+    label_key: str = "label",
 ) -> ActivationDataset:
     """Load cached per-layer features, labels, and ids for one split."""
     input_dir = Path(input_dir)
@@ -246,10 +316,18 @@ def load_layer_feature_split(
         layer: load_artifact(input_dir / f"{split}_layer_{layer}_{feature_name}.npz")
         for layer in layers
     }
-    labels = load_artifact(input_dir / f"{split}_labels.npz")
+    label_arrays = _load_label_arrays(input_dir, split=split)
+    if label_key not in label_arrays:
+        available = sorted(label_arrays)
+        msg = (
+            f"Label key {label_key!r} not available for split={split!r}. "
+            f"Available keys: {available}"
+        )
+        raise ValueError(msg)
     example_ids = load_artifact(input_dir / f"{split}_ids.npz").tolist()
     return ActivationDataset(
         features_by_layer=features_by_layer,
-        labels=labels,
+        labels=label_arrays[label_key],
         example_ids=example_ids,
+        label_arrays=label_arrays,
     )

@@ -262,7 +262,9 @@ def load_wildjailbreak_examples(
     """Load WildJailbreak prompts of a given data_type from a normalised JSONL.
 
     Args:
-        path: Path to the normalised JSONL produced by scripts/download_wildjailbreak.py.
+        path:
+            Path to the normalised JSONL produced by
+            scripts/download_wildjailbreak.py.
         data_type: One of ``"vanilla_harmful"``, ``"vanilla_benign"``,
             ``"adversarial_harmful"``.
     """
@@ -307,7 +309,7 @@ def build_main_dataset(
     test_size: float,
     seed: int,
 ) -> list[PromptExample]:
-    """Build the main experiment train/val/test dataset from WildJailbreak vanilla split.
+    """Build the main experiment train/val/test dataset from WildJailbreak.
 
     Only vanilla examples are used for train/val/test. The adversarial test set
     is kept separate and built via ``build_adversarial_test_set()``.
@@ -329,6 +331,46 @@ def build_main_dataset(
         load_wildjailbreak_examples(wildjailbreak_path, data_type="vanilla_benign"),
         n=n_vanilla_benign,
     )
+    combined = harmful + benign
+    return make_stratified_splits(
+        combined,
+        train_size=train_size,
+        val_size=val_size,
+        test_size=test_size,
+        seed=seed,
+    )
+
+
+def build_wildjailbreak_refusal_dataset(
+    *,
+    wildjailbreak_path: str | Path,
+    n_vanilla_harmful: int,
+    n_vanilla_benign: int,
+    train_size: float,
+    val_size: float,
+    test_size: float,
+    seed: int,
+) -> list[PromptExample]:
+    """Build a WildJailbreak refusal dataset from vanilla harmful + benign prompts.
+
+    Unlike the main harmfulness dataset, this normalises ``source_label`` to the
+    coarse harmfulness target (``"harmful"`` / ``"benign"``). That preserves the
+    original harmfulness label after refusal relabelling overwrites ``label``.
+    """
+    harmful = sample_examples(
+        load_wildjailbreak_examples(wildjailbreak_path, data_type="vanilla_harmful"),
+        n=n_vanilla_harmful,
+    )
+    benign = sample_examples(
+        load_wildjailbreak_examples(wildjailbreak_path, data_type="vanilla_benign"),
+        n=n_vanilla_benign,
+    )
+
+    for example in harmful:
+        example["source_label"] = "harmful"
+    for example in benign:
+        example["source_label"] = "benign"
+
     combined = harmful + benign
     return make_stratified_splits(
         combined,
@@ -530,7 +572,9 @@ def build_adversarial_test_set(
     Returns PromptExample records all with split="test".
     """
     adversarial = sample_examples(
-        load_wildjailbreak_examples(wildjailbreak_path, data_type="adversarial_harmful"),
+        load_wildjailbreak_examples(
+            wildjailbreak_path, data_type="adversarial_harmful"
+        ),
         n=n_adversarial,
     )
     dataset: list[PromptExample] = []
@@ -545,6 +589,36 @@ def build_adversarial_test_set(
                 source=example["source"],
                 source_id=example["source_id"],
                 source_label=example["source_label"],
+            )
+        )
+    return dataset
+
+
+def build_wildjailbreak_refusal_adversarial_set(
+    *,
+    wildjailbreak_path: str | Path,
+    n_adversarial: int,
+) -> list[PromptExample]:
+    """Build the harmful-only WildJailbreak adversarial set for refusal eval."""
+    adversarial = sample_examples(
+        load_wildjailbreak_examples(
+            wildjailbreak_path,
+            data_type="adversarial_harmful",
+        ),
+        n=n_adversarial,
+    )
+    dataset: list[PromptExample] = []
+    for example in adversarial:
+        example_id = f"wildjailbreak::{example['source_id']}"
+        dataset.append(
+            PromptExample(
+                example_id=example_id,
+                prompt=example["prompt"],
+                label=example["label"],
+                split="test",
+                source=example["source"],
+                source_id=example["source_id"],
+                source_label="harmful",
             )
         )
     return dataset

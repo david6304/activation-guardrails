@@ -14,7 +14,11 @@ import yaml
 
 from agguardrails.features import load_activation_split
 from agguardrails.io import save_artifact, save_metadata
-from agguardrails.sae import build_pretrained_sae_spec, encode_with_sae, load_pretrained_sae
+from agguardrails.sae import (
+    build_pretrained_sae_spec,
+    encode_with_sae,
+    load_pretrained_sae,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -90,7 +94,8 @@ def main() -> None:
     saes = {}
     for spec in specs:
         print(
-            f"Loading SAE for layer {spec.layer}: release={spec.release} sae_id={spec.sae_id}",
+            "Loading SAE for layer "
+            f"{spec.layer}: release={spec.release} sae_id={spec.sae_id}",
             flush=True,
         )
         saes[spec.layer] = load_pretrained_sae(
@@ -124,7 +129,8 @@ def main() -> None:
         }
         for spec in specs:
             print(
-                f"Encoding split={split} layer={spec.layer} into SAE width {spec.width}",
+                f"Encoding split={split} layer={spec.layer} "
+                f"into SAE width {spec.width}",
                 flush=True,
             )
             encoded = encode_with_sae(
@@ -140,7 +146,19 @@ def main() -> None:
             split_summary["feature_paths"][str(spec.layer)] = str(path)
             split_summary["feature_shapes"][str(spec.layer)] = list(encoded.shape)
 
-        labels_path = save_artifact(dataset.labels, output_dir / f"{split}_labels")
+        label_arrays = {"label": dataset.labels}
+        if dataset.label_arrays is not None:
+            label_arrays.update(dataset.label_arrays)
+        label_paths = {}
+        for label_key, label_values in sorted(label_arrays.items()):
+            label_stem = (
+                f"{split}_labels"
+                if label_key == "label"
+                else f"{split}_labels_{label_key}"
+            )
+            label_paths[label_key] = str(
+                save_artifact(label_values, output_dir / label_stem)
+            )
         ids_path = save_artifact(
             np.array(dataset.example_ids, dtype=str),
             output_dir / f"{split}_ids",
@@ -157,11 +175,13 @@ def main() -> None:
             batch_size=int(args.batch_size),
             device=args.device,
             dtype=args.dtype,
-            labels_path=str(labels_path),
+            label_keys=sorted(label_arrays.keys()),
+            labels_path=label_paths["label"],
+            label_paths=label_paths,
             ids_path=str(ids_path),
             feature_paths=feature_paths,
         )
-        split_summary["labels_path"] = str(labels_path)
+        split_summary["label_paths"] = label_paths
         split_summary["ids_path"] = str(ids_path)
         run_summary["splits"][split] = split_summary
         print(f"Saved SAE features for split={split}", flush=True)

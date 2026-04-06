@@ -17,7 +17,11 @@ import yaml
 from agguardrails.eval import format_results_row, summarize_scores_at_threshold
 from agguardrails.features import load_activation_split
 from agguardrails.io import save_artifact, save_metadata
-from agguardrails.probes import fit_probe_for_layer, fit_probe_for_layer_cv, select_best_probe
+from agguardrails.probes import (
+    fit_probe_for_layer,
+    fit_probe_for_layer_cv,
+    select_best_probe,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,6 +40,12 @@ def parse_args() -> argparse.Namespace:
         default="results/main/metrics",
         help="Directory for committed metrics JSON.",
     )
+    parser.add_argument(
+        "--label-key",
+        choices=["label", "source_label"],
+        default="label",
+        help="Which binary label target to train on.",
+    )
     return parser.parse_args()
 
 
@@ -50,9 +60,24 @@ def main() -> None:
     eval_cfg = config["eval"]
     seed = int(config["seed"])
 
-    train = load_activation_split(input_dir=args.input_dir, split="train", layers=layers)
-    val = load_activation_split(input_dir=args.input_dir, split="val", layers=layers)
-    test = load_activation_split(input_dir=args.input_dir, split="test", layers=layers)
+    train = load_activation_split(
+        input_dir=args.input_dir,
+        split="train",
+        layers=layers,
+        label_key=args.label_key,
+    )
+    val = load_activation_split(
+        input_dir=args.input_dir,
+        split="val",
+        layers=layers,
+        label_key=args.label_key,
+    )
+    test = load_activation_split(
+        input_dir=args.input_dir,
+        split="test",
+        layers=layers,
+        label_key=args.label_key,
+    )
     adversarial = None
     adversarial_labels_path = Path(args.input_dir) / "adversarial_labels.npz"
     if adversarial_labels_path.exists():
@@ -60,6 +85,7 @@ def main() -> None:
             input_dir=args.input_dir,
             split="adversarial",
             layers=layers,
+            label_key=args.label_key,
         )
 
     output_dir = Path(args.output_dir)
@@ -69,7 +95,10 @@ def main() -> None:
     use_cv = c_values is not None
     if use_cv:
         c_values = [float(c) for c in c_values]
-        print(f"CV mode: searching C in {c_values} with {probe_cfg.get('cv_folds', 5)}-fold stratified CV")
+        print(
+            f"CV mode: searching C in {c_values} "
+            f"with {probe_cfg.get('cv_folds', 5)}-fold stratified CV"
+        )
     else:
         print(f"Fixed C={probe_cfg['C']}")
 
@@ -152,21 +181,28 @@ def main() -> None:
     metadata_kwargs: dict[str, object] = {
         "config_path": args.config,
         "input_dir": args.input_dir,
+        "label_key": args.label_key,
         "best_layer": best.layer,
         "per_layer": per_layer_metrics,
     }
     if adversarial is not None:
-        metadata_kwargs["best_adversarial_metrics"] = per_layer_metrics[str(best.layer)][
-            "adversarial"
-        ]
+        metadata_kwargs["best_adversarial_metrics"] = per_layer_metrics[
+            str(best.layer)
+        ]["adversarial"]
     save_metadata(
         metrics_dir / "probe_metrics.json",
         **metadata_kwargs,
     )
 
     print(f"\nBest layer: {best.layer}")
-    print(f"Val  ROC-AUC: {best.val_result.roc_auc:.4f}  TPR@1%FPR: {best.val_result.tpr_at_threshold:.4f}")
-    print(f"Test ROC-AUC: {best.test_result.roc_auc:.4f}  TPR@1%FPR: {best.test_result.tpr_at_threshold:.4f}")
+    print(
+        f"Val  ROC-AUC: {best.val_result.roc_auc:.4f}  "
+        f"TPR@1%FPR: {best.val_result.tpr_at_threshold:.4f}"
+    )
+    print(
+        f"Test ROC-AUC: {best.test_result.roc_auc:.4f}  "
+        f"TPR@1%FPR: {best.test_result.tpr_at_threshold:.4f}"
+    )
     if adversarial is not None:
         best_adv = per_layer_metrics[str(best.layer)]["adversarial"]
         print(

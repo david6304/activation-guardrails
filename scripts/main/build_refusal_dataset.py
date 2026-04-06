@@ -3,8 +3,10 @@
 Two modes:
 
 1. **Source dataset** (before response generation):
-   Builds the initial PromptExample JSONL from AdvBench + Alpaca, using
-   source labels (harmful=1, benign=0).  This is the input to
+   Builds the initial PromptExample JSONL from either AdvBench + Alpaca or
+   WildJailbreak vanilla harmful + benign prompts, using source labels
+   (harmful=1, benign=0). In WildJailbreak mode it also writes a separate
+   adversarial_harmful-only evaluation set. This is the input to
    generate_responses.py.
 
 2. **Refusal dataset** (after judge labelling):
@@ -31,7 +33,6 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
-from dataclasses import replace
 from pathlib import Path
 
 import yaml
@@ -39,6 +40,8 @@ import yaml
 from agguardrails.data import (
     PromptExample,
     build_advbench_alpaca_dataset,
+    build_wildjailbreak_refusal_adversarial_set,
+    build_wildjailbreak_refusal_dataset,
     read_prompt_dataset,
     write_prompt_dataset,
 )
@@ -56,7 +59,7 @@ def parse_args() -> argparse.Namespace:
         choices=["source", "relabel"],
         default="source",
         help=(
-            "source: build initial dataset from AdvBench+Alpaca. "
+            "source: build initial dataset from the configured refusal corpus. "
             "relabel: apply judge refusal labels to an existing dataset."
         ),
     )
@@ -75,26 +78,71 @@ def parse_args() -> argparse.Namespace:
         default="data/processed/refusal_prompts.jsonl",
         help="Output JSONL path.",
     )
+    parser.add_argument(
+        "--adversarial-output",
+        default=None,
+        help=(
+            "Optional output JSONL for a WildJailbreak adversarial evaluation set. "
+            "Ignored for AdvBench+Alpaca configs. If omitted in WildJailbreak "
+            "source mode, a sibling *_adversarial.jsonl file is written."
+        ),
+    )
     return parser.parse_args()
 
 
-def _build_source(config: dict, output_path: Path) -> list[PromptExample]:
+def _default_adversarial_output(output_path: Path) -> Path:
+    return output_path.with_name(f"{output_path.stem}_adversarial{output_path.suffix}")
+
+
+def _build_source(
+    config: dict,
+    output_path: Path,
+    *,
+    adversarial_output_path: Path | None = None,
+) -> tuple[list[PromptExample], list[PromptExample] | None]:
     seed = int(config["seed"])
     data_cfg = config["data"]
+    dataset_name = str(data_cfg.get("dataset", "advbench_alpaca"))
 
     seed_everything(seed)
-    dataset = build_advbench_alpaca_dataset(
-        advbench_path=data_cfg["advbench_path"],
-        alpaca_path=data_cfg["alpaca_path"],
-        n_harmful=int(data_cfg["n_harmful"]),
-        n_benign=int(data_cfg["n_benign"]),
-        train_size=int(data_cfg["train_size"]),
-        val_size=int(data_cfg["val_size"]),
-        test_size=int(data_cfg["test_size"]),
-        seed=seed,
-    )
+    adversarial_dataset: list[PromptExample] | None = None
+
+    if dataset_name == "advbench_alpaca":
+        dataset = build_advbench_alpaca_dataset(
+            advbench_path=data_cfg["advbench_path"],
+            alpaca_path=data_cfg["alpaca_path"],
+            n_harmful=int(data_cfg["n_harmful"]),
+            n_benign=int(data_cfg["n_benign"]),
+            train_size=int(data_cfg["train_size"]),
+            val_size=int(data_cfg["val_size"]),
+            test_size=int(data_cfg["test_size"]),
+            seed=seed,
+        )
+    elif dataset_name == "wildjailbreak":
+        splits_cfg = data_cfg["splits"]
+        dataset = build_wildjailbreak_refusal_dataset(
+            wildjailbreak_path=data_cfg["wildjailbreak_path"],
+            n_vanilla_harmful=int(data_cfg["n_vanilla_harmful"]),
+            n_vanilla_benign=int(data_cfg["n_vanilla_benign"]),
+            train_size=float(splits_cfg["train"]),
+            val_size=float(splits_cfg["val"]),
+            test_size=float(splits_cfg["test"]),
+            seed=seed,
+        )
+        adversarial_dataset = build_wildjailbreak_refusal_adversarial_set(
+            wildjailbreak_path=data_cfg["wildjailbreak_path"],
+            n_adversarial=int(data_cfg["n_adversarial"]),
+        )
+        write_prompt_dataset(
+            adversarial_output_path or _default_adversarial_output(output_path),
+            adversarial_dataset,
+        )
+    else:
+        msg = f"Unsupported refusal dataset: {dataset_name!r}"
+        raise ValueError(msg)
+
     write_prompt_dataset(output_path, dataset)
-    return dataset
+    return dataset, adversarial_dataset
 
 
 def _relabel(
@@ -108,13 +156,11 @@ def _relabel(
 
     # Build lookup: example_id → refusal_label.
     refusal_lookup: dict[str, int] = {
-        rec["example_id"]: int(rec["refusal_label"])
-        for rec in labelled_records
+        rec["example_id"]: int(rec["refusal_label"]) for rec in labelled_records
     }
 
     missing = [
-        e.example_id for e in source_dataset
-        if e.example_id not in refusal_lookup
+        e.example_id for e in source_dataset if e.example_id not in refusal_lookup
     ]
     if missing:
         msg = (
@@ -148,23 +194,33 @@ def main() -> None:
     output_path = Path(args.output)
 
     if args.mode == "source":
-        dataset = _build_source(config, output_path)
+        dataset, adversarial_dataset = _build_source(
+            config,
+            output_path,
+            adversarial_output_path=(
+                Path(args.adversarial_output)
+                if args.adversarial_output is not None
+                else None
+            ),
+        )
         label_counts = Counter(e.label for e in dataset)
         split_counts = Counter(e.split for e in dataset)
         split_label_counts = Counter((e.split, e.label) for e in dataset)
+        dataset_name = str(config["data"].get("dataset", "advbench_alpaca"))
 
         save_metadata(
             output_path.with_suffix(".metadata.json"),
             config_path=args.config,
             output_path=str(output_path),
             mode="source",
+            dataset=dataset_name,
             seed=config["seed"],
             n_examples=len(dataset),
             label_counts=dict(label_counts),
             split_counts=dict(split_counts),
             split_label_counts={
-                f"{s}:{l}": c
-                for (s, l), c in sorted(split_label_counts.items())
+                f"{split}:{label}": count
+                for (split, label), count in sorted(split_label_counts.items())
             },
         )
 
@@ -172,6 +228,31 @@ def main() -> None:
         print(f"  Total: {len(dataset)}")
         print(f"  Labels: {dict(label_counts)}")
         print(f"  Splits: {dict(split_counts)}")
+        if adversarial_dataset is not None:
+            adversarial_output_path = (
+                Path(args.adversarial_output)
+                if args.adversarial_output is not None
+                else _default_adversarial_output(output_path)
+            )
+            save_metadata(
+                adversarial_output_path.with_suffix(".metadata.json"),
+                config_path=args.config,
+                output_path=str(adversarial_output_path),
+                mode="source",
+                dataset=dataset_name,
+                split="adversarial",
+                seed=config["seed"],
+                n_examples=len(adversarial_dataset),
+                label_counts={1: len(adversarial_dataset)},
+                source_label_counts={"harmful": len(adversarial_dataset)},
+                note=(
+                    "WildJailbreak adversarial refusal evaluation set. "
+                    "All prompts are harmful and assigned split=test."
+                ),
+            )
+            print(f"Adversarial source dataset written to: {adversarial_output_path}")
+            print(f"  Total: {len(adversarial_dataset)}")
+            print("  All label=1, source_label=harmful, split=test")
 
     else:  # relabel
         dataset = _relabel(
@@ -192,8 +273,8 @@ def main() -> None:
             n_examples=len(dataset),
             refusal_label_counts=dict(label_counts),
             split_label_counts={
-                f"{s}:{l}": c
-                for (s, l), c in sorted(split_label_counts.items())
+                f"{split}:{label}": count
+                for (split, label), count in sorted(split_label_counts.items())
             },
         )
 

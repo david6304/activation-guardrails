@@ -42,6 +42,10 @@ def test_save_and_load_activation_split_round_trip(tmp_path):
         },
         labels=np.array([0, 1], dtype=np.int64),
         example_ids=["a", "b"],
+        label_arrays={
+            "label": np.array([0, 1], dtype=np.int64),
+            "source_label": np.array([1, 0], dtype=np.int64),
+        },
     )
 
     save_activation_dataset(
@@ -60,7 +64,22 @@ def test_save_and_load_activation_split_round_trip(tmp_path):
         loaded.features_by_layer[16], dataset.features_by_layer[16]
     )
     np.testing.assert_array_equal(loaded.labels, dataset.labels)
+    np.testing.assert_array_equal(
+        loaded.label_arrays["source_label"],
+        dataset.label_arrays["source_label"],
+    )
     assert loaded.example_ids == dataset.example_ids
+
+    loaded_source = load_activation_split(
+        input_dir=tmp_path,
+        split="train",
+        layers=[8, 16],
+        label_key="source_label",
+    )
+    np.testing.assert_array_equal(
+        loaded_source.labels,
+        dataset.label_arrays["source_label"],
+    )
 
 
 def test_load_layer_feature_split_with_custom_feature_name(tmp_path):
@@ -71,6 +90,10 @@ def test_load_layer_feature_split_with_custom_feature_name(tmp_path):
     np.savez_compressed(
         tmp_path / "train_labels.npz",
         data=np.array([1], dtype=np.int64),
+    )
+    np.savez_compressed(
+        tmp_path / "train_labels_source_label.npz",
+        data=np.array([0], dtype=np.int64),
     )
     np.savez_compressed(
         tmp_path / "train_ids.npz",
@@ -89,6 +112,10 @@ def test_load_layer_feature_split_with_custom_feature_name(tmp_path):
         np.array([[1.0, 2.0]], dtype=np.float32),
     )
     np.testing.assert_array_equal(loaded.labels, np.array([1], dtype=np.int64))
+    np.testing.assert_array_equal(
+        loaded.label_arrays["source_label"],
+        np.array([0], dtype=np.int64),
+    )
     assert loaded.example_ids == ["ex-1"]
 
 
