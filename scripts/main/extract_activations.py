@@ -29,6 +29,7 @@ from agguardrails.features import (
     extract_last_token_hidden_states,
     save_activation_dataset,
     validate_layer_indices,
+    validate_token_position,
 )
 from agguardrails.models import load_model_and_tokenizer
 
@@ -64,6 +65,15 @@ def parse_args() -> argparse.Namespace:
         metavar="SPLIT",
         help="Vanilla splits to extract (default: train val test).",
     )
+    parser.add_argument(
+        "--token-position",
+        default=None,
+        choices=["last", "last_instruction"],
+        help=(
+            "Hidden-state position to extract. Defaults to features.token_position "
+            "from the config."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -76,6 +86,9 @@ def main() -> None:
     model_cfg = config["model"]
     feature_cfg = config["features"]
     layers = [int(layer) for layer in feature_cfg["layers"]]
+    token_position = validate_token_position(
+        args.token_position or feature_cfg.get("token_position", "last")
+    )
 
     print(f"Loading model: {model_cfg['name']}", flush=True)
     model, tokenizer = load_model_and_tokenizer(
@@ -99,6 +112,7 @@ def main() -> None:
             layers=layers,
             batch_size=int(feature_cfg["batch_size"]),
             max_length=int(feature_cfg["max_length"]),
+            token_position=token_position,
         )
         save_activation_dataset(
             activation_dataset,
@@ -106,6 +120,7 @@ def main() -> None:
             split=split_name,
             config_path=args.config,
             model_name=model_cfg["name"],
+            token_position=token_position,
         )
         print(f"Saved {split_name} activations: {len(activation_dataset.example_ids)} examples")
 
@@ -123,6 +138,7 @@ def main() -> None:
             layers=layers,
             batch_size=int(feature_cfg["batch_size"]),
             max_length=int(feature_cfg["max_length"]),
+            token_position=token_position,
         )
         save_activation_dataset(
             activation_dataset,
@@ -130,6 +146,7 @@ def main() -> None:
             split="adversarial",
             config_path=args.config,
             model_name=model_cfg["name"],
+            token_position=token_position,
         )
         print(
             f"Saved adversarial activations: {len(activation_dataset.example_ids)} examples"

@@ -15,6 +15,7 @@ from agguardrails.data import PromptExample, read_prompt_dataset
 from agguardrails.eval import BinaryEvalResult
 from agguardrails.features import ActivationDataset
 from agguardrails.io import read_jsonl, read_jsonl as _read_jsonl, write_jsonl
+from agguardrails.latent_guard import LatentGuardResult
 from agguardrails.probes import ProbeResult
 from scripts.main import (
     build_cipher_dataset as build_cipher_dataset_script,
@@ -33,6 +34,7 @@ from scripts.main import (
     make_results_table as make_results_table_script,
     prepare_refusal_label_audit as prepare_refusal_label_audit_script,
     train_activation_probes as train_activation_probes_script,
+    train_latent_guard as train_latent_guard_script,
     train_sae_probes as train_sae_probes_script,
     train_text_baseline as train_text_baseline_script,
 )
@@ -317,7 +319,7 @@ def test_extract_activations_script_wires_requested_splits_and_adversarial(monke
     adversarial_dataset = [
         PromptExample("adv-1", "prompt adv", 1, "test", "wildjailbreak", "3", "adversarial_harmful")
     ]
-    calls: list[tuple[str, int]] = []
+    calls: list[dict[str, object]] = []
     saved: list[str] = []
 
     fake_model = SimpleNamespace(config=SimpleNamespace(num_hidden_layers=41))
@@ -333,7 +335,12 @@ def test_extract_activations_script_wires_requested_splits_and_adversarial(monke
 
     def fake_extract_last_token_hidden_states(**kwargs):
         example_ids = [example.example_id for example in kwargs["examples"]]
-        calls.append((kwargs.get("split_name", "unknown"), len(example_ids)))
+        calls.append(
+            {
+                "n_examples": len(example_ids),
+                "token_position": kwargs["token_position"],
+            }
+        )
         return ActivationDataset(
             features_by_layer={9: np.zeros((len(example_ids), 2), dtype=np.float32)},
             labels=np.zeros(len(example_ids), dtype=np.int64),
@@ -349,6 +356,7 @@ def test_extract_activations_script_wires_requested_splits_and_adversarial(monke
             adversarial_dataset="adv.jsonl",
             output_dir=str(tmp_path / "acts"),
             splits=["train", "test"],
+            token_position="last_instruction",
         ),
     )
     monkeypatch.setattr(extract_activations_script, "load_model_and_tokenizer", lambda *args, **kwargs: (fake_model, object()))
@@ -359,12 +367,17 @@ def test_extract_activations_script_wires_requested_splits_and_adversarial(monke
     monkeypatch.setattr(
         extract_activations_script,
         "save_activation_dataset",
-        lambda dataset, output_dir, split, config_path, model_name: saved.append(split),
+        lambda dataset, output_dir, split, config_path, model_name, token_position: saved.append(split),
     )
 
     extract_activations_script.main()
 
     assert saved == ["train", "test", "adversarial"]
+    assert [call["token_position"] for call in calls] == [
+        "last_instruction",
+        "last_instruction",
+        "last_instruction",
+    ]
 
 
 def test_train_text_baseline_script_saves_pipeline_and_metrics(monkeypatch, tmp_path):
@@ -557,6 +570,92 @@ def test_train_activation_probes_script_sweeps_layers_and_saves_metrics(monkeypa
     assert captured["layers"] == [9, 20]
     assert any("layer_9_probe" in path for path in captured["saved_paths"])
     assert any("layer_20_probe" in path for path in captured["saved_paths"])
+    assert captured["metadata"]["best_layer"] == 20
+    assert set(captured["metadata"]["per_layer"].keys()) == {"9", "20"}
+    assert captured["metadata"]["best_adversarial_metrics"]["split"] == "adversarial"
+    assert captured["metadata"]["per_layer"]["9"]["adversarial"]["tpr_at_threshold"] == 1.0
+
+
+def test_train_latent_guard_script_sweeps_layers_and_saves_metrics(monkeypatch, tmp_path):
+    config_path = tmp_path / "main.yaml"
+    _write_main_config(config_path, tmp_path / "unused.jsonl")
+    captured: dict[str, object] = {"layers": [], "saved_paths": []}
+    acts_dir = tmp_path / "acts"
+    acts_dir.mkdir()
+    (acts_dir / "adversarial_labels.npz").write_bytes(b"placeholder")
+
+    train = ActivationDataset(
+        features_by_layer={9: np.ones((2, 2), dtype=np.float32), 20: np.ones((2, 2), dtype=np.float32)},
+        labels=np.array([0, 1], dtype=np.int64),
+        example_ids=["a", "b"],
+    )
+    val = ActivationDataset(
+        features_by_layer={9: np.ones((2, 2), dtype=np.float32), 20: np.ones((2, 2), dtype=np.float32)},
+        labels=np.array([0, 1], dtype=np.int64),
+        example_ids=["c", "d"],
+    )
+    test = ActivationDataset(
+        features_by_layer={9: np.ones((2, 2), dtype=np.float32), 20: np.ones((2, 2), dtype=np.float32)},
+        labels=np.array([0, 1], dtype=np.int64),
+        example_ids=["e", "f"],
+    )
+    adversarial = ActivationDataset(
+        features_by_layer={9: np.ones((2, 2), dtype=np.float32), 20: np.ones((2, 2), dtype=np.float32)},
+        labels=np.array([1, 1], dtype=np.int64),
+        example_ids=["g", "h"],
+    )
+
+    def fake_load_activation_split(*, input_dir, split, layers):
+        assert layers == [9, 20]
+        return {"train": train, "val": val, "test": test, "adversarial": adversarial}[split]
+
+    def fake_fit_latent_guard_for_layer(**kwargs):
+        layer = kwargs["layer"]
+        captured["layers"].append(layer)
+        score = 0.58 if layer == 9 else 0.73
+        return LatentGuardResult(
+            layer=layer,
+            direction=np.array([1.0, 0.0], dtype=np.float32),
+            val_result=BinaryEvalResult(score, 0.5, 0.0, score, 1),
+            test_result=BinaryEvalResult(score - 0.1, 0.5, 0.0, score - 0.1, 1),
+        )
+
+    monkeypatch.setattr(
+        train_latent_guard_script,
+        "parse_args",
+        lambda: Namespace(
+            config=str(config_path),
+            input_dir=str(acts_dir),
+            output_dir=str(tmp_path / "latent_guard"),
+            metrics_dir=str(tmp_path / "metrics"),
+        ),
+    )
+    monkeypatch.setattr(
+        train_latent_guard_script,
+        "load_activation_split",
+        fake_load_activation_split,
+    )
+    monkeypatch.setattr(
+        train_latent_guard_script,
+        "fit_latent_guard_for_layer",
+        fake_fit_latent_guard_for_layer,
+    )
+    monkeypatch.setattr(
+        train_latent_guard_script,
+        "save_artifact",
+        lambda obj, path: captured["saved_paths"].append(str(path)),
+    )
+    monkeypatch.setattr(
+        train_latent_guard_script,
+        "save_metadata",
+        lambda path, **kwargs: captured.setdefault("metadata", kwargs),
+    )
+
+    train_latent_guard_script.main()
+
+    assert captured["layers"] == [9, 20]
+    assert any("layer_9_direction" in path for path in captured["saved_paths"])
+    assert any("layer_20_direction" in path for path in captured["saved_paths"])
     assert captured["metadata"]["best_layer"] == 20
     assert set(captured["metadata"]["per_layer"].keys()) == {"9", "20"}
     assert captured["metadata"]["best_adversarial_metrics"]["split"] == "adversarial"

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import sys
 
@@ -26,6 +27,9 @@ class ActivationDataset:
     example_ids: list[str]
 
 
+TokenPosition = Literal["last", "last_instruction"]
+
+
 def validate_layer_indices(layers: list[int], model: torch.nn.Module) -> None:
     """Raise ValueError if any requested layer index exceeds the model's hidden state count."""
     n_hidden = model.config.num_hidden_layers + 1  # +1 for embedding layer at index 0
@@ -36,6 +40,46 @@ def validate_layer_indices(layers: list[int], model: torch.nn.Module) -> None:
         )
 
 
+def validate_token_position(token_position: str) -> TokenPosition:
+    """Validate the requested token position selector."""
+    valid_positions = {"last", "last_instruction"}
+    if token_position not in valid_positions:
+        msg = (
+            f"Unsupported token_position {token_position!r}; "
+            f"expected one of {sorted(valid_positions)}"
+        )
+        raise ValueError(msg)
+    return token_position
+
+
+def _find_subsequence_start(sequence: list[int], subsequence: list[int]) -> int | None:
+    """Return the last start index where ``subsequence`` occurs inside ``sequence``."""
+    max_start = len(sequence) - len(subsequence)
+    for start in range(max_start, -1, -1):
+        if sequence[start : start + len(subsequence)] == subsequence:
+            return start
+    return None
+
+
+def _resolve_last_instruction_position(tokenizer, prompt: str) -> int:
+    """Locate the final token of the raw user instruction inside the chat template."""
+    content_ids = tokenizer.encode(prompt, add_special_tokens=False)
+    if not content_ids:
+        msg = "Cannot resolve last_instruction for an empty prompt."
+        raise ValueError(msg)
+
+    user_turn_ids = tokenizer.apply_chat_template(
+        [{"role": "user", "content": prompt}],
+        tokenize=True,
+        add_generation_prompt=False,
+    )
+    start = _find_subsequence_start(user_turn_ids, content_ids)
+    if start is None:
+        msg = "Could not locate prompt tokens inside the formatted user turn."
+        raise ValueError(msg)
+    return start + len(content_ids) - 1
+
+
 def extract_last_token_hidden_states(
     *,
     model: torch.nn.Module,
@@ -44,8 +88,10 @@ def extract_last_token_hidden_states(
     layers: list[int],
     batch_size: int,
     max_length: int,
+    token_position: TokenPosition = "last",
 ) -> ActivationDataset:
-    """Extract end-of-prompt hidden states for the requested layers."""
+    """Extract hidden states at a configurable token position for the requested layers."""
+    token_position = validate_token_position(token_position)
     all_features = {layer: [] for layer in layers}
     labels: list[int] = []
     example_ids: list[str] = []
@@ -66,13 +112,36 @@ def extract_last_token_hidden_states(
             outputs = model(**encoded, output_hidden_states=True)
 
         attention_mask = encoded["attention_mask"]
-        last_positions = attention_mask.sum(dim=1) - 1
+        sequence_lengths = attention_mask.sum(dim=1)
+        if getattr(tokenizer, "padding_side", "right") == "left":
+            pad_offsets = attention_mask.size(1) - sequence_lengths
+        else:
+            pad_offsets = torch.zeros_like(sequence_lengths)
+        if token_position == "last":
+            positions = pad_offsets + sequence_lengths - 1
+        else:
+            resolved_positions = []
+            for example, sequence_length, pad_offset in zip(
+                batch_examples,
+                sequence_lengths.tolist(),
+                pad_offsets.tolist(),
+                strict=True,
+            ):
+                position = _resolve_last_instruction_position(tokenizer, example.prompt)
+                if position >= int(sequence_length):
+                    msg = (
+                        f"Prompt {example.example_id} was truncated before token_position="
+                        f"{token_position!r} could be reached (max_length={max_length})."
+                    )
+                    raise ValueError(msg)
+                resolved_positions.append(int(pad_offset) + position)
+            positions = torch.tensor(resolved_positions, device=model.device)
 
         for layer in layers:
             hidden = outputs.hidden_states[layer]
             batch_vectors = hidden[
                 torch.arange(hidden.size(0), device=hidden.device),
-                last_positions,
+                positions,
             ]
             # NumPy cannot reliably materialise some PyTorch dtypes such as
             # bfloat16 directly. Cast in torch first so model dtype choices
@@ -101,8 +170,10 @@ def save_activation_dataset(
     split: str,
     config_path: str,
     model_name: str,
+    token_position: TokenPosition = "last",
 ) -> dict[int, Path]:
     """Persist activation features, labels, ids, and metadata for one split."""
+    token_position = validate_token_position(token_position)
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -120,6 +191,7 @@ def save_activation_dataset(
         config_path=config_path,
         model_name=model_name,
         split=split,
+        token_position=token_position,
         n_examples=len(dataset.example_ids),
         layers=sorted(dataset.features_by_layer.keys()),
         labels_path=str(labels_path),
