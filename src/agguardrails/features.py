@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
-
-import sys
 
 import numpy as np
 import torch
@@ -31,13 +30,15 @@ TokenPosition = Literal["last", "last_instruction"]
 
 
 def validate_layer_indices(layers: list[int], model: torch.nn.Module) -> None:
-    """Raise ValueError if any requested layer index exceeds the model's hidden state count."""
+    """Raise ValueError if any requested layer index exceeds the model limit."""
     n_hidden = model.config.num_hidden_layers + 1  # +1 for embedding layer at index 0
-    invalid = [l for l in layers if l >= n_hidden]
+    invalid = [layer for layer in layers if layer >= n_hidden]
     if invalid:
-        raise ValueError(
-            f"Requested layers {invalid} out of range — model has {n_hidden} hidden states (indices 0–{n_hidden - 1})"
+        msg = (
+            f"Requested layers {invalid} out of range; model has "
+            f"{n_hidden} hidden states (indices 0-{n_hidden - 1})"
         )
+        raise ValueError(msg)
 
 
 def validate_token_position(token_position: str) -> TokenPosition:
@@ -90,15 +91,24 @@ def extract_last_token_hidden_states(
     max_length: int,
     token_position: TokenPosition = "last",
 ) -> ActivationDataset:
-    """Extract hidden states at a configurable token position for the requested layers."""
+    """Extract hidden states at a configurable token position."""
     token_position = validate_token_position(token_position)
     all_features = {layer: [] for layer in layers}
     labels: list[int] = []
     example_ids: list[str] = []
 
     n_batches = (len(examples) + batch_size - 1) // batch_size
-    for batch_examples in tqdm(batched(examples, batch_size), total=n_batches, desc="extracting activations", file=sys.stdout, disable=False):
-        prompts = [format_prompt(tokenizer, example.prompt) for example in batch_examples]
+    for batch_examples in tqdm(
+        batched(examples, batch_size),
+        total=n_batches,
+        desc="extracting activations",
+        file=sys.stdout,
+        disable=False,
+    ):
+        prompts = [
+            format_prompt(tokenizer, example.prompt)
+            for example in batch_examples
+        ]
         encoded = tokenizer(
             prompts,
             return_tensors="pt",
@@ -130,8 +140,10 @@ def extract_last_token_hidden_states(
                 position = _resolve_last_instruction_position(tokenizer, example.prompt)
                 if position >= int(sequence_length):
                     msg = (
-                        f"Prompt {example.example_id} was truncated before token_position="
-                        f"{token_position!r} could be reached (max_length={max_length})."
+                        f"Prompt {example.example_id} was truncated before "
+                        "token_position="
+                        f"{token_position!r} could be reached "
+                        f"(max_length={max_length})."
                     )
                     raise ValueError(msg)
                 resolved_positions.append(int(pad_offset) + position)
@@ -185,7 +197,10 @@ def save_activation_dataset(
         )
 
     labels_path = save_artifact(dataset.labels, output_dir / f"{split}_labels")
-    ids_path = save_artifact(np.array(dataset.example_ids, dtype=str), output_dir / f"{split}_ids")
+    ids_path = save_artifact(
+        np.array(dataset.example_ids, dtype=str),
+        output_dir / f"{split}_ids",
+    )
     save_metadata(
         output_dir / f"{split}_metadata.json",
         config_path=config_path,
@@ -196,7 +211,9 @@ def save_activation_dataset(
         layers=sorted(dataset.features_by_layer.keys()),
         labels_path=str(labels_path),
         ids_path=str(ids_path),
-        feature_paths={str(layer): str(path) for layer, path in sorted(saved_paths.items())},
+        feature_paths={
+            str(layer): str(path) for layer, path in sorted(saved_paths.items())
+        },
     )
     return saved_paths
 

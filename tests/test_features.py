@@ -53,8 +53,12 @@ def test_save_and_load_activation_split_round_trip(tmp_path):
     )
     loaded = load_activation_split(input_dir=tmp_path, split="train", layers=[8, 16])
 
-    np.testing.assert_array_equal(loaded.features_by_layer[8], dataset.features_by_layer[8])
-    np.testing.assert_array_equal(loaded.features_by_layer[16], dataset.features_by_layer[16])
+    np.testing.assert_array_equal(
+        loaded.features_by_layer[8], dataset.features_by_layer[8]
+    )
+    np.testing.assert_array_equal(
+        loaded.features_by_layer[16], dataset.features_by_layer[16]
+    )
     np.testing.assert_array_equal(loaded.labels, dataset.labels)
     assert loaded.example_ids == dataset.example_ids
 
@@ -93,8 +97,12 @@ def test_extract_last_token_hidden_states_casts_bfloat16_to_float32(monkeypatch)
         def __call__(self, prompts, return_tensors, padding, truncation, max_length):
             assert prompts == ["formatted::alpha", "formatted::beta"]
             return {
-                "input_ids": torch.tensor([[10, 11, 12], [20, 21, 22]], dtype=torch.int64),
-                "attention_mask": torch.tensor([[1, 1, 1], [1, 1, 1]], dtype=torch.int64),
+                "input_ids": torch.tensor(
+                    [[10, 11, 12], [20, 21, 22]], dtype=torch.int64
+                ),
+                "attention_mask": torch.tensor(
+                    [[1, 1, 1], [1, 1, 1]], dtype=torch.int64
+                ),
             }
 
     class FakeModel:
@@ -105,16 +113,23 @@ def test_extract_last_token_hidden_states_casts_bfloat16_to_float32(monkeypatch)
             seq_len = kwargs["input_ids"].shape[1]
             hidden_states = []
             for layer_idx in range(3):
-                values = torch.arange(
-                    batch * seq_len * 2,
-                    dtype=torch.float32,
-                ).reshape(batch, seq_len, 2) + layer_idx
+                values = (
+                    torch.arange(
+                        batch * seq_len * 2,
+                        dtype=torch.float32,
+                    ).reshape(batch, seq_len, 2)
+                    + layer_idx
+                )
                 hidden_states.append(values.to(torch.bfloat16))
             return SimpleNamespace(hidden_states=tuple(hidden_states))
 
     examples = [
-        PromptExample("ex-1", "alpha", 1, "train", "wildjailbreak", "1", "vanilla_harmful"),
-        PromptExample("ex-2", "beta", 0, "train", "wildjailbreak", "2", "vanilla_benign"),
+        PromptExample(
+            "ex-1", "alpha", 1, "train", "wildjailbreak", "1", "vanilla_harmful"
+        ),
+        PromptExample(
+            "ex-2", "beta", 0, "train", "wildjailbreak", "2", "vanilla_benign"
+        ),
     ]
 
     monkeypatch.setattr(
@@ -167,8 +182,12 @@ def test_extract_last_token_hidden_states_handles_left_padding(monkeypatch):
             return SimpleNamespace(hidden_states=(hidden,))
 
     examples = [
-        PromptExample("ex-1", "alpha", 1, "train", "wildjailbreak", "1", "vanilla_harmful"),
-        PromptExample("ex-2", "beta", 0, "train", "wildjailbreak", "2", "vanilla_benign"),
+        PromptExample(
+            "ex-1", "alpha", 1, "train", "wildjailbreak", "1", "vanilla_harmful"
+        ),
+        PromptExample(
+            "ex-2", "beta", 0, "train", "wildjailbreak", "2", "vanilla_benign"
+        ),
     ]
 
     monkeypatch.setattr(
@@ -230,8 +249,12 @@ def test_extract_last_token_hidden_states_supports_last_instruction(monkeypatch)
             return SimpleNamespace(hidden_states=(hidden,))
 
     examples = [
-        PromptExample("ex-1", "alpha", 1, "train", "wildjailbreak", "1", "vanilla_harmful"),
-        PromptExample("ex-2", "beta", 0, "train", "wildjailbreak", "2", "vanilla_benign"),
+        PromptExample(
+            "ex-1", "alpha", 1, "train", "wildjailbreak", "1", "vanilla_harmful"
+        ),
+        PromptExample(
+            "ex-2", "beta", 0, "train", "wildjailbreak", "2", "vanilla_benign"
+        ),
     ]
 
     monkeypatch.setattr(

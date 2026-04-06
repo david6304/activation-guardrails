@@ -49,8 +49,10 @@ def parse_args() -> argparse.Namespace:
         default=None,
         metavar="PATH",
         help=(
-            "Adversarial held-out test JSONL (data/processed/main_adversarial.jsonl). "
-            "If provided, activations are extracted and saved under split='adversarial'."
+            "Adversarial held-out test JSONL "
+            "(data/processed/main_adversarial.jsonl). "
+            "If provided, activations are extracted and saved under "
+            "split='adversarial'."
         ),
     )
     parser.add_argument(
@@ -122,7 +124,11 @@ def main() -> None:
             model_name=model_cfg["name"],
             token_position=token_position,
         )
-        print(f"Saved {split_name} activations: {len(activation_dataset.example_ids)} examples")
+        print(
+            "Saved "
+            f"{split_name} activations: "
+            f"{len(activation_dataset.example_ids)} examples"
+        )
 
     # --- Adversarial held-out test set (optional) ---
     if args.adversarial_dataset is not None:
@@ -149,7 +155,8 @@ def main() -> None:
             token_position=token_position,
         )
         print(
-            f"Saved adversarial activations: {len(activation_dataset.example_ids)} examples"
+            "Saved adversarial activations: "
+            f"{len(activation_dataset.example_ids)} examples"
         )
 
 

@@ -69,13 +69,17 @@ def fit_latent_guard_for_layer(
     test_threshold = val_result.threshold
     test_predictions = test_scores >= test_threshold
     test_result = BinaryEvalResult(
-        roc_auc=evaluate_binary_classifier(y_test, test_scores, target_fpr=target_fpr).roc_auc,
+        roc_auc=evaluate_binary_classifier(
+            y_test, test_scores, target_fpr=target_fpr
+        ).roc_auc,
         threshold=test_threshold,
         achieved_fpr=float(
-            ((test_predictions == 1) & (y_test == 0)).sum() / max((y_test == 0).sum(), 1)
+            ((test_predictions == 1) & (y_test == 0)).sum()
+            / max((y_test == 0).sum(), 1)
         ),
         tpr_at_threshold=float(
-            ((test_predictions == 1) & (y_test == 1)).sum() / max((y_test == 1).sum(), 1)
+            ((test_predictions == 1) & (y_test == 1)).sum()
+            / max((y_test == 1).sum(), 1)
         ),
         positive_predictions=int(test_predictions.sum()),
     )

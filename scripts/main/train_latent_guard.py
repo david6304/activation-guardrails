@@ -45,7 +45,9 @@ def main() -> None:
     layers = [int(layer) for layer in config["features"]["layers"]]
     eval_cfg = config["eval"]
 
-    train = load_activation_split(input_dir=args.input_dir, split="train", layers=layers)
+    train = load_activation_split(
+        input_dir=args.input_dir, split="train", layers=layers
+    )
     val = load_activation_split(input_dir=args.input_dir, split="val", layers=layers)
     test = load_activation_split(input_dir=args.input_dir, split="test", layers=layers)
     adversarial = None
@@ -122,9 +124,9 @@ def main() -> None:
         "per_layer": per_layer_metrics,
     }
     if adversarial is not None:
-        metadata_kwargs["best_adversarial_metrics"] = per_layer_metrics[str(best.layer)][
-            "adversarial"
-        ]
+        metadata_kwargs["best_adversarial_metrics"] = per_layer_metrics[
+            str(best.layer)
+        ]["adversarial"]
     save_metadata(
         metrics_dir / "latent_guard_metrics.json",
         **metadata_kwargs,

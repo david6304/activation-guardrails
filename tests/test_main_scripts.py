@@ -1,3 +1,4 @@
+# ruff: noqa: E501
 """Smoke tests for main pipeline Python entrypoints."""
 
 from __future__ import annotations
@@ -14,28 +15,62 @@ import yaml
 from agguardrails.data import PromptExample, read_prompt_dataset
 from agguardrails.eval import BinaryEvalResult
 from agguardrails.features import ActivationDataset
-from agguardrails.io import read_jsonl, read_jsonl as _read_jsonl, write_jsonl
+from agguardrails.io import read_jsonl, write_jsonl
+from agguardrails.io import read_jsonl as _read_jsonl
 from agguardrails.latent_guard import LatentGuardResult
 from agguardrails.probes import ProbeResult
 from scripts.main import (
     build_cipher_dataset as build_cipher_dataset_script,
+)
+from scripts.main import (
     build_dataset as build_dataset_script,
-    build_refusal_dataset as build_refusal_dataset_script,
+)
+from scripts.main import (
     cache_sae_models as cache_sae_models_script,
+)
+from scripts.main import (
     download_advbench_alpaca as download_advbench_alpaca_script,
+)
+from scripts.main import (
     encode_sae_features as encode_sae_features_script,
+)
+from scripts.main import (
     eval_activation_transfer as eval_activation_transfer_script,
+)
+from scripts.main import (
     eval_sae_transfer as eval_sae_transfer_script,
+)
+from scripts.main import (
     eval_text_transfer as eval_text_transfer_script,
+)
+from scripts.main import (
     extract_activations as extract_activations_script,
+)
+from scripts.main import (
     generate_responses as generate_responses_script,
+)
+from scripts.main import (
     label_refusals as label_refusals_script,
+)
+from scripts.main import (
     make_cipher_transfer_results_table as make_cipher_transfer_results_table_script,
+)
+from scripts.main import (
     make_results_table as make_results_table_script,
+)
+from scripts.main import (
     prepare_refusal_label_audit as prepare_refusal_label_audit_script,
+)
+from scripts.main import (
     train_activation_probes as train_activation_probes_script,
+)
+from scripts.main import (
     train_latent_guard as train_latent_guard_script,
+)
+from scripts.main import (
     train_sae_probes as train_sae_probes_script,
+)
+from scripts.main import (
     train_text_baseline as train_text_baseline_script,
 )
 
@@ -1182,11 +1217,10 @@ def test_build_refusal_dataset_source_mode(tmp_path):
     _write_alpaca_json(alpaca_path, [f"benign {i}" for i in range(6)])
     _write_refusal_config(config_path, advbench_path, alpaca_path)
 
-    monkeypatch_ns = SimpleNamespace()
-
-    import scripts.main.build_refusal_dataset as brd
     # Can call main() directly since it does file I/O only (no GPU).
     import unittest.mock as mock
+
+    import scripts.main.build_refusal_dataset as brd
     with mock.patch.object(
         brd,
         "parse_args",
@@ -1220,8 +1254,9 @@ def test_build_refusal_dataset_relabel_mode(tmp_path):
     _write_refusal_config(config_path, advbench_path, alpaca_path)
 
     # Build source dataset first.
-    import scripts.main.build_refusal_dataset as brd
     import unittest.mock as mock
+
+    import scripts.main.build_refusal_dataset as brd
     with mock.patch.object(
         brd,
         "parse_args",
