@@ -39,6 +39,7 @@ ADVERSARIAL_RELABELLED_DATASET="data/processed/refusal_labelled_adversarial.json
 ACTIVATION_DIR="artifacts/activations/refusal"
 SCRATCH_DIR="/disk/scratch/${USER}/activation-guardrails"
 MODEL_CACHE="${HOME}/models"
+TOKEN_POSITION=""
 PRINT_ONLY="0"
 
 while [[ $# -gt 0 ]]; do
@@ -63,6 +64,7 @@ while [[ $# -gt 0 ]]; do
     --activation-dir|--output-dir) ACTIVATION_DIR="$2"; shift 2 ;;
     --scratch-dir) SCRATCH_DIR="$2"; shift 2 ;;
     --model-cache) MODEL_CACHE="$2"; shift 2 ;;
+    --token-position) TOKEN_POSITION="$2"; shift 2 ;;
     --print-only) PRINT_ONLY="1"; shift ;;
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
@@ -146,6 +148,9 @@ PIPELINE_ARGS=(
   "--scratch-dir" "$SCRATCH_DIR"
   "--model-cache" "$MODEL_CACHE"
 )
+if [[ -n "$TOKEN_POSITION" ]]; then
+  PIPELINE_ARGS+=("--token-position" "$TOKEN_POSITION")
+fi
 
 SBATCH_CMD+=(
   --wrap

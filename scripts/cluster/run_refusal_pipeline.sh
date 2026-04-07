@@ -33,6 +33,7 @@ ADVERSARIAL_RELABELLED_DATASET="data/processed/refusal_labelled_adversarial.json
 ACTIVATION_DIR="artifacts/activations/refusal"
 SCRATCH_DIR=""
 MODEL_CACHE="${HOME}/models"
+TOKEN_POSITION=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -52,6 +53,7 @@ while [[ $# -gt 0 ]]; do
     --activation-dir|--output-dir) ACTIVATION_DIR="$2"; shift 2 ;;
     --scratch-dir) SCRATCH_DIR="$2"; shift 2 ;;
     --model-cache) MODEL_CACHE="$2"; shift 2 ;;
+    --token-position) TOKEN_POSITION="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
   esac
 done
@@ -183,15 +185,19 @@ run_relabel() {
 run_activations() {
   log "--- stage: activations ---"
   mkdir -p "$ACTIVATION_DIR"
-  ADV_ARGS=()
+  EXTRA_ARGS=()
   if has_adversarial_relabelled; then
-    ADV_ARGS=(--adversarial-dataset "$ADVERSARIAL_RELABELLED_DATASET")
+    EXTRA_ARGS+=(--adversarial-dataset "$ADVERSARIAL_RELABELLED_DATASET")
+  fi
+  if [[ -n "$TOKEN_POSITION" ]]; then
+    EXTRA_ARGS+=(--token-position "$TOKEN_POSITION")
+    log "Token position override: ${TOKEN_POSITION}"
   fi
   python scripts/main/extract_activations.py \
     --config "$CONFIG" \
     --dataset "$VANILLA_RELABELLED_DATASET" \
     --output-dir "$ACTIVATION_DIR" \
-    "${ADV_ARGS[@]}"
+    "${EXTRA_ARGS[@]}"
   log "--- stage: activations done ---"
 }
 

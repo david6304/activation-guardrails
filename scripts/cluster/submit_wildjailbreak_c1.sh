@@ -35,6 +35,7 @@ PROJECT_DIR="${HOME}/activation-guardrails"
 VENV_PATH="${HOME}/venvs/ml"
 TOOLCHAIN_RC="/home/htang2/toolchain-20251006/toolchain.rc"
 MODEL_CACHE="${HOME}/models"
+TOKEN_POSITION=""
 NO_LATENT_GUARD="0"
 PRINT_ONLY="0"
 
@@ -51,6 +52,7 @@ while [[ $# -gt 0 ]]; do
     --venv-path) VENV_PATH="$2"; shift 2 ;;
     --toolchain-rc) TOOLCHAIN_RC="$2"; shift 2 ;;
     --model-cache) MODEL_CACHE="$2"; shift 2 ;;
+    --token-position) TOKEN_POSITION="$2"; shift 2 ;;
     --no-latent-guard) NO_LATENT_GUARD="1"; shift ;;
     --print-only) PRINT_ONLY="1"; shift ;;
     *) echo "Unknown argument: $1" >&2; exit 1 ;;
@@ -66,15 +68,21 @@ case "$STAGE" in
     ;;
 esac
 
+if [[ -n "$TOKEN_POSITION" && "$TOKEN_POSITION" != "last" ]]; then
+  POS_SUFFIX="_${TOKEN_POSITION}"
+else
+  POS_SUFFIX=""
+fi
+
 DATA_ROOT="data/processed/${RUN_TAG}"
 RESPONSES_ROOT="artifacts/responses/${RUN_TAG}"
-ACTIVATION_DIR="artifacts/activations/${RUN_TAG}"
-SAE_DIR="artifacts/features/${RUN_TAG}/sae"
-SHARED_RESULTS_ROOT="results/refusal/${RUN_TAG}/shared"
-REFUSAL_MODEL_ROOT="artifacts/models/${RUN_TAG}/refusal"
-REFUSAL_RESULTS_ROOT="results/refusal/${RUN_TAG}/refusal"
-HARMFULNESS_MODEL_ROOT="artifacts/models/${RUN_TAG}/harmfulness"
-HARMFULNESS_RESULTS_ROOT="results/refusal/${RUN_TAG}/harmfulness"
+ACTIVATION_DIR="artifacts/activations/${RUN_TAG}${POS_SUFFIX}"
+SAE_DIR="artifacts/features/${RUN_TAG}${POS_SUFFIX}/sae"
+SHARED_RESULTS_ROOT="results/refusal/${RUN_TAG}${POS_SUFFIX}/shared"
+REFUSAL_MODEL_ROOT="artifacts/models/${RUN_TAG}${POS_SUFFIX}/refusal"
+REFUSAL_RESULTS_ROOT="results/refusal/${RUN_TAG}${POS_SUFFIX}/refusal"
+HARMFULNESS_MODEL_ROOT="artifacts/models/${RUN_TAG}${POS_SUFFIX}/harmfulness"
+HARMFULNESS_RESULTS_ROOT="results/refusal/${RUN_TAG}${POS_SUFFIX}/harmfulness"
 
 VANILLA_SOURCE_DATASET="${DATA_ROOT}/refusal_prompts.jsonl"
 ADVERSARIAL_SOURCE_DATASET="${DATA_ROOT}/refusal_prompts_adversarial.jsonl"
@@ -86,16 +94,17 @@ VANILLA_RELABELLED_DATASET="${DATA_ROOT}/refusal_labelled.jsonl"
 ADVERSARIAL_RELABELLED_DATASET="${DATA_ROOT}/refusal_labelled_adversarial.jsonl"
 
 default_job_name() {
+  local suffix="${POS_SUFFIX:+${POS_SUFFIX}}"
   case "$STAGE" in
     refusal-source) echo "${RUN_TAG}-refusal-source" ;;
     refusal-responses) echo "${RUN_TAG}-refusal-responses" ;;
     refusal-judge) echo "${RUN_TAG}-refusal-judge" ;;
     refusal-relabel) echo "${RUN_TAG}-refusal-relabel" ;;
-    refusal-activations) echo "${RUN_TAG}-refusal-activations" ;;
-    refusal-pipeline) echo "${RUN_TAG}-refusal-pipeline" ;;
-    sae-encode) echo "${RUN_TAG}-sae-encode" ;;
-    refusal-train) echo "${RUN_TAG}-refusal-train" ;;
-    harmfulness-train) echo "${RUN_TAG}-harmfulness-train" ;;
+    refusal-activations) echo "${RUN_TAG}-refusal-activations${suffix}" ;;
+    refusal-pipeline) echo "${RUN_TAG}-refusal-pipeline${suffix}" ;;
+    sae-encode) echo "${RUN_TAG}-sae-encode${suffix}" ;;
+    refusal-train) echo "${RUN_TAG}-refusal-train${suffix}" ;;
+    harmfulness-train) echo "${RUN_TAG}-harmfulness-train${suffix}" ;;
     *)
       echo ""
       ;;
@@ -121,6 +130,7 @@ append_common_submit_args() {
 print_paths() {
   cat <<EOF
 run_tag=${RUN_TAG}
+token_position=${TOKEN_POSITION:-last}
 config=${CONFIG}
 project_dir=${PROJECT_DIR}
 data_root=${DATA_ROOT}
@@ -178,6 +188,9 @@ build_refusal_submit_command() {
     --activation-dir "$ACTIVATION_DIR"
     --model-cache "$MODEL_CACHE"
   )
+  if [[ -n "$TOKEN_POSITION" ]]; then
+    CMD+=(--token-position "$TOKEN_POSITION")
+  fi
   append_common_submit_args
   if [[ "$PRINT_ONLY" == "1" ]]; then
     CMD+=(--print-only)
