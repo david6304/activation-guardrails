@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -185,6 +186,7 @@ def extract_last_token_hidden_states(
     source_labels: list[int] = []
     has_binary_source_labels = True
     example_ids: list[str] = []
+    n_skipped = 0
 
     n_batches = (len(examples) + batch_size - 1) // batch_size
     for batch_examples in tqdm(
@@ -217,32 +219,41 @@ def extract_last_token_hidden_states(
             pad_offsets = torch.zeros_like(sequence_lengths)
         if token_position == "last":
             positions = pad_offsets + sequence_lengths - 1
+            keep_mask = list(range(len(batch_examples)))
+            kept_examples = list(batch_examples)
         else:
             resolved_positions = []
-            for example, sequence_length, pad_offset in zip(
-                batch_examples,
-                sequence_lengths.tolist(),
-                pad_offsets.tolist(),
-                strict=True,
+            keep_mask = []
+            kept_examples = []
+            for idx, (example, sequence_length, pad_offset) in enumerate(
+                zip(
+                    batch_examples,
+                    sequence_lengths.tolist(),
+                    pad_offsets.tolist(),
+                    strict=True,
+                )
             ):
                 position = _resolve_last_instruction_position(tokenizer, example.prompt)
                 if position >= int(sequence_length):
-                    msg = (
-                        f"Prompt {example.example_id} was truncated before "
-                        "token_position="
-                        f"{token_position!r} could be reached "
-                        f"(max_length={max_length})."
+                    n_skipped += 1
+                    warnings.warn(
+                        f"Skipping {example.example_id}: truncated before "
+                        f"token_position={token_position!r} "
+                        f"(position {position} >= max_length {max_length})",
+                        stacklevel=2,
                     )
-                    raise ValueError(msg)
+                    continue
                 resolved_positions.append(int(pad_offset) + position)
+                keep_mask.append(idx)
+                kept_examples.append(example)
+            if not resolved_positions:
+                continue
             positions = torch.tensor(resolved_positions, device=model.device)
 
+        batch_indices = torch.tensor(keep_mask, device=model.device)
         for layer in layers:
             hidden = outputs.hidden_states[layer]
-            batch_vectors = hidden[
-                torch.arange(hidden.size(0), device=hidden.device),
-                positions,
-            ]
+            batch_vectors = hidden[batch_indices, positions]
             # NumPy cannot reliably materialise some PyTorch dtypes such as
             # bfloat16 directly. Cast in torch first so model dtype choices
             # (for example Gemma in bfloat16) do not break extraction.
@@ -250,8 +261,8 @@ def extract_last_token_hidden_states(
                 batch_vectors.detach().to(dtype=torch.float32).cpu().numpy()
             )
 
-        labels.extend(example.label for example in batch_examples)
-        for example in batch_examples:
+        labels.extend(example.label for example in kept_examples)
+        for example in kept_examples:
             if not has_binary_source_labels:
                 break
             binary_source_label = _SOURCE_LABEL_TO_BINARY.get(example.source_label)
@@ -260,7 +271,14 @@ def extract_last_token_hidden_states(
                 source_labels.clear()
                 break
             source_labels.append(binary_source_label)
-        example_ids.extend(example.example_id for example in batch_examples)
+        example_ids.extend(example.example_id for example in kept_examples)
+
+    if n_skipped:
+        print(
+            f"Skipped {n_skipped}/{len(examples)} examples "
+            f"(truncated before token_position={token_position!r})",
+            flush=True,
+        )
 
     features_by_layer = {
         layer: np.concatenate(chunks, axis=0) for layer, chunks in all_features.items()
