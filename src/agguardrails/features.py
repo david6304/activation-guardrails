@@ -103,8 +103,8 @@ def _resolve_last_instruction_position(tokenizer, prompt: str) -> int:
     """Locate the final token of the raw user instruction inside the chat template.
 
     First tries a direct subsequence match (works when standalone encoding
-    matches the in-template encoding).  Falls back to a diff-based approach
-    for tokenizers like SentencePiece where boundary context changes the IDs.
+    matches the in-template encoding).  Falls back to character-offset mapping
+    for tokenizers like SentencePiece where boundary context changes token IDs.
     """
     if not prompt:
         msg = "Cannot resolve last_instruction for an empty prompt."
@@ -123,25 +123,49 @@ def _resolve_last_instruction_position(tokenizer, prompt: str) -> int:
         if start is not None:
             return start + len(content_ids) - 1
 
-    # Slow path: diff the template with vs without the content.
-    # Tokenise an empty-content template to find the prefix/suffix framing.
-    empty_ids = tokenizer.apply_chat_template(
-        [{"role": "user", "content": ""}],
-        tokenize=True,
+    # Slow path: diff the template-as-string with vs without content to find
+    # the content character span, then use offset mapping to get the token.
+    template_str = tokenizer.apply_chat_template(
+        [{"role": "user", "content": prompt}],
+        tokenize=False,
         add_generation_prompt=False,
     )
-    content_len = len(full_ids) - len(empty_ids)
-    if content_len <= 0:
+    empty_template = tokenizer.apply_chat_template(
+        [{"role": "user", "content": ""}],
+        tokenize=False,
+        add_generation_prompt=False,
+    )
+
+    # Find common prefix and suffix to isolate the content span.
+    prefix_len = 0
+    for a, b in zip(template_str, empty_template):
+        if a != b:
+            break
+        prefix_len += 1
+    suffix_len = 0
+    for a, b in zip(reversed(template_str), reversed(empty_template)):
+        if a != b:
+            break
+        suffix_len += 1
+
+    content_end = len(template_str) - suffix_len
+    if content_end <= prefix_len:
         msg = "Could not locate prompt tokens inside the formatted user turn."
         raise ValueError(msg)
+    # Last character of the content in the template string.
+    last_char = content_end - 1
 
-    # Find the first divergence point — that's where the content starts.
-    prefix_len = 0
-    for i, (a, b) in enumerate(zip(full_ids, empty_ids)):
-        if a != b:
-            prefix_len = i
-            break
-    return prefix_len + content_len - 1
+    encoding = tokenizer(template_str, add_special_tokens=False,
+                         return_offsets_mapping=True)
+    offsets = encoding["offset_mapping"]
+
+    # Find the token whose span contains last_char.
+    for tok_idx, (start_c, end_c) in enumerate(offsets):
+        if start_c <= last_char < end_c:
+            return tok_idx
+
+    msg = "Could not map prompt character offset to a token position."
+    raise ValueError(msg)
 
 
 def extract_last_token_hidden_states(
