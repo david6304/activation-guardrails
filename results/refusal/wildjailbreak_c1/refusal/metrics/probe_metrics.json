@@ -1,0 +1,290 @@
+{
+  "git_hash": "3f263f4",
+  "timestamp": "2026-04-07T11:45:21Z",
+  "config_path": "configs/main/refusal_wildjailbreak.yaml",
+  "input_dir": "artifacts/activations/wildjailbreak_c1",
+  "label_key": "label",
+  "best_layer": 20,
+  "per_layer": {
+    "9": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9737276417324591,
+        "threshold": 0.8543465077317405,
+        "achieved_fpr": 0.009433962264150943,
+        "tpr_at_threshold": 0.6595744680851063,
+        "positive_predictions": 189,
+        "layer": 9,
+        "best_c": 0.1
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.976368061552956,
+        "threshold": 0.8543465077317405,
+        "achieved_fpr": 0.00911854103343465,
+        "tpr_at_threshold": 0.6937269372693727,
+        "positive_predictions": 191,
+        "layer": 9,
+        "best_c": 0.1
+      },
+      "adversarial": {
+        "model_name": "dense_probe",
+        "split": "adversarial",
+        "layer": 9,
+        "threshold": 0.8543465077317405,
+        "roc_auc": 0.711618050441678,
+        "achieved_fpr": 0.009531374106433678,
+        "tpr_at_threshold": 0.09446693657219973,
+        "positive_predictions": 82,
+        "positive_prediction_rate": 0.041,
+        "n_examples": 2000,
+        "n_positive": 741,
+        "n_negative": 1259
+      }
+    },
+    "15": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.988592265489094,
+        "threshold": 0.8625687958569973,
+        "achieved_fpr": 0.006289308176100629,
+        "tpr_at_threshold": 0.8262411347517731,
+        "positive_predictions": 235,
+        "layer": 15,
+        "best_c": 0.1
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9888401619578505,
+        "threshold": 0.8625687958569973,
+        "achieved_fpr": 0.0121580547112462,
+        "tpr_at_threshold": 0.8118081180811808,
+        "positive_predictions": 224,
+        "layer": 15,
+        "best_c": 0.1
+      },
+      "adversarial": {
+        "model_name": "dense_probe",
+        "split": "adversarial",
+        "layer": 15,
+        "threshold": 0.8625687958569973,
+        "roc_auc": 0.7344667650674923,
+        "achieved_fpr": 0.05559968228752978,
+        "tpr_at_threshold": 0.31309041835357626,
+        "positive_predictions": 302,
+        "positive_prediction_rate": 0.151,
+        "n_examples": 2000,
+        "n_positive": 741,
+        "n_negative": 1259
+      }
+    },
+    "20": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9953499264017127,
+        "threshold": 0.6941169856745609,
+        "achieved_fpr": 0.009433962264150943,
+        "tpr_at_threshold": 0.9184397163120568,
+        "positive_predictions": 262,
+        "layer": 20,
+        "best_c": 0.1
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9912291524131047,
+        "threshold": 0.6941169856745609,
+        "achieved_fpr": 0.030395136778115502,
+        "tpr_at_threshold": 0.9077490774907749,
+        "positive_predictions": 256,
+        "layer": 20,
+        "best_c": 0.1
+      },
+      "adversarial": {
+        "model_name": "dense_probe",
+        "split": "adversarial",
+        "layer": 20,
+        "threshold": 0.6941169856745609,
+        "roc_auc": 0.8346083636414308,
+        "achieved_fpr": 0.10881652104845115,
+        "tpr_at_threshold": 0.5641025641025641,
+        "positive_predictions": 555,
+        "positive_prediction_rate": 0.2775,
+        "n_examples": 2000,
+        "n_positive": 741,
+        "n_negative": 1259
+      }
+    },
+    "25": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.995383380168607,
+        "threshold": 0.8292386646981836,
+        "achieved_fpr": 0.009433962264150943,
+        "tpr_at_threshold": 0.9148936170212766,
+        "positive_predictions": 261,
+        "layer": 25,
+        "best_c": 0.1
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9943471775143283,
+        "threshold": 0.8292386646981836,
+        "achieved_fpr": 0.015197568389057751,
+        "tpr_at_threshold": 0.9261992619926199,
+        "positive_predictions": 256,
+        "layer": 25,
+        "best_c": 0.1
+      },
+      "adversarial": {
+        "model_name": "dense_probe",
+        "split": "adversarial",
+        "layer": 25,
+        "threshold": 0.8292386646981836,
+        "roc_auc": 0.9024202529908814,
+        "achieved_fpr": 0.08022239872915012,
+        "tpr_at_threshold": 0.6909581646423751,
+        "positive_predictions": 613,
+        "positive_prediction_rate": 0.3065,
+        "n_examples": 2000,
+        "n_positive": 741,
+        "n_negative": 1259
+      }
+    },
+    "31": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9970226147464205,
+        "threshold": 0.7604790811115479,
+        "achieved_fpr": 0.009433962264150943,
+        "tpr_at_threshold": 0.9148936170212766,
+        "positive_predictions": 261,
+        "layer": 31,
+        "best_c": 0.01
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9965903610403886,
+        "threshold": 0.7604790811115479,
+        "achieved_fpr": 0.00911854103343465,
+        "tpr_at_threshold": 0.8966789667896679,
+        "positive_predictions": 246,
+        "layer": 31,
+        "best_c": 0.01
+      },
+      "adversarial": {
+        "model_name": "dense_probe",
+        "split": "adversarial",
+        "layer": 31,
+        "threshold": 0.7604790811115479,
+        "roc_auc": 0.9610298428909692,
+        "achieved_fpr": 0.050833995234312944,
+        "tpr_at_threshold": 0.8029689608636977,
+        "positive_predictions": 659,
+        "positive_prediction_rate": 0.3295,
+        "n_examples": 2000,
+        "n_positive": 741,
+        "n_negative": 1259
+      }
+    },
+    "36": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9969445559570007,
+        "threshold": 0.8087426035961396,
+        "achieved_fpr": 0.009433962264150943,
+        "tpr_at_threshold": 0.900709219858156,
+        "positive_predictions": 257,
+        "layer": 36,
+        "best_c": 0.01
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9966688724638006,
+        "threshold": 0.8087426035961396,
+        "achieved_fpr": 0.00911854103343465,
+        "tpr_at_threshold": 0.9040590405904059,
+        "positive_predictions": 248,
+        "layer": 36,
+        "best_c": 0.01
+      },
+      "adversarial": {
+        "model_name": "dense_probe",
+        "split": "adversarial",
+        "layer": 36,
+        "threshold": 0.8087426035961396,
+        "roc_auc": 0.9629421203770102,
+        "achieved_fpr": 0.04050833995234313,
+        "tpr_at_threshold": 0.8043184885290149,
+        "positive_predictions": 647,
+        "positive_prediction_rate": 0.3235,
+        "n_examples": 2000,
+        "n_positive": 741,
+        "n_negative": 1259
+      }
+    },
+    "41": {
+      "val": {
+        "model_name": "dense_probe",
+        "split": "val",
+        "roc_auc": 0.9964427494535885,
+        "threshold": 0.8758188189564933,
+        "achieved_fpr": 0.0031446540880503146,
+        "tpr_at_threshold": 0.8794326241134752,
+        "positive_predictions": 249,
+        "layer": 41,
+        "best_c": 0.01
+      },
+      "test": {
+        "model_name": "dense_probe",
+        "split": "test",
+        "roc_auc": 0.9973642593568792,
+        "threshold": 0.8758188189564933,
+        "achieved_fpr": 0.0060790273556231,
+        "tpr_at_threshold": 0.8892988929889298,
+        "positive_predictions": 243,
+        "layer": 41,
+        "best_c": 0.01
+      },
+      "adversarial": {
+        "model_name": "dense_probe",
+        "split": "adversarial",
+        "layer": 41,
+        "threshold": 0.8758188189564933,
+        "roc_auc": 0.9575879577969791,
+        "achieved_fpr": 0.054011119936457505,
+        "tpr_at_threshold": 0.8205128205128205,
+        "positive_predictions": 676,
+        "positive_prediction_rate": 0.338,
+        "n_examples": 2000,
+        "n_positive": 741,
+        "n_negative": 1259
+      }
+    }
+  },
+  "best_adversarial_metrics": {
+    "model_name": "dense_probe",
+    "split": "adversarial",
+    "layer": 20,
+    "threshold": 0.6941169856745609,
+    "roc_auc": 0.8346083636414308,
+    "achieved_fpr": 0.10881652104845115,
+    "tpr_at_threshold": 0.5641025641025641,
+    "positive_predictions": 555,
+    "positive_prediction_rate": 0.2775,
+    "n_examples": 2000,
+    "n_positive": 741,
+    "n_negative": 1259
+  }
+}

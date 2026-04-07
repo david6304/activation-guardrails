@@ -1,0 +1,10 @@
+{
+  "git_hash": "3f263f4",
+  "timestamp": "2026-04-07T11:48:57Z",
+  "config_path": "configs/main/refusal_wildjailbreak.yaml",
+  "text_metrics_path": "results/refusal/wildjailbreak_c1/refusal/metrics/text_baseline_metrics.json",
+  "probe_metrics_path": "results/refusal/wildjailbreak_c1/refusal/metrics/probe_metrics.json",
+  "sae_probe_metrics_path": "results/refusal/wildjailbreak_c1/refusal/metrics/sae_probe_metrics.json",
+  "latent_guard_metrics_path": "results/refusal/wildjailbreak_c1/refusal/metrics/latent_guard_metrics.json",
+  "n_rows": 12
+}

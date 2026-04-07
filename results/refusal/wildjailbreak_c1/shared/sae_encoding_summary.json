@@ -1,0 +1,128 @@
+{
+  "git_hash": "d895cab",
+  "timestamp": "2026-04-07T11:33:53Z",
+  "config_path": "configs/main/refusal_wildjailbreak.yaml",
+  "input_dir": "artifacts/activations/wildjailbreak_c1",
+  "output_dir": "artifacts/features/wildjailbreak_c1/sae",
+  "release": "gemma-scope-9b-it-res",
+  "width": 16384,
+  "variant": "average_l0_14",
+  "layers": [
+    9,
+    20,
+    31
+  ],
+  "batch_size": 256,
+  "device": "cuda",
+  "dtype": "float32",
+  "splits": {
+    "train": {
+      "n_examples": 2800,
+      "feature_paths": {
+        "9": "artifacts/features/wildjailbreak_c1/sae/train_layer_9_sae_features.npz",
+        "20": "artifacts/features/wildjailbreak_c1/sae/train_layer_20_sae_features.npz",
+        "31": "artifacts/features/wildjailbreak_c1/sae/train_layer_31_sae_features.npz"
+      },
+      "feature_shapes": {
+        "9": [
+          2800,
+          16384
+        ],
+        "20": [
+          2800,
+          16384
+        ],
+        "31": [
+          2800,
+          16384
+        ]
+      },
+      "label_paths": {
+        "label": "artifacts/features/wildjailbreak_c1/sae/train_labels.npz",
+        "source_label": "artifacts/features/wildjailbreak_c1/sae/train_labels_source_label.npz"
+      },
+      "ids_path": "artifacts/features/wildjailbreak_c1/sae/train_ids.npz"
+    },
+    "val": {
+      "n_examples": 600,
+      "feature_paths": {
+        "9": "artifacts/features/wildjailbreak_c1/sae/val_layer_9_sae_features.npz",
+        "20": "artifacts/features/wildjailbreak_c1/sae/val_layer_20_sae_features.npz",
+        "31": "artifacts/features/wildjailbreak_c1/sae/val_layer_31_sae_features.npz"
+      },
+      "feature_shapes": {
+        "9": [
+          600,
+          16384
+        ],
+        "20": [
+          600,
+          16384
+        ],
+        "31": [
+          600,
+          16384
+        ]
+      },
+      "label_paths": {
+        "label": "artifacts/features/wildjailbreak_c1/sae/val_labels.npz",
+        "source_label": "artifacts/features/wildjailbreak_c1/sae/val_labels_source_label.npz"
+      },
+      "ids_path": "artifacts/features/wildjailbreak_c1/sae/val_ids.npz"
+    },
+    "test": {
+      "n_examples": 600,
+      "feature_paths": {
+        "9": "artifacts/features/wildjailbreak_c1/sae/test_layer_9_sae_features.npz",
+        "20": "artifacts/features/wildjailbreak_c1/sae/test_layer_20_sae_features.npz",
+        "31": "artifacts/features/wildjailbreak_c1/sae/test_layer_31_sae_features.npz"
+      },
+      "feature_shapes": {
+        "9": [
+          600,
+          16384
+        ],
+        "20": [
+          600,
+          16384
+        ],
+        "31": [
+          600,
+          16384
+        ]
+      },
+      "label_paths": {
+        "label": "artifacts/features/wildjailbreak_c1/sae/test_labels.npz",
+        "source_label": "artifacts/features/wildjailbreak_c1/sae/test_labels_source_label.npz"
+      },
+      "ids_path": "artifacts/features/wildjailbreak_c1/sae/test_ids.npz"
+    },
+    "adversarial": {
+      "n_examples": 2000,
+      "feature_paths": {
+        "9": "artifacts/features/wildjailbreak_c1/sae/adversarial_layer_9_sae_features.npz",
+        "20": "artifacts/features/wildjailbreak_c1/sae/adversarial_layer_20_sae_features.npz",
+        "31": "artifacts/features/wildjailbreak_c1/sae/adversarial_layer_31_sae_features.npz"
+      },
+      "feature_shapes": {
+        "9": [
+          2000,
+          16384
+        ],
+        "20": [
+          2000,
+          16384
+        ],
+        "31": [
+          2000,
+          16384
+        ]
+      },
+      "label_paths": {
+        "label": "artifacts/features/wildjailbreak_c1/sae/adversarial_labels.npz",
+        "source_label": "artifacts/features/wildjailbreak_c1/sae/adversarial_labels_source_label.npz"
+      },
+      "ids_path": "artifacts/features/wildjailbreak_c1/sae/adversarial_ids.npz"
+    }
+  }
+}
