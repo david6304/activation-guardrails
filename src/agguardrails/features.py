@@ -100,22 +100,48 @@ def _find_subsequence_start(sequence: list[int], subsequence: list[int]) -> int 
 
 
 def _resolve_last_instruction_position(tokenizer, prompt: str) -> int:
-    """Locate the final token of the raw user instruction inside the chat template."""
-    content_ids = tokenizer.encode(prompt, add_special_tokens=False)
-    if not content_ids:
+    """Locate the final token of the raw user instruction inside the chat template.
+
+    First tries a direct subsequence match (works when standalone encoding
+    matches the in-template encoding).  Falls back to a diff-based approach
+    for tokenizers like SentencePiece where boundary context changes the IDs.
+    """
+    if not prompt:
         msg = "Cannot resolve last_instruction for an empty prompt."
         raise ValueError(msg)
 
-    user_turn_ids = tokenizer.apply_chat_template(
+    full_ids = tokenizer.apply_chat_template(
         [{"role": "user", "content": prompt}],
         tokenize=True,
         add_generation_prompt=False,
     )
-    start = _find_subsequence_start(user_turn_ids, content_ids)
-    if start is None:
+
+    # Fast path: direct subsequence match.
+    content_ids = tokenizer.encode(prompt, add_special_tokens=False)
+    if content_ids:
+        start = _find_subsequence_start(full_ids, content_ids)
+        if start is not None:
+            return start + len(content_ids) - 1
+
+    # Slow path: diff the template with vs without the content.
+    # Tokenise an empty-content template to find the prefix/suffix framing.
+    empty_ids = tokenizer.apply_chat_template(
+        [{"role": "user", "content": ""}],
+        tokenize=True,
+        add_generation_prompt=False,
+    )
+    content_len = len(full_ids) - len(empty_ids)
+    if content_len <= 0:
         msg = "Could not locate prompt tokens inside the formatted user turn."
         raise ValueError(msg)
-    return start + len(content_ids) - 1
+
+    # Find the first divergence point — that's where the content starts.
+    prefix_len = 0
+    for i, (a, b) in enumerate(zip(full_ids, empty_ids)):
+        if a != b:
+            prefix_len = i
+            break
+    return prefix_len + content_len - 1
 
 
 def extract_last_token_hidden_states(
