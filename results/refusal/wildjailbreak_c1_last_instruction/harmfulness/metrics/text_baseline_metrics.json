@@ -1,0 +1,40 @@
+{
+  "git_hash": "4972ebb",
+  "timestamp": "2026-04-07T18:20:33Z",
+  "config_path": "configs/main/refusal_wildjailbreak.yaml",
+  "dataset_path": "data/processed/wildjailbreak_c1/refusal_labelled.jsonl",
+  "label_key": "source_label",
+  "pipeline_path": "artifacts/models/wildjailbreak_c1_last_instruction/harmfulness/text_baseline/tfidf_lr_pipeline.joblib",
+  "val_metrics": {
+    "model_name": "tfidf_lr",
+    "split": "val",
+    "roc_auc": 0.986588888888889,
+    "threshold": 0.7047026704015079,
+    "achieved_fpr": 0.01,
+    "tpr_at_threshold": 0.7633333333333333,
+    "positive_predictions": 232
+  },
+  "test_metrics": {
+    "model_name": "tfidf_lr",
+    "split": "test",
+    "roc_auc": 0.9872777777777778,
+    "threshold": 0.7047026704015079,
+    "achieved_fpr": 0.0,
+    "tpr_at_threshold": 0.7933333333333333,
+    "positive_predictions": 238
+  },
+  "adversarial_dataset_path": "data/processed/wildjailbreak_c1/refusal_labelled_adversarial.jsonl",
+  "adversarial_metrics": {
+    "model_name": "tfidf_lr",
+    "split": "adversarial",
+    "threshold": 0.7047026704015079,
+    "roc_auc": null,
+    "achieved_fpr": 0.0,
+    "tpr_at_threshold": 0.7565,
+    "positive_predictions": 1513,
+    "positive_prediction_rate": 0.7565,
+    "n_examples": 2000,
+    "n_positive": 2000,
+    "n_negative": 0
+  }
+}

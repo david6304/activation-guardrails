@@ -1,0 +1,140 @@
+{
+  "git_hash": "4972ebb",
+  "timestamp": "2026-04-07T18:20:06Z",
+  "config_path": "configs/main/refusal_wildjailbreak.yaml",
+  "input_dir": "artifacts/features/wildjailbreak_c1_last_instruction/sae",
+  "label_key": "source_label",
+  "release": "gemma-scope-9b-it-res",
+  "width": 16384,
+  "best_layer": 20,
+  "per_layer": {
+    "9": {
+      "val": {
+        "model_name": "sae_probe",
+        "split": "val",
+        "roc_auc": 0.8882555555555556,
+        "threshold": 0.9834573764188123,
+        "achieved_fpr": 0.01,
+        "tpr_at_threshold": 0.22,
+        "positive_predictions": 69,
+        "layer": 9,
+        "best_c": 0.1
+      },
+      "test": {
+        "model_name": "sae_probe",
+        "split": "test",
+        "roc_auc": 0.8693777777777777,
+        "threshold": 0.9834573764188123,
+        "achieved_fpr": 0.013333333333333334,
+        "tpr_at_threshold": 0.25333333333333335,
+        "positive_predictions": 80,
+        "layer": 9,
+        "best_c": 0.1
+      },
+      "adversarial": {
+        "model_name": "sae_probe",
+        "split": "adversarial",
+        "layer": 9,
+        "threshold": 0.9834573764188123,
+        "roc_auc": null,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.09693621295831241,
+        "positive_predictions": 193,
+        "positive_prediction_rate": 0.09693621295831241,
+        "n_examples": 1991,
+        "n_positive": 1991,
+        "n_negative": 0
+      }
+    },
+    "20": {
+      "val": {
+        "model_name": "sae_probe",
+        "split": "val",
+        "roc_auc": 0.9408555555555556,
+        "threshold": 0.9947659206554527,
+        "achieved_fpr": 0.01,
+        "tpr_at_threshold": 0.43333333333333335,
+        "positive_predictions": 133,
+        "layer": 20,
+        "best_c": 0.1
+      },
+      "test": {
+        "model_name": "sae_probe",
+        "split": "test",
+        "roc_auc": 0.9368333333333334,
+        "threshold": 0.9947659206554527,
+        "achieved_fpr": 0.01,
+        "tpr_at_threshold": 0.38,
+        "positive_predictions": 117,
+        "layer": 20,
+        "best_c": 0.1
+      },
+      "adversarial": {
+        "model_name": "sae_probe",
+        "split": "adversarial",
+        "layer": 20,
+        "threshold": 0.9947659206554527,
+        "roc_auc": null,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.2466097438473129,
+        "positive_predictions": 491,
+        "positive_prediction_rate": 0.2466097438473129,
+        "n_examples": 1991,
+        "n_positive": 1991,
+        "n_negative": 0
+      }
+    },
+    "31": {
+      "val": {
+        "model_name": "sae_probe",
+        "split": "val",
+        "roc_auc": 0.9378,
+        "threshold": 0.978387491569264,
+        "achieved_fpr": 0.006666666666666667,
+        "tpr_at_threshold": 0.2833333333333333,
+        "positive_predictions": 87,
+        "layer": 31,
+        "best_c": 0.01
+      },
+      "test": {
+        "model_name": "sae_probe",
+        "split": "test",
+        "roc_auc": 0.9478333333333333,
+        "threshold": 0.978387491569264,
+        "achieved_fpr": 0.006666666666666667,
+        "tpr_at_threshold": 0.34,
+        "positive_predictions": 104,
+        "layer": 31,
+        "best_c": 0.01
+      },
+      "adversarial": {
+        "model_name": "sae_probe",
+        "split": "adversarial",
+        "layer": 31,
+        "threshold": 0.978387491569264,
+        "roc_auc": null,
+        "achieved_fpr": 0.0,
+        "tpr_at_threshold": 0.2933199397287795,
+        "positive_predictions": 584,
+        "positive_prediction_rate": 0.2933199397287795,
+        "n_examples": 1991,
+        "n_positive": 1991,
+        "n_negative": 0
+      }
+    }
+  },
+  "best_adversarial_metrics": {
+    "model_name": "sae_probe",
+    "split": "adversarial",
+    "layer": 20,
+    "threshold": 0.9947659206554527,
+    "roc_auc": null,
+    "achieved_fpr": 0.0,
+    "tpr_at_threshold": 0.2466097438473129,
+    "positive_predictions": 491,
+    "positive_prediction_rate": 0.2466097438473129,
+    "n_examples": 1991,
+    "n_positive": 1991,
+    "n_negative": 0
+  }
+}
