@@ -7,8 +7,8 @@ internal model activations, not just text?**
 
 ## Current State
 
-This repository has been reset to a clean implementation skeleton for the IPP
-plan. The next implementation target is a CC++-style open-model replication on
+This repository has been reset to a clean implementation skeleton for the
+proposal plan. The next implementation target is a CC++-style open-model replication on
 Gemma 2 9B IT using WildJailbreak, followed by harmfulness/refusal separation
 experiments and SAE-based interpretability analysis.
 
@@ -34,6 +34,12 @@ activation-guardrails/
 └─ msc-writeup/          # write-up subrepo
 ```
 
+For project context, read:
+
+- `docs/CURRENT_STATE.md` for immediate status
+- `docs/PROJECT_PLAN.md` for the proposal-derived phase plan
+- `docs/WORKFLOW.md` for git, experiment, logging, and reproducibility rules
+
 ## Execution Principles
 
 - Keep each experiment stage cacheable: data build, response generation,
@@ -50,3 +56,6 @@ Install dependencies from:
 ```bash
 pip install -r requirements.txt
 ```
+
+`requirements.txt` keeps flexible research ranges. Final/reportable runs should
+record an exact environment snapshot in their result metadata.

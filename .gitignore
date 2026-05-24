@@ -13,6 +13,7 @@ __pycache__/
 
 # Experiment artifacts (large / local caches)
 /artifacts/*
+!/artifacts/README.md
 !/artifacts/ccpp/
 !/artifacts/ccpp/.gitkeep
 
@@ -21,10 +22,12 @@ data/raw/
 data/interim/
 # Processed data can be committed selectively if small; ignore by default
 data/processed/
+!data/README.md
 
 # Results are generated outputs; keep only placeholders unless explicitly
 # unignored for a final report artifact later.
 /results/*
+!/results/README.md
 !/results/.gitkeep
 !/results/ccpp/
 !/results/ccpp/.gitkeep
@@ -32,9 +35,18 @@ data/processed/
 # Logs
 *.log
 
-# Local assistant/editor config (not part of the research artefact)
+# Local editor config (not part of the research artefact)
+?GENTS.md
 CLAUDE.md
-docs/
+# Track the lightweight scaffold docs; keep old/private notes local.
+docs/*
+!docs/CURRENT_STATE.md
+!docs/PROJECT_PLAN.md
+!docs/WORKFLOW.md
+!docs/CLUSTER.md
+docs/research_log.md
+docs/meetings/
+docs/references/
 course-docs/
 .claude/
 
