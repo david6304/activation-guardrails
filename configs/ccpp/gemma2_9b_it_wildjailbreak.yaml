@@ -51,6 +51,10 @@ generation:
   params:
     max_new_tokens: 256
     do_sample: false
+  runtime:
+    backend: transformers
+    device_map: auto
+    torch_dtype: auto
 
 response_cache:
   debug_subset:

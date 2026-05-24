@@ -42,6 +42,11 @@ def _write_config(tmp_path, *, data_path, cache_path, metadata_path, limit=3):
         "generation": {
             "seed": 456,
             "params": {"max_new_tokens": 16, "do_sample": False},
+            "runtime": {
+                "backend": "transformers",
+                "device_map": "auto",
+                "torch_dtype": "auto",
+            },
         },
         "response_cache": {
             "debug_subset": {
@@ -215,6 +220,41 @@ def test_generate_response_cache_script_gates_real_generation(tmp_path):
     )
 
     assert result.returncode != 0
-    assert "Real model generation is intentionally gated" in result.stderr
+    assert "Response generation is intentionally gated" in result.stderr
     assert not cache_path.exists()
     assert not metadata_path.exists()
+
+
+def test_generate_response_cache_script_real_flag_handles_empty_selection(tmp_path):
+    data_path = tmp_path / "wildjailbreak.jsonl"
+    cache_path = tmp_path / "responses.jsonl"
+    metadata_path = tmp_path / "responses.metadata.json"
+    _write_jsonl(
+        data_path,
+        [_example(0, split="train", data_type="vanilla_harmful")],
+    )
+    config_path = _write_config(
+        tmp_path,
+        data_path=data_path,
+        cache_path=cache_path,
+        metadata_path=metadata_path,
+        limit=0,
+    )
+
+    result = _run_script("--config", str(config_path), "--generate-real")
+
+    assert "Selected 0 uncached examples" in result.stdout
+    assert cache_path.read_text(encoding="utf-8") == ""
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    assert metadata["mode"] == "model"
+    assert metadata["generation_backend"] == {
+        "backend": "transformers",
+        "device_map": "auto",
+        "torch_dtype": "auto",
+    }
+    assert metadata["counts"]["records"] == 0
+    assert metadata["resume"] == {
+        "existing_records": 0,
+        "new_records": 0,
+        "skipped_cached_example_ids": 0,
+    }

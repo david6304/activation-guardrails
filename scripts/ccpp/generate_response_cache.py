@@ -13,6 +13,11 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
+from agguardrails.generation import (  # noqa: E402
+    generate_real_responses,
+    make_chat_messages,
+    real_generation_metadata,
+)
 from agguardrails.response_cache import (  # noqa: E402
     build_response_cache_metadata,
     load_cached_example_ids,
@@ -58,6 +63,14 @@ def parse_args() -> argparse.Namespace:
         "--mock",
         action="store_true",
         help="Write deterministic mock responses instead of loading a model.",
+    )
+    parser.add_argument(
+        "--generate-real",
+        action="store_true",
+        help=(
+            "Explicitly load the configured model and generate real responses. "
+            "Use with debug limits before full runs."
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -120,6 +133,9 @@ def mock_response(example: dict) -> str:
 
 def main() -> None:
     args = parse_args()
+    if args.mock and args.generate_real:
+        raise SystemExit("Choose only one generation mode: --mock or --generate-real.")
+
     config = load_config_with_overrides(args)
     outputs = config["outputs"]
     data_path = Path(outputs["data_path"])
@@ -152,23 +168,41 @@ def main() -> None:
             )
         return
 
-    if not args.mock:
+    if not args.mock and not args.generate_real:
         raise SystemExit(
-            "Real model generation is intentionally gated for this slice. "
-            "Re-run with --mock to write a schema/debug cache."
+            "Response generation is intentionally gated. Re-run with --mock "
+            "for a schema/debug cache or --generate-real to load the model."
         )
 
     generated_at = utc_timestamp()
     existing_records = load_response_cache_records(cache_path)
-    new_records = [
-        make_response_cache_record(
-            example,
-            response=mock_response(example),
-            config=config,
-            generated_at=generated_at,
-        )
-        for example in selected
-    ]
+    if args.mock:
+        mode = "mock"
+        new_records = [
+            make_response_cache_record(
+                example,
+                response=mock_response(example),
+                config=config,
+                generated_at=generated_at,
+                messages=make_chat_messages(str(example["prompt"])),
+            )
+            for example in selected
+        ]
+    else:
+        mode = "model"
+        new_records = [
+            make_response_cache_record(
+                example,
+                response=response,
+                config=config,
+                generated_at=generated_at,
+                messages=messages,
+            )
+            for example, messages, response in generate_real_responses(
+                selected,
+                config=config,
+            )
+        ]
     records = [*existing_records, *new_records]
     metadata = build_response_cache_metadata(
         records,
@@ -178,7 +212,9 @@ def main() -> None:
         response_cache_path=cache_path,
         created_at=generated_at,
     )
-    metadata["mode"] = "mock"
+    metadata["mode"] = mode
+    if args.generate_real:
+        metadata["generation_backend"] = real_generation_metadata(config)
     metadata["selection"] = {
         "debug_subset_enabled": bool(
             config.get("response_cache", {})
