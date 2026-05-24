@@ -79,6 +79,27 @@ activation:
   mock:
     hidden_size: 8
 
+text_baseline:
+  name: tfidf_logistic_regression
+  seed: 59841
+  threshold:
+    rule: maximize_tpr_under_fpr
+    max_fpr: 0.01
+    selection_split: val
+    selection_family: vanilla
+  tfidf:
+    lowercase: true
+    ngram_range: [1, 2]
+    min_df: 1
+    max_df: 1.0
+    max_features: null
+    sublinear_tf: true
+  logistic_regression:
+    C: 1.0
+    max_iter: 1000
+    solver: liblinear
+    class_weight: null
+
 outputs:
   data_path: data/processed/ccpp/wildjailbreak_gemma2_9b_it.jsonl
   metadata_path: data/processed/ccpp/wildjailbreak_gemma2_9b_it.metadata.json
@@ -87,3 +108,7 @@ outputs:
   activation_cache_path: artifacts/ccpp/activations/gemma2_9b_it.prompt_final.residual.layer31.npz
   activation_index_path: artifacts/ccpp/activations/gemma2_9b_it.prompt_final.residual.layer31.index.jsonl
   activation_metadata_path: artifacts/ccpp/activations/gemma2_9b_it.prompt_final.residual.layer31.metadata.json
+  text_baseline_model_path: artifacts/ccpp/baselines/tfidf_logreg.joblib
+  text_baseline_scores_path: results/ccpp/tfidf_logreg.scores.jsonl
+  text_baseline_metrics_path: results/ccpp/tfidf_logreg.metrics.json
+  text_baseline_table_path: results/ccpp/tfidf_logreg.table.csv

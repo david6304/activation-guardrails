@@ -8,18 +8,21 @@ Short project snapshot. Overwrite stale items; do not append history here.
 - Latest cleanup commit: `59841bf Reset codebase for CC++ fresh start`.
 - Safety tag for old work: `pre-ccpp-fresh-start`.
 - Phase 1 cacheable scaffold is underway: WildJailbreak normalization,
-  response-cache generation, and activation-cache contracts now exist.
+  response-cache generation, activation-cache contracts, and the first TF-IDF
+  logistic text baseline now exist.
 - Proposal plan in `msc-writeup/ipp/proposal.tex` is the source of truth, but
   use `docs/PROJECT_PLAN.md` first unless exact proposal wording is needed.
 
 ## Active Focus
 
 Current implementation focus is the small debug pipeline before any full Gemma
-run: data contract, response cache, mock activation cache, then cheap baselines.
+run: data contract, response cache, mock activation cache, cheap baselines, then
+the first dense final-token probe.
 
 Next implementation target after this scaffold:
 
-1. Add the first cheap text baseline/result-table scaffold.
+1. Add the first dense final-token probe over the existing activation-cache
+   contract.
 2. Add real activation extraction behind an explicit gate, after a tiny Gemma
    response-cache smoke test is approved.
 3. Keep tests around data schema, split construction, metrics, artifacts, and
