@@ -2,6 +2,7 @@ import json
 from collections import Counter
 
 from agguardrails.wildjailbreak import (
+    _dataset_rows,
     build_wildjailbreak_contract,
     normalize_wildjailbreak_row,
     write_wildjailbreak_contract,
@@ -16,7 +17,8 @@ def _config(tmp_path=None):
         "dataset": {
             "id": "allenai/wildjailbreak",
             "revision": "test-revision",
-            "subset": "train",
+            "name": "train",
+            "split": "train",
             "prompt_columns": {"vanilla": "vanilla", "adversarial": "adversarial"},
             "completion_column": "completion",
             "tactics_column": "tactics",
@@ -99,6 +101,17 @@ def test_all_four_data_types_normalize_correctly():
         assert example.prompt.startswith(family)
 
 
+def test_adversarial_benign_falls_back_to_vanilla_when_adversarial_is_empty():
+    row = _row("adversarial_benign", 0)
+    row["adversarial"] = ""
+
+    example = normalize_wildjailbreak_row(row, row_index=0, config=_config())
+
+    assert example.prompt.startswith("vanilla prompt")
+    assert example.metadata["prompt_source_column"] == "vanilla"
+    assert example.metadata["prompt_fallback_from"] == "adversarial"
+
+
 def test_adversarial_benign_is_included_in_transfer_split():
     examples, metadata = build_wildjailbreak_contract(
         _rows(),
@@ -168,6 +181,8 @@ def test_metadata_is_written_with_config_seed_dataset_info_and_counts(tmp_path):
     assert written_metadata["seed"] == 123
     assert written_metadata["dataset"]["id"] == "allenai/wildjailbreak"
     assert written_metadata["dataset"]["revision"] == "test-revision"
+    assert written_metadata["dataset"]["name"] == "train"
+    assert written_metadata["dataset"]["split"] == "train"
     assert written_metadata["sampling"]["selected_counts_by_data_type"] == {
         "adversarial_benign": 5,
         "adversarial_harmful": 5,
@@ -182,3 +197,15 @@ def test_metadata_is_written_with_config_seed_dataset_info_and_counts(tmp_path):
     }
     assert written_rows[0]["metadata"]["split_seed"] == 123
     assert written_rows[0]["row_id"]
+
+
+def test_loaded_dataset_dict_uses_configured_split():
+    rows = _dataset_rows(
+        {
+            "train": [{"data_type": "vanilla_harmful", "vanilla": "train row"}],
+            "test": [{"data_type": "vanilla_harmful", "vanilla": "test row"}],
+        },
+        split_name="train",
+    )
+
+    assert rows == [{"data_type": "vanilla_harmful", "vanilla": "train row"}]

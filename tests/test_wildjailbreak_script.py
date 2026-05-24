@@ -42,6 +42,7 @@ def test_build_wildjailbreak_script_writes_outputs_from_local_jsonl(tmp_path):
         "dataset": {
             "id": "allenai/wildjailbreak",
             "revision": "local-test",
+            "split": "train",
             "local_path": str(input_path),
         },
         "sampling": {

@@ -6,6 +6,7 @@ import csv
 import json
 import random
 from collections import Counter
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable
@@ -88,15 +89,22 @@ def load_wildjailbreak_rows(config: dict[str, Any]) -> list[dict[str, Any]]:
     revision = dataset_config.get("revision")
     if revision:
         loader_kwargs["revision"] = revision
-    dataset = load_dataset(
-        dataset_config["id"],
-        dataset_config.get("subset", "train"),
-        **loader_kwargs,
-    )
+    dataset_name = dataset_config.get("name")
+    legacy_subset = dataset_config.get("subset")
     split_name = dataset_config.get("split")
-    if split_name is not None:
-        dataset = dataset[split_name]
-    return [dict(row) for row in dataset]
+    if split_name is None and legacy_subset in {"train", "validation", "val", "test"}:
+        split_name = legacy_subset
+    elif dataset_name is None and legacy_subset:
+        dataset_name = legacy_subset
+
+    if split_name:
+        loader_kwargs["split"] = split_name
+
+    if dataset_name:
+        dataset = load_dataset(dataset_config["id"], dataset_name, **loader_kwargs)
+    else:
+        dataset = load_dataset(dataset_config["id"], **loader_kwargs)
+    return _dataset_rows(dataset, split_name=split_name)
 
 
 def normalize_wildjailbreak_row(
@@ -118,6 +126,12 @@ def normalize_wildjailbreak_row(
         adversarial_column if data_type.startswith("adversarial") else vanilla_column
     )
     prompt = _clean_text(row.get(prompt_column))
+    prompt_source_column = prompt_column
+    prompt_fallback_from = None
+    if not prompt and data_type.startswith("adversarial"):
+        prompt = _clean_text(row.get(vanilla_column))
+        prompt_source_column = vanilla_column
+        prompt_fallback_from = prompt_column
     if not prompt:
         raise ValueError(f"Missing prompt for row {row_index} data_type={data_type}")
 
@@ -141,6 +155,8 @@ def normalize_wildjailbreak_row(
             "upstream_dataset_revision": dataset_config.get("revision"),
             "upstream_row_index": row_index,
             "original_data_type": data_type,
+            "prompt_source_column": prompt_source_column,
+            "prompt_fallback_from": prompt_fallback_from,
         },
     )
 
@@ -278,7 +294,8 @@ def _build_metadata(
         "dataset": {
             "id": dataset_config.get("id"),
             "revision": dataset_config.get("revision"),
-            "subset": dataset_config.get("subset"),
+            "name": dataset_config.get("name"),
+            "split": dataset_config.get("split", dataset_config.get("subset")),
             "required_data_types": list(
                 dataset_config.get("required_data_types", DATA_TYPES)
             ),
@@ -351,6 +368,21 @@ def _row_id(row: dict[str, Any], row_index: int) -> str:
         if value not in (None, ""):
             return str(value)
     return str(row_index)
+
+
+def _dataset_rows(dataset: Any, *, split_name: str | None) -> list[dict[str, Any]]:
+    if isinstance(dataset, Mapping):
+        if split_name and split_name in dataset:
+            dataset = dataset[split_name]
+        elif len(dataset) == 1:
+            dataset = next(iter(dataset.values()))
+        else:
+            splits = ", ".join(str(name) for name in dataset)
+            raise ValueError(
+                "Loaded a DatasetDict but no unambiguous split was configured. "
+                f"Available splits: {splits}"
+            )
+    return [dict(row) for row in dataset]
 
 
 def _clean_text(value: Any) -> str:

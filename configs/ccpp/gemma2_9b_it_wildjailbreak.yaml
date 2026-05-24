@@ -9,8 +9,9 @@ model:
 
 dataset:
   id: allenai/wildjailbreak
-  revision: null
-  subset: train
+  revision: 5ddc12a7894f842b0619b8e1c7ee496b198af009
+  name: train
+  split: train
   loader_kwargs:
     delimiter: "\t"
     keep_default_na: false
