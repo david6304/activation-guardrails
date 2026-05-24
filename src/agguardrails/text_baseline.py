@@ -368,8 +368,9 @@ def write_result_table(metadata: dict[str, Any], table_path: str | Path) -> None
             {
                 "baseline": metadata["baseline"],
                 "split": split_label,
+                "validation_max_fpr": metadata["threshold_rule"]["max_fpr"],
                 "threshold": metric["threshold"],
-                "tpr_at_1pct_fpr": metric["tpr"],
+                "tpr_at_frozen_threshold": metric["tpr"],
                 "fpr": metric["fpr"],
                 "roc_auc": metric["roc_auc"],
                 "positives": metric["positives"],
