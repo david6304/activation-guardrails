@@ -184,16 +184,19 @@ def write_wildjailbreak_contract(
 def build_and_write_wildjailbreak_contract(
     *,
     config_path: str | Path,
+    config: dict[str, Any] | None = None,
     rows: Iterable[dict[str, Any]] | None = None,
 ) -> tuple[list[WildJailbreakExample], dict[str, Any]]:
-    config = load_config(config_path)
-    source_rows = list(rows) if rows is not None else load_wildjailbreak_rows(config)
+    resolved_config = load_config(config_path) if config is None else config
+    source_rows = (
+        list(rows) if rows is not None else load_wildjailbreak_rows(resolved_config)
+    )
     examples, metadata = build_wildjailbreak_contract(
         source_rows,
-        config=config,
+        config=resolved_config,
         config_path=config_path,
     )
-    outputs = config["outputs"]
+    outputs = resolved_config["outputs"]
     write_wildjailbreak_contract(
         examples,
         metadata,
