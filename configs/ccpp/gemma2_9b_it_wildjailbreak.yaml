@@ -100,6 +100,21 @@ text_baseline:
     solver: liblinear
     class_weight: null
 
+dense_probe:
+  name: dense_prompt_final_logistic_regression
+  seed: 59841
+  feature_source: activation_cache
+  threshold:
+    rule: maximize_tpr_under_fpr
+    max_fpr: 0.01
+    selection_split: val
+    selection_family: vanilla
+  logistic_regression:
+    C: 1.0
+    max_iter: 1000
+    solver: liblinear
+    class_weight: null
+
 outputs:
   data_path: data/processed/ccpp/wildjailbreak_gemma2_9b_it.jsonl
   metadata_path: data/processed/ccpp/wildjailbreak_gemma2_9b_it.metadata.json
@@ -112,3 +127,7 @@ outputs:
   text_baseline_scores_path: results/ccpp/tfidf_logreg.scores.jsonl
   text_baseline_metrics_path: results/ccpp/tfidf_logreg.metrics.json
   text_baseline_table_path: results/ccpp/tfidf_logreg.table.csv
+  dense_probe_model_path: artifacts/ccpp/probes/dense_prompt_final_logreg.joblib
+  dense_probe_scores_path: results/ccpp/dense_prompt_final_logreg.scores.jsonl
+  dense_probe_metrics_path: results/ccpp/dense_prompt_final_logreg.metrics.json
+  dense_probe_table_path: results/ccpp/dense_prompt_final_logreg.table.csv
