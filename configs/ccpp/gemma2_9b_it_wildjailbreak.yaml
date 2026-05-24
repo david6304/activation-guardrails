@@ -1,0 +1,46 @@
+experiment:
+  name: ccpp_gemma2_9b_it_wildjailbreak
+  phase: 1
+  description: CC++ data contract for Gemma 2 9B IT on WildJailbreak.
+
+model:
+  id: google/gemma-2-9b-it
+  revision: null
+
+dataset:
+  id: allenai/wildjailbreak
+  revision: null
+  subset: train
+  loader_kwargs:
+    delimiter: "\t"
+    keep_default_na: false
+  required_data_types:
+    - vanilla_harmful
+    - vanilla_benign
+    - adversarial_harmful
+    - adversarial_benign
+  prompt_columns:
+    vanilla: vanilla
+    adversarial: adversarial
+  completion_column: completion
+  tactics_column: tactics
+  data_type_column: data_type
+
+sampling:
+  seed: 59841
+  per_data_type:
+    vanilla_harmful: 2000
+    vanilla_benign: 2000
+    adversarial_harmful: 2000
+    adversarial_benign: 2000
+
+splits:
+  vanilla:
+    train: 0.70
+    val: 0.15
+    test: 0.15
+  adversarial_split: transfer
+
+outputs:
+  data_path: data/processed/ccpp/wildjailbreak_gemma2_9b_it.jsonl
+  metadata_path: data/processed/ccpp/wildjailbreak_gemma2_9b_it.metadata.json
