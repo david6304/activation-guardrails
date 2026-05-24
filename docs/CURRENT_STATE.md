@@ -7,20 +7,23 @@ Short project snapshot. Overwrite stale items; do not append history here.
 - Repo reset to a CC++ fresh-start skeleton.
 - Latest cleanup commit: `59841bf Reset codebase for CC++ fresh start`.
 - Safety tag for old work: `pre-ccpp-fresh-start`.
-- Old code/results are intentionally out of the active tree.
+- Phase 1 cacheable scaffold is underway: WildJailbreak normalization,
+  response-cache generation, and activation-cache contracts now exist.
 - Proposal plan in `msc-writeup/ipp/proposal.tex` is the source of truth, but
   use `docs/PROJECT_PLAN.md` first unless exact proposal wording is needed.
 
 ## Active Focus
 
-Ready to start the CC++ replication implementation. The next coding task should
-be the data/config/metadata contract, not model loading.
+Current implementation focus is the small debug pipeline before any full Gemma
+run: data contract, response cache, mock activation cache, then cheap baselines.
 
 Next implementation target after this scaffold:
 
-1. Build the WildJailbreak data/config contract.
-2. Implement cacheable CC++-style stages for Gemma 2 9B IT.
-3. Add tests around data schema, split construction, metrics, and metadata.
+1. Add the first cheap text baseline/result-table scaffold.
+2. Add real activation extraction behind an explicit gate, after a tiny Gemma
+   response-cache smoke test is approved.
+3. Keep tests around data schema, split construction, metrics, artifacts, and
+   metadata.
 
 ## Decisions So Far
 
@@ -28,10 +31,12 @@ Next implementation target after this scaffold:
 - Use short-lived branches only for substantial experiment/code chunks.
 - Keep `docs/research_log.md` local and ignored.
 - Track concise scaffold docs; ignore large/private/generated context.
+- Full Gemma response generation is not required yet and remains explicitly
+  gated.
 
 ## Open Checks Before Experiments
 
 - Confirm local/cluster versions for `transformers`, `datasets`, `torch`, and
   `sae-lens`.
 - Verify WildJailbreak access and exact Hugging Face dataset revision.
-- Decide first config names and artifact metadata schema.
+- Run a tiny approved real-generation smoke test before any full response cache.

@@ -66,8 +66,24 @@ response_cache:
       - test
       - transfer
 
+activation:
+  seed: 59841
+  mode: prompt_final
+  source: residual
+  layer: 31
+  token_position: final_prompt_token
+  aggregation:
+    rule: none
+  segment:
+    enabled: false
+  mock:
+    hidden_size: 8
+
 outputs:
   data_path: data/processed/ccpp/wildjailbreak_gemma2_9b_it.jsonl
   metadata_path: data/processed/ccpp/wildjailbreak_gemma2_9b_it.metadata.json
   response_cache_path: artifacts/ccpp/responses/gemma2_9b_it.responses.jsonl
   response_cache_metadata_path: artifacts/ccpp/responses/gemma2_9b_it.metadata.json
+  activation_cache_path: artifacts/ccpp/activations/gemma2_9b_it.prompt_final.residual.layer31.npz
+  activation_index_path: artifacts/ccpp/activations/gemma2_9b_it.prompt_final.residual.layer31.index.jsonl
+  activation_metadata_path: artifacts/ccpp/activations/gemma2_9b_it.prompt_final.residual.layer31.metadata.json
