@@ -1,8 +1,0 @@
-{
-  "git_hash": "c78dd05",
-  "timestamp": "2026-03-29T18:54:25Z",
-  "config_path": "configs/mvp/mvp.yaml",
-  "text_metrics_path": "artifacts/models/text_baseline/metrics.json",
-  "probe_metrics_path": "artifacts/models/activation_probes/metrics.json",
-  "n_rows": 2
-}

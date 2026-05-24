@@ -12,7 +12,9 @@ __pycache__/
 .vscode/
 
 # Experiment artifacts (large / local caches)
-/artifacts/
+/artifacts/*
+!/artifacts/ccpp/
+!/artifacts/ccpp/.gitkeep
 
 # Local datasets
 data/raw/
@@ -20,14 +22,12 @@ data/interim/
 # Processed data can be committed selectively if small; ignore by default
 data/processed/
 
-# Results (commit small summaries manually if desired)
-results/*.png
-results/*.pdf
-results/*.npy
-results/*.npz
-results/*.pt
-results/*.pkl
-results/*.joblib
+# Results are generated outputs; keep only placeholders unless explicitly
+# unignored for a final report artifact later.
+/results/*
+!/results/.gitkeep
+!/results/ccpp/
+!/results/ccpp/.gitkeep
 
 # Logs
 *.log
@@ -41,7 +41,7 @@ course-docs/
 # Packaging metadata
 *.egg-info/
 
-# Write up subrepo 
+# Write up subrepo
 msc-writeup/
 
 papers/
