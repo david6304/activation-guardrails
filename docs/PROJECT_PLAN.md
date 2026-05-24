@@ -25,11 +25,14 @@ Broader dissertation question:
 - Vanilla split: 70/15/15, giving 2800 train, 600 validation, 600 vanilla test.
 - Held-out OOD transfer set: 4000 adversarial prompts, with both benign and
   harmful subsets so adversarial TPR and FPR can both be measured.
-- Activation features: dense hidden states first; Gemma Scope SAE features from
-  layers 9, 20, and 31 after the dense/text/ensemble pipeline works.
+- Activation features: dense hidden states first, initially residual-stream
+  activations; add attention/MLP stream checks after the first dense pipeline
+  because Segment-Level Coherence reports that they can outperform residual
+  activations. Add Gemma Scope SAE features from layers 9, 20, and 31 after the
+  dense/text/ensemble pipeline works.
 - Baselines/comparators: TF-IDF logistic regression, dense prompt-final probe,
-  dense CC++-style exchange/token probe, public guardrails, SAE probe, and
-  Latent Guard-style centroid classifier.
+  dense CC++/SWiM-style exchange-token probe, Segment-Level Coherence variants,
+  public guardrails, SAE probe, and Latent Guard-style centroid classifier.
 - Primary metric: `TPR @ 1% FPR`.
 - Secondary metric: `ROC-AUC`.
 - Main transfer design: train/select thresholds on vanilla data; evaluate on the
@@ -43,10 +46,12 @@ public text guardrails under WildJailbreak adversarial transfer.
 
 This is an open-model adaptation, not an exact CC++ reproduction. CC++ used
 Claude, CBRN-specific data, production traffic calibration, and human red-team
-vulnerability discovery. This phase follows the transferable method details:
-exchange-level scoring, token-stream probes, smoothing/softmax-weighted
-training, probe+classifier ensembles, cascade simulation, and complementarity
-analysis.
+vulnerability discovery. Segment-Level Coherence is the closest local
+open-model follow-up and raises the dense-probe baseline: this phase should
+start with transferable CC++ details, then compare against segment-coherent
+aggregation before claiming dense-probe performance. The dissertation gap is
+WildJailbreak transfer, harmfulness/refusal separation, dense-vs-SAE comparison,
+and interpretability rather than simply showing that Gemma probes can work.
 
 Implementation:
 
@@ -68,6 +73,13 @@ Implementation:
     harmfulness probes and Zhao-style comparisons.
   - `exchange_stream`: token-level prompt+response activations for the main
     CC++-style probe.
+- For `exchange_stream`, keep response caches schema-light. Derive token
+  windows/segments during activation or probe training rather than storing
+  segment annotations in the response cache.
+- Record activation stream/source in activation and probe metadata:
+  `residual`, `attention`, or `mlp` where applicable. Start with residual
+  activations for implementation speed, then add attention/MLP checks once the
+  debug pipeline is stable.
 - Prioritise dense probes for Phase 1. Add SAE probes as Phase 1b only after the
   dense/text/ensemble pipeline runs end to end, using the same cached examples
   and Gemma Scope layers 9, 20, and 31.
@@ -78,8 +90,11 @@ Classifiers and comparisons:
   lexical/provenance shortcuts.
 - Train dense activation probes:
   - final-token logistic probe as a simple baseline.
-  - CC++-style exchange/token probe with sliding-window logit smoothing and
-    softmax-weighted token loss as the main replication method.
+  - CC++/SWiM-style exchange-token probe with sliding-window logit smoothing and
+    softmax-weighted token loss as the first stream baseline.
+  - Segment-Level Coherence exchange-token probe with Top-K supportive-window
+    pooling and benign-only segment variance regularization as the stronger
+    dense stream baseline after the simple stream probe works.
 - Score public guardrails as text-side comparators: prioritise ShieldGemma and
   WildGuard first; add LlamaGuard if setup cost is acceptable.
 - Evaluate probe+guard ensembles because CC++'s strongest result is not
@@ -100,6 +115,9 @@ Evaluation:
   separated from the main operating point.
 - For generated exchanges, include a CC++-style "flag at any point" rule for
   token-stream probes.
+- For segment-coherent probes, report the exact window/segment size, Top-K,
+  pooling rule, and whether segment variance regularization was applied only to
+  benign examples. Keep adversarial-calibrated versions diagnostic only.
 - Include per-tactic adversarial breakdowns only where counts are large enough
   to avoid noisy claims.
 
@@ -112,9 +130,11 @@ Tests and acceptance criteria:
 - Feature tests: final-token and token-stream extraction produce aligned labels
   and example ids.
 - Probe tests: synthetic tensors verify dense final-token probe and token-stream
-  aggregation behavior.
+  aggregation behavior, including Top-K segment pooling and benign-only segment
+  variance regularization once Segment-Level Coherence variants are added.
 - Metadata tests: every artifact/result records config path, git commit, seed,
-  model/dataset revision, threshold rule, and package snapshot.
+  model/dataset revision, threshold rule, activation stream/source, aggregation
+  rule, segment/window settings, regularization settings, and package snapshot.
 - First milestone: one small debug config runs data build, response cache,
   activation extraction, TF-IDF baseline, dense final-token probe, and
   fixed-threshold result table.
