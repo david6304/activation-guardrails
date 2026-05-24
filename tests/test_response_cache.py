@@ -6,6 +6,7 @@ from agguardrails.response_cache import (
     SCHEMA_VERSION,
     build_response_cache_metadata,
     load_cached_example_ids,
+    load_response_cache_records,
     make_response_cache_record,
     select_examples_for_response_cache,
     validate_response_cache_record,
@@ -169,6 +170,27 @@ def test_write_response_cache_writes_jsonl_and_metadata(tmp_path):
     assert written_metadata == metadata
 
 
+def test_load_response_cache_records_validates_cached_rows(tmp_path):
+    record = make_response_cache_record(
+        _example(),
+        response="cached answer",
+        config=_config(),
+        generated_at="2026-05-24T12:00:00Z",
+    )
+    cache_path = tmp_path / "responses.jsonl"
+    write_response_cache(
+        [record],
+        cache_path=cache_path,
+        metadata_path=tmp_path / "metadata.json",
+        metadata={"schema_version": SCHEMA_VERSION},
+    )
+
+    records = load_response_cache_records(cache_path)
+
+    assert len(records) == 1
+    assert records[0].example_id == "vanilla_harmful:0"
+
+
 def test_deterministic_subset_selection_filters_splits_and_limit():
     first = select_examples_for_response_cache(
         _examples(),
@@ -183,9 +205,7 @@ def test_deterministic_subset_selection_filters_splits_and_limit():
         splits=["transfer", "val"],
     )
 
-    assert [row["example_id"] for row in first] == [
-        row["example_id"] for row in second
-    ]
+    assert [row["example_id"] for row in first] == [row["example_id"] for row in second]
     assert len(first) == 2
     assert {row["split"] for row in first} <= {"transfer", "val"}
 
@@ -212,3 +232,22 @@ def test_resume_safe_selection_skips_already_cached_example_ids(tmp_path):
     )
 
     assert "vanilla_harmful:0" not in {row["example_id"] for row in selected}
+
+
+def test_resume_safe_selection_does_not_top_off_completed_debug_subset():
+    initial_subset = select_examples_for_response_cache(
+        _examples(),
+        seed=123,
+        limit=2,
+        splits=["train", "transfer", "val"],
+    )
+
+    resumed = select_examples_for_response_cache(
+        _examples(),
+        seed=123,
+        limit=2,
+        splits=["train", "transfer", "val"],
+        already_cached_example_ids={row["example_id"] for row in initial_subset},
+    )
+
+    assert resumed == []

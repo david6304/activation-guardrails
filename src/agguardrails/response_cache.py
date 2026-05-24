@@ -62,8 +62,7 @@ def select_examples_for_response_cache(
     candidates = [
         example
         for example in examples
-        if (selected_splits is None or example["split"] in selected_splits)
-        and example["example_id"] not in cached_ids
+        if selected_splits is None or example["split"] in selected_splits
     ]
     candidates = sorted(candidates, key=lambda row: row["example_id"])
     random.Random(f"{seed}:response-cache:subset").shuffle(candidates)
@@ -71,10 +70,34 @@ def select_examples_for_response_cache(
         if limit < 0:
             raise ValueError("limit must be non-negative")
         candidates = candidates[:limit]
+    candidates = [
+        example for example in candidates if example["example_id"] not in cached_ids
+    ]
     return sorted(
         candidates,
         key=lambda row: (row["split"], row["data_type"], row["example_id"]),
     )
+
+
+def load_response_cache_records(path: str | Path) -> list[ResponseCacheRecord]:
+    cache_path = Path(path)
+    if not cache_path.exists():
+        return []
+    records = []
+    with cache_path.open("r", encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            try:
+                record = ResponseCacheRecord(**row)
+            except TypeError as exc:
+                raise ValueError(
+                    f"Cached response row {line_number} has invalid fields"
+                ) from exc
+            validate_response_cache_record(record)
+            records.append(record)
+    return records
 
 
 def load_cached_example_ids(path: str | Path) -> set[str]:
