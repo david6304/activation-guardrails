@@ -7,6 +7,10 @@ model:
   id: google/gemma-2-9b-it
   revision: null
 
+tokenizer:
+  id: google/gemma-2-9b-it
+  revision: null
+
 dataset:
   id: allenai/wildjailbreak
   revision: 5ddc12a7894f842b0619b8e1c7ee496b198af009
@@ -42,6 +46,24 @@ splits:
     test: 0.15
   adversarial_split: transfer
 
+generation:
+  seed: 59841
+  params:
+    max_new_tokens: 256
+    do_sample: false
+
+response_cache:
+  debug_subset:
+    enabled: true
+    limit: 16
+    splits:
+      - train
+      - val
+      - test
+      - transfer
+
 outputs:
   data_path: data/processed/ccpp/wildjailbreak_gemma2_9b_it.jsonl
   metadata_path: data/processed/ccpp/wildjailbreak_gemma2_9b_it.metadata.json
+  response_cache_path: artifacts/ccpp/responses/gemma2_9b_it.responses.jsonl
+  response_cache_metadata_path: artifacts/ccpp/responses/gemma2_9b_it.metadata.json
