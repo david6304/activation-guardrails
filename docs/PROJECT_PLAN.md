@@ -7,9 +7,9 @@ exact wording, citations, or rubric-sensitive framing is needed.
 
 Working technical question:
 
-> Can CC++-style activation probes on Gemma 2 9B IT improve harmfulness
-> detection under WildJailbreak adversarial transfer, and do they provide
-> complementary signal to public text-based guardrails?
+> Can we first reproduce the CC++ paper's core guardrail result as faithfully as
+> local access allows, then test whether open-model activation probes preserve
+> the same benefits under broader jailbreak and interpretability settings?
 
 Broader dissertation question:
 
@@ -19,6 +19,105 @@ Broader dissertation question:
 
 ## Core Setup
 
+- Immediate priority: a paper-faithful CC++ reproduction before adding
+  WildJailbreak, SAE interpretability, or other extension datasets.
+- Reproduction rule: match the CC++ paper's data/task framing, train/eval
+  splits, cascade/classifier setup, activation positions, aggregation, threshold
+  rule, and metrics wherever possible. Any unavailable closed-model,
+  production-traffic, or private-data component must be replaced by the closest
+  explicit open substitute and labelled as a substitution, not silently treated
+  as faithful.
+- Existing scaffold status: the WildJailbreak/Gemma response-cache,
+  activation-cache, TF-IDF baseline, and dense prompt-final probe code remains
+  useful infrastructure, but it is now deferred to the adaptation phase.
+- Primary metric remains the low-FPR operating point used by the paper, with
+  `TPR @ 1% FPR` and ROC-AUC retained for local comparability unless the paper
+  uses a different exact reporting threshold that must be reproduced.
+- First implementation task is a reproduction-spec audit from the paper:
+  enumerate exact datasets, labels, model(s), probe layers/positions,
+  text-classifier baselines, cascade thresholds, smoothing/pooling rules, and
+  reported tables/figures to recreate.
+
+## Phase 1 - Faithful CC++ Reproduction
+
+Goal: reproduce the CC++ paper's core empirical claim as closely as feasible
+before trying other datasets or dissertation-specific extensions.
+
+Supervisor direction on 2026-05-25: do a full faithful reproduction of the
+paper first, then move to other datasets. The immediate plan is therefore no
+longer "start with WildJailbreak/Gemma and call it CC++-style"; it is
+"reconstruct the CC++ protocol, document unavoidable substitutions, and only
+then adapt it to WildJailbreak/open-weight models."
+
+Implementation:
+
+- Read the CC++ paper and produce a reproduction matrix:
+  paper component, exact reported setting, local availability, substitute if
+  needed, and expected impact on faithfulness.
+- Recreate the paper's first-stage text classifier baseline as closely as
+  possible before changing datasets.
+- Recreate the activation probe training objective and scoring rule, including
+  exchange-level framing, token/window smoothing or pooling, and the paper's
+  threshold/calibration rule.
+- Recreate the ensemble/cascade evaluation because CC++'s central claim is a
+  deployed guardrail system, not a standalone activation probe.
+- Keep all expensive stages cacheable: examples, model responses, activations,
+  probe features/scores, cascade decisions, and final tables.
+- Preserve provenance for every run: paper section/table target, dataset/model
+  substitute status, config, git commit, seed, model/dataset revisions,
+  threshold rule, and environment snapshot.
+- Pause before claiming reproduction success unless the result table can be
+  mapped directly to a paper table/figure or a clearly labelled local analogue.
+
+Classifiers and comparisons:
+
+- Faithful reproduction baselines come first: text classifier, activation
+  probe, ensemble, and cascade as described in the paper.
+- Existing TF-IDF and dense prompt-final probes are now debug baselines, not the
+  main Phase 1 result.
+- Segment-Level Coherence, SAE probes, public guardrails, and Latent Guard-style
+  centroid classifiers move after the faithful CC++ reproduction unless they are
+  needed as explicit paper substitutes.
+
+Evaluation:
+
+- Reproduce the paper's operating-point metrics and any refusal/over-refusal,
+  routed-fraction, compute, or attack-success measurements used in its main
+  tables.
+- If local substitutions are unavoidable, report two labels in every table:
+  "paper-faithful component" and "local substitute".
+- Do not introduce WildJailbreak transfer, adversarial-calibrated thresholds, or
+  SAE interpretation into the main reproduction table.
+
+Tests and acceptance criteria:
+
+- Reproduction-spec tests/docs: every implemented result maps to a target paper
+  table/figure or an explicitly labelled local analogue.
+- Data tests: reproduction datasets normalize correctly; splits and label
+  semantics match the paper or document the substitute.
+- Metric tests: fixed-FPR thresholding, frozen-threshold transfer, ROC-AUC, and
+  any paper-specific cascade/over-refusal metrics.
+- Feature tests: exchange-token extraction, smoothing/pooling, and score
+  aggregation produce aligned labels and example ids.
+- Probe tests: synthetic tensors verify the faithful CC++ activation-probe
+  scoring path before adding stronger variants.
+- Metadata tests: every artifact/result records config path, git commit, seed,
+  model/dataset revision, threshold rule, activation stream/source, aggregation
+  rule, segment/window settings, regularization settings, and package snapshot.
+- First milestone: a small debug config runs the paper-faithful pipeline shape
+  end to end and emits a table explicitly mapped to the paper.
+- Main Phase 1 acceptance: the faithful reproduction or best-feasible local
+  analogue is complete enough to discuss with the supervisor before adding
+  WildJailbreak or SAE extensions.
+
+## Phase 1b - Open-Model WildJailbreak Adaptation
+
+Goal: after the faithful CC++ reproduction is established, reuse the scaffold to
+test whether Gemma 2 9B IT activation probes add complementary signal to public
+text guardrails under WildJailbreak adversarial transfer.
+
+Deferred setup:
+
 - Model: `Gemma 2 9B IT`.
 - Dataset: `WildJailbreak`, sampled to 8k prompts: 2k vanilla benign, 2k vanilla
   harmful, 2k adversarial benign, 2k adversarial harmful.
@@ -26,121 +125,12 @@ Broader dissertation question:
 - Held-out OOD transfer set: 4000 adversarial prompts, with both benign and
   harmful subsets so adversarial TPR and FPR can both be measured.
 - Activation features: dense hidden states first, initially residual-stream
-  activations; add attention/MLP stream checks after the first dense pipeline
-  because Segment-Level Coherence reports that they can outperform residual
-  activations. Add Gemma Scope SAE features from layers 9, 20, and 31 after the
-  dense/text/ensemble pipeline works.
-- Baselines/comparators: TF-IDF logistic regression, dense prompt-final probe,
-  dense CC++/SWiM-style exchange-token probe, Segment-Level Coherence variants,
-  public guardrails, SAE probe, and Latent Guard-style centroid classifier.
-- Primary metric: `TPR @ 1% FPR`.
-- Secondary metric: `ROC-AUC`.
+  activations; add attention/MLP stream checks after the faithful reproduction
+  and dense pipeline are stable. Add Gemma Scope SAE features from layers 9, 20,
+  and 31 after the dense/text/ensemble pipeline works.
 - Main transfer design: train/select thresholds on vanilla data; evaluate on the
   adversarial WildJailbreak holdout. Also compute adversarial-calibrated
   thresholds as a diagnostic, not the main operating point.
-
-## Phase 1 - CC++-Style Open Replication
-
-Goal: test whether Gemma 2 9B IT activation probes add complementary signal to
-public text guardrails under WildJailbreak adversarial transfer.
-
-This is an open-model adaptation, not an exact CC++ reproduction. CC++ used
-Claude, CBRN-specific data, production traffic calibration, and human red-team
-vulnerability discovery. Segment-Level Coherence is the closest local
-open-model follow-up and raises the dense-probe baseline: this phase should
-start with transferable CC++ details, then compare against segment-coherent
-aggregation before claiming dense-probe performance. The dissertation gap is
-WildJailbreak transfer, harmfulness/refusal separation, dense-vs-SAE comparison,
-and interpretability rather than simply showing that Gemma probes can work.
-
-Implementation:
-
-- Build a first-class WildJailbreak contract with all four groups:
-  `vanilla_harmful`, `vanilla_benign`, `adversarial_harmful`, and
-  `adversarial_benign`.
-- Train/select on vanilla data only: 70/15/15 train/validation/test from 2k
-  vanilla harmful and 2k vanilla benign prompts.
-- Evaluate transfer on held-out adversarial harmful plus adversarial benign
-  prompts, using the validation-selected threshold unchanged.
-- Preserve provenance: upstream dataset id/revision, row ids, original data
-  type, tactic metadata where available, split seed, and sampling counts.
-- If the selected upstream split has fewer than 2k adversarial benign prompts,
-  use all available adversarial benign examples and report the imbalance.
-- Generate deterministic Gemma responses for all selected examples and cache
-  full exchanges.
-- Implement two activation modes:
-  - `prompt_final`: final instruction/prompt token activations for fast
-    harmfulness probes and Zhao-style comparisons.
-  - `exchange_stream`: token-level prompt+response activations for the main
-    CC++-style probe.
-- For `exchange_stream`, keep response caches schema-light. Derive token
-  windows/segments during activation or probe training rather than storing
-  segment annotations in the response cache.
-- Record activation stream/source in activation and probe metadata:
-  `residual`, `attention`, or `mlp` where applicable. Start with residual
-  activations for implementation speed, then add attention/MLP checks once the
-  debug pipeline is stable.
-- Prioritise dense probes for Phase 1. Add SAE probes as Phase 1b only after the
-  dense/text/ensemble pipeline runs end to end, using the same cached examples
-  and Gemma Scope layers 9, 20, and 31.
-
-Classifiers and comparisons:
-
-- Keep TF-IDF logistic regression as a cheap diagnostic baseline for
-  lexical/provenance shortcuts.
-- Train dense activation probes:
-  - final-token logistic probe as a simple baseline.
-  - CC++/SWiM-style exchange-token probe with sliding-window logit smoothing and
-    softmax-weighted token loss as the first stream baseline.
-  - Segment-Level Coherence exchange-token probe with Top-K supportive-window
-    pooling and benign-only segment variance regularization as the stronger
-    dense stream baseline after the simple stream probe works.
-- Score public guardrails as text-side comparators: prioritise ShieldGemma and
-  WildGuard first; add LlamaGuard if setup cost is acceptable.
-- Evaluate probe+guard ensembles because CC++'s strongest result is not
-  probe-only:
-  - equal-weight score/logit averaging.
-  - validation-selected weighted averaging.
-  - error/rank-correlation analysis to test complementarity.
-- Simulate a cascade where the probe screens all examples, routed examples go to
-  a stronger public guard model, and the routed fraction is reported as a
-  compute/cost proxy.
-
-Evaluation:
-
-- Select thresholds on vanilla validation only.
-- Report vanilla test and adversarial transfer at the frozen validation
-  threshold.
-- Report adversarial-calibrated thresholds only as diagnostics, clearly
-  separated from the main operating point.
-- For generated exchanges, include a CC++-style "flag at any point" rule for
-  token-stream probes.
-- For segment-coherent probes, report the exact window/segment size, Top-K,
-  pooling rule, and whether segment variance regularization was applied only to
-  benign examples. Keep adversarial-calibrated versions diagnostic only.
-- Include per-tactic adversarial breakdowns only where counts are large enough
-  to avoid noisy claims.
-
-Tests and acceptance criteria:
-
-- Data tests: all four WildJailbreak groups normalize correctly; splits are
-  deterministic and balanced; adversarial benign is included.
-- Metric tests: fixed-FPR thresholding, frozen-threshold transfer, ROC-AUC, and
-  edge cases with one-class subsets.
-- Feature tests: final-token and token-stream extraction produce aligned labels
-  and example ids.
-- Probe tests: synthetic tensors verify dense final-token probe and token-stream
-  aggregation behavior, including Top-K segment pooling and benign-only segment
-  variance regularization once Segment-Level Coherence variants are added.
-- Metadata tests: every artifact/result records config path, git commit, seed,
-  model/dataset revision, threshold rule, activation stream/source, aggregation
-  rule, segment/window settings, regularization settings, and package snapshot.
-- First milestone: one small debug config runs data build, response cache,
-  activation extraction, TF-IDF baseline, dense final-token probe, and
-  fixed-threshold result table.
-- Main Phase 1 acceptance: the full WildJailbreak sample runs dense CC++-style
-  probe, at least one public guard model, ensemble analysis, and cascade
-  simulation.
 
 ## Phase 2 - Harmfulness vs Refusal
 

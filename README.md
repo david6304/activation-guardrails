@@ -8,9 +8,11 @@ internal model activations, not just text?**
 ## Current State
 
 This repository has been reset to a clean implementation skeleton for the
-proposal plan. The next implementation target is a CC++-style open-model replication on
-Gemma 2 9B IT using WildJailbreak, followed by harmfulness/refusal separation
-experiments and SAE-based interpretability analysis.
+proposal plan. The immediate implementation target is now a faithful
+reproduction of the CC++ paper as far as local access allows. The existing
+Gemma 2 9B IT + WildJailbreak scaffold remains useful for the later open-model
+adaptation, followed by harmfulness/refusal separation experiments and
+SAE-based interpretability analysis.
 
 Older code and result tables were removed from the active tree. They remain
 recoverable from git history and the `pre-ccpp-fresh-start` tag.
