@@ -17,7 +17,12 @@ Short project snapshot. Overwrite stale items; do not append history here.
     if harmful/compliant assistant completions have not been confirmed;
   - metric contracts for ROC-AUC, fixed-FPR thresholding, frozen-threshold
     evaluation, log-space low-FPR AUC, and flag-at-any-token scoring live in
-    `src/agguardrails/metrics.py`.
+    `src/agguardrails/metrics.py`;
+  - activation cache contracts and mock/real extraction entrypoint live in
+    `src/agguardrails/activations.py` and
+    `scripts/ccpp/extract_streaming_activations.py`;
+  - a minimal linear SWiM probe trainer lives in
+    `src/agguardrails/swim_probe.py` and `scripts/ccpp/train_swim_probe.py`.
 - Supervisor direction on 2026-05-25 changed the immediate priority: first do a
   faithful CC++ paper reproduction, then adapt to WildJailbreak/other datasets.
 - Proposal plan in `msc-writeup/ipp/proposal.tex` is the source of truth, but
@@ -37,8 +42,8 @@ Next implementation target after this scaffold:
    CBRN/science-adjacent negatives.
 2. Create or curate `data/processed/ccpp/public_cbrn_exchanges.jsonl` only
    after the positive-completion gate is satisfied.
-3. Implement activation extraction and SWiM probe training against the
-   normalized schema.
+3. Run the mock activation/probe vertical slice end to end, then replace mock
+   activations with Gemma2 activations once a gated dataset exists.
 
 ## Decisions So Far
 
@@ -55,7 +60,7 @@ Next implementation target after this scaffold:
 
 ## Latest Local Checks
 
-- 2026-06-01: `python -m pytest` passes with 12 tests.
+- 2026-06-01: `python -m pytest` passes with 30 tests.
 - 2026-06-01: `python -m ruff check src/agguardrails scripts/ccpp tests`
   passes.
 
@@ -65,6 +70,12 @@ Next implementation target after this scaffold:
   `sae-lens`.
 - Inspect public dataset schemas and decide whether public harmful/compliant
   assistant completions are adequate.
+  - `AlignmentResearch/ClearHarm` is reachable, but inspected
+    `proxy_gen_target` values look like short prefills and are marked
+    `positive_prefill_only`, not accepted as full positive completions.
+  - `walledai/HarmBench` is gated in this environment.
+  - `allenai/WildChat` is reachable and has conversation-level moderation
+    fields usable for benign hard-negative candidates.
 - If no adequate public completions exist, define the controlled generated
   positive-completion substitute before training any probe.
 - Run tiny activation/probe smoke tests only after the normalized dataset passes

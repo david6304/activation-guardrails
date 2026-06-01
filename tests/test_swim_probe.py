@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import numpy as np
 import pytest
 import torch
 
+from agguardrails.activations import ActivationExample
 from agguardrails.swim_probe import (
+    SwimTrainingConfig,
     ema_smooth,
+    score_activation_examples,
     sliding_window_mean,
     streaming_sequence_score,
     swim_batch_loss,
     swim_sequence_loss,
+    train_linear_swim_probe,
 )
 
 
@@ -79,3 +84,45 @@ def test_streaming_sequence_score_flags_any_token_after_smoothing() -> None:
 def test_sliding_window_mean_rejects_invalid_shapes() -> None:
     with pytest.raises(ValueError, match="1D"):
         sliding_window_mean(torch.zeros(2, 2), window_size=2)
+
+
+def test_train_linear_swim_probe_scores_separable_synthetic_features() -> None:
+    examples = [
+        _activation_example("p1", 1, np.full((3, 2), 2.0, dtype=np.float32)),
+        _activation_example("p2", 1, np.full((4, 2), 2.5, dtype=np.float32)),
+        _activation_example("n1", 0, np.full((3, 2), -2.0, dtype=np.float32)),
+        _activation_example("n2", 0, np.full((4, 2), -2.5, dtype=np.float32)),
+    ]
+    model, losses = train_linear_swim_probe(
+        examples,
+        config=SwimTrainingConfig(
+            seed=1,
+            epochs=20,
+            learning_rate=0.05,
+            weight_decay=0.0,
+            batch_size=2,
+            window_size=2,
+            softmax_temperature=1.0,
+        ),
+    )
+
+    scores = score_activation_examples(model, examples, ema_gamma=None)
+    positive_scores = [row["score"] for row in scores if row["label"] == 1]
+    negative_scores = [row["score"] for row in scores if row["label"] == 0]
+
+    assert losses[-1] < losses[0]
+    assert min(positive_scores) > max(negative_scores)
+
+
+def _activation_example(example_id: str, label: int, features: np.ndarray):
+    return ActivationExample(
+        example_id=example_id,
+        label=label,
+        split="train",
+        group_id=example_id,
+        features=features,
+        token_ids=np.arange(features.shape[0], dtype=np.int64),
+        token_mask=np.ones(features.shape[0], dtype=bool),
+        layers=[1],
+        metadata={},
+    )
