@@ -68,6 +68,17 @@ For the first vertical slice:
   group before computing AUROC or fixed-FPR metrics, or use grouped bootstrap
   confidence intervals. Do not report row-level metrics over ClearHarm `rep40`
   as if the rows were independent.
+- Training should use a balanced or reweighted view of the training split
+  (roughly 1:1 to 1:3 positive:negative). This is separate from the oversized
+  benign evaluation pool used to place low-FPR thresholds.
+- Fixed-FPR reports should include binomial confidence intervals for TPR/FPR;
+  positive test group count remains the binding constraint on TPR precision.
+- If additional CBRN positive prompt sources are available, use them to push
+  unique positive groups toward 250-300. HarmBench `chemical_biological` can be
+  used as a supplementary slice, but its 28 rows are not enough by themselves.
+- Benign prompt quality should be checked for diversity before generation.
+  Deduplicate exact/near-duplicate prompts and check that the 1000-group target
+  is not achieved through templated variants.
 
 ## Required Metadata
 
@@ -101,6 +112,8 @@ Before activation extraction:
 - TF-IDF text baseline must be reported, and if it exceeds the configured
   `0.95` ROC-AUC design-smell threshold, harden the benign prompts before
   proceeding.
+- benign prompt diversity must be inspected before generation; 300 diverse
+  benign groups are preferable to 1000 near-duplicates.
 
 Text separability is not expected to be zero; harmful and benign content may
 legitimately differ. The control question is whether activation probes add

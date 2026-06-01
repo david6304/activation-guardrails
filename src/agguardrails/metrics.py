@@ -22,9 +22,53 @@ class FixedFprPoint:
     positive_count: int
 
 
+@dataclass(frozen=True)
+class WilsonInterval:
+    estimate: float
+    lower: float
+    upper: float
+    count: int
+    total: int
+    confidence: float
+
+
 def roc_auc(y_true: Sequence[int], scores: Sequence[float]) -> float:
     labels, score_array = _validate_binary_scores(y_true, scores)
     return float(roc_auc_score(labels, score_array))
+
+
+def wilson_interval(
+    *,
+    count: int,
+    total: int,
+    confidence: float = 0.95,
+) -> WilsonInterval:
+    """Wilson score interval for a binomial proportion."""
+
+    if total <= 0:
+        raise ValueError("total must be positive")
+    if count < 0 or count > total:
+        raise ValueError("count must be in [0, total]")
+    if confidence != 0.95:
+        raise ValueError("only 95% Wilson intervals are currently supported")
+
+    z = 1.959963984540054
+    phat = count / total
+    denominator = 1 + z**2 / total
+    center = (phat + z**2 / (2 * total)) / denominator
+    half_width = (
+        z
+        * math.sqrt((phat * (1 - phat) + z**2 / (4 * total)) / total)
+        / denominator
+    )
+    return WilsonInterval(
+        estimate=phat,
+        lower=max(0.0, center - half_width),
+        upper=min(1.0, center + half_width),
+        count=count,
+        total=total,
+        confidence=confidence,
+    )
 
 
 def fixed_fpr_point(

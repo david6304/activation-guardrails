@@ -96,6 +96,7 @@ swim_probe:
     assert metrics["group_level"]["splits"]["test"]["roc_auc"] == 1.0
     assert "threshold" in metrics["thresholds"]["secondary"]
     assert metrics["thresholds"]["secondary"]["validation"]["tpr"] == 1.0
+    assert "tpr_wilson_95" in metrics["thresholds"]["secondary"]["splits"]["test"]
     expected_warning = (
         "validation negatives are too few to resolve this FPR with one false positive"
     )

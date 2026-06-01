@@ -56,6 +56,10 @@ run is blocked unless:
   TPR@0.1%FPR;
 - row-level metrics over ClearHarm `rep40` are diagnostic only; headline metrics
   aggregate by group or use grouped uncertainty estimates;
+- training uses a balanced/reweighted view and does not inherit the oversized
+  benign evaluation ratio;
+- fixed-FPR reports include uncertainty intervals because positive group count
+  remains the TPR precision bottleneck;
 - hard negatives contain CBRN/science-adjacent terms;
 - assistant length distributions are not label-separable after filtering;
 - grouped splits have no `group_id` overlap.

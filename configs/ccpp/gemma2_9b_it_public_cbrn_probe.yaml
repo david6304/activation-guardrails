@@ -38,17 +38,17 @@ dataset:
     min_total_prompts_for_report: 300
     min_unique_groups_for_report: 100
     reportable_n_is_unique_groups: true
-  benign_prompt_targets:
-    target_unique_groups: 1000
-    minimum_unique_groups_for_tpr_at_1pct_fpr: 300
-    minimum_unique_groups_for_tpr_at_0_1pct_fpr: 1000
-    target_ratio_vs_positive_unique_groups: 5.0
     supplementary_sources:
       - dataset_id: walledai/HarmBench
         source_subset: standard
         source_split: train
         role: cbrn_transfer_slice
         expected_filtered_count: 28
+  benign_prompt_targets:
+    target_unique_groups: 1000
+    minimum_unique_groups_for_tpr_at_1pct_fpr: 300
+    minimum_unique_groups_for_tpr_at_0_1pct_fpr: 1000
+    target_ratio_vs_positive_unique_groups: 5.0
     status: prompt_only_requires_completion_generation
   positive_completion_policy:
     require_assistant_text: true
@@ -118,6 +118,13 @@ swim_probe:
     learning_rate: 0.00005
     weight_decay: 0.0
     batch_size: 8
+    sampling:
+      strategy: balanced_by_label
+      max_negative_to_positive_ratio: 3.0
+      group_aware: true
+      note: >
+        Training ratio is intentionally decoupled from the oversized benign
+        evaluation pool used for fixed-FPR threshold calibration.
   threshold:
     selection_split: val
     primary_max_fpr: 0.001

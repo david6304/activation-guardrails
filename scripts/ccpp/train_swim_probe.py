@@ -14,7 +14,12 @@ import torch
 import yaml
 
 from agguardrails.activations import load_activation_cache
-from agguardrails.metrics import apply_threshold, fixed_fpr_point, roc_auc
+from agguardrails.metrics import (
+    apply_threshold,
+    fixed_fpr_point,
+    roc_auc,
+    wilson_interval,
+)
 from agguardrails.swim_probe import (
     SwimTrainingConfig,
     score_activation_examples,
@@ -29,7 +34,10 @@ def main() -> int:
         npz_path=args.activation_npz,
         index_path=args.activation_index,
     )
-    train_examples = [example for example in examples if example.split == "train"]
+    train_examples = apply_training_sampling(
+        [example for example in examples if example.split == "train"],
+        config=config,
+    )
     if not train_examples:
         raise ValueError("activation cache contains no train examples")
 
@@ -116,6 +124,21 @@ def training_config(config: dict[str, Any]) -> SwimTrainingConfig:
         window_size=int(probe_config["window_size"]),
         softmax_temperature=float(probe_config["softmax_temperature"]),
     )
+
+
+def apply_training_sampling(examples, *, config: dict[str, Any]):
+    sampling = config["swim_probe"]["train"].get("sampling", {})
+    if sampling.get("strategy") != "balanced_by_label":
+        return examples
+    max_ratio = float(sampling["max_negative_to_positive_ratio"])
+    positives = [example for example in examples if example.label == 1]
+    negatives = [example for example in examples if example.label == 0]
+    if not positives or not negatives:
+        return examples
+    max_negatives = max(1, int(len(positives) * max_ratio))
+    if len(negatives) <= max_negatives:
+        return examples
+    return positives + negatives[:max_negatives]
 
 
 def evaluate_scores(
@@ -257,7 +280,16 @@ def threshold_report(
             threshold=validation.threshold,
             max_fpr=max_fpr,
         )
-        report["splits"][split] = point.__dict__
+        split_report = dict(point.__dict__)
+        split_report["tpr_wilson_95"] = wilson_interval(
+            count=point.true_positives,
+            total=point.positive_count,
+        ).__dict__
+        split_report["fpr_wilson_95"] = wilson_interval(
+            count=point.false_positives,
+            total=point.negative_count,
+        ).__dict__
+        report["splits"][split] = split_report
     return report
 
 

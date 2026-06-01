@@ -11,6 +11,7 @@ from agguardrails.metrics import (
     flag_at_any_token,
     log_space_auc,
     roc_auc,
+    wilson_interval,
 )
 
 
@@ -77,3 +78,11 @@ def test_flag_at_any_token_uses_max_sequence_score() -> None:
 def test_flag_at_any_token_rejects_empty_sequences() -> None:
     with pytest.raises(ValueError, match="non-empty"):
         flag_at_any_token([[]])
+
+
+def test_wilson_interval_contains_estimate() -> None:
+    interval = wilson_interval(count=5, total=10)
+
+    assert interval.estimate == 0.5
+    assert interval.lower < interval.estimate < interval.upper
+    assert interval.confidence == 0.95

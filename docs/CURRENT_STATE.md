@@ -90,6 +90,10 @@ Next implementation target after this scaffold:
 - 2026-06-01: reportable metrics must be group-level. The benign prompt target
   is now oversized for the low-FPR axis: about 1000 independent benign groups,
   with 300 as the minimum rough TPR@1%FPR denominator.
+- 2026-06-01: training class ratio is decoupled from the oversized benign
+  evaluation pool. The current probe config samples training negatives toward a
+  maximum 3:1 negative:positive ratio, while evaluating on the full group-level
+  pool. Fixed-FPR outputs include Wilson TPR/FPR intervals.
 
 ## Open Checks Before Experiments
 
