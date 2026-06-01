@@ -11,7 +11,9 @@ from agguardrails.ccpp_data import (
     normalize_record,
     normalize_wildchat_negative_row,
     validate_dataset_gates,
+    validate_length_balance_gate,
     validate_no_group_leakage,
+    validate_on_policy_generation_gate,
     validate_positive_class_gate,
 )
 
@@ -97,6 +99,7 @@ def test_dataset_gates_accept_non_refusal_positive_and_cbrn_negative() -> None:
     metadata = dataset_metadata(examples, config_path="config.yaml")
     assert metadata["positive_non_refusal_fraction"] == 1.0
     assert metadata["label_counts"] == {1: 1, 0: 1}
+    assert metadata["assistant_length_by_label"]["1"]["median_words"] > 0
 
 
 def test_grouped_split_keeps_group_ids_together() -> None:
@@ -254,3 +257,103 @@ def test_normalize_harmbench_prompt_row_requires_generated_completion() -> None:
     assert prompt.domain == "chemical_biological"
     assert "harmbench_prompt_only" in prompt.faithfulness_tags
     assert "requires_generated_uncensored_completion" in prompt.faithfulness_tags
+
+
+def test_on_policy_generation_gate_accepts_single_generated_model() -> None:
+    examples = [
+        _generated_example("p1", 1, "generated answer with enough words"),
+        _generated_example("n1", 0, "generated benign answer with enough words"),
+    ]
+
+    validate_on_policy_generation_gate(
+        examples,
+        allowed_completion_sources=["generated_uncensored"],
+        require_single_generator=True,
+        require_on_policy_model=True,
+    )
+
+
+def test_on_policy_generation_gate_rejects_mixed_generators() -> None:
+    examples = [
+        _generated_example("p1", 1, "generated answer with enough words"),
+        _generated_example(
+            "n1",
+            0,
+            "generated benign answer with enough words",
+            generator_model_id="other-model",
+            protected_model_id="other-model",
+        ),
+    ]
+
+    with pytest.raises(DatasetGateError, match="single generator"):
+        validate_on_policy_generation_gate(
+            examples,
+            allowed_completion_sources=["generated_uncensored"],
+            require_single_generator=True,
+            require_on_policy_model=True,
+        )
+
+
+def test_on_policy_generation_gate_rejects_off_policy_examples() -> None:
+    examples = [
+        _generated_example(
+            "p1",
+            1,
+            "generated answer with enough words",
+            generator_model_id="ablated-gemma",
+            protected_model_id="normal-gemma",
+        ),
+        _generated_example("n1", 0, "generated benign answer with enough words"),
+    ]
+
+    with pytest.raises(DatasetGateError, match="generator_model_id"):
+        validate_on_policy_generation_gate(
+            examples,
+            allowed_completion_sources=["generated_uncensored"],
+            require_single_generator=True,
+            require_on_policy_model=True,
+        )
+
+
+def test_length_balance_gate_rejects_large_median_gap() -> None:
+    examples = [
+        _generated_example("p1", 1, "one two three four five six seven eight"),
+        _generated_example("p2", 1, "one two three four five six seven nine"),
+        _generated_example("n1", 0, "short answer"),
+        _generated_example("n2", 0, "brief reply"),
+    ]
+
+    with pytest.raises(DatasetGateError, match="length gate"):
+        validate_length_balance_gate(
+            examples,
+            max_median_assistant_word_ratio=2.0,
+        )
+
+
+def _generated_example(
+    example_id: str,
+    label: int,
+    assistant_text: str,
+    *,
+    generator_model_id: str = "ablated-gemma",
+    protected_model_id: str = "ablated-gemma",
+):
+    return normalize_record(
+        {
+            "example_id": example_id,
+            "group_id": example_id,
+            "split": "train",
+            "label": label,
+            "domain": "cbrn" if label else "science",
+            "source_dataset": "fixture",
+            "source_subset": "generated",
+            "user_text": "Prompt about chemistry safety.",
+            "assistant_text": assistant_text,
+            "completion_source": "generated_uncensored",
+            "faithfulness_tags": ["hard_negative"] if label == 0 else [],
+            "metadata": {
+                "generator_model_id": generator_model_id,
+                "protected_model_id": protected_model_id,
+            },
+        }
+    )

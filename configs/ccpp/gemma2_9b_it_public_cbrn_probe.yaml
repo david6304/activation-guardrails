@@ -8,7 +8,13 @@ experiment:
 model:
   id: google/gemma-2-9b-it
   revision: null
-  role: protected_model
+  role: base_model_for_refusal_ablated_protected_analogue
+  primary_regime: on_policy_refusal_ablated
+  notes: >
+    Primary generated-completion experiments must use a refusal-ablated Gemma
+    model as the protected-model analogue and record its exact local/HF id in
+    each example's metadata.protected_model_id. Normal Gemma is a later
+    safety-trained control unless on-policy jailbreak positives are available.
 
 tokenizer:
   id: google/gemma-2-9b-it
@@ -17,6 +23,10 @@ tokenizer:
 dataset:
   normalized_path: data/processed/ccpp/public_cbrn_exchanges.jsonl
   metadata_path: data/processed/ccpp/public_cbrn_exchanges.metadata.json
+  design:
+    primary_negative_source: same_generator_topic_matched_benign
+    secondary_negative_source: allenai/WildChat natural benign reference only
+    primary_activation_policy: on_policy_same_refusal_ablated_model
   generation_prompts:
     path: data/interim/ccpp/harmbench_generation_prompts.jsonl
     metadata_path: data/interim/ccpp/harmbench_generation_prompts.metadata.json
@@ -28,8 +38,22 @@ dataset:
     require_assistant_text: true
     reject_refusal_like_positives: true
     allowed_completion_sources:
-      - public
       - generated_uncensored
+  on_policy_generation_gate:
+    enabled: true
+    allowed_completion_sources:
+      - generated_uncensored
+    require_single_generator: true
+    require_on_policy_model: true
+  length_balance_gate:
+    enabled: true
+    max_median_assistant_word_ratio: 2.0
+  text_separability_gate:
+    metrics_path: results/ccpp/text_separability_metrics.json
+    max_allowed_roc_auc: 0.98
+    text_fields:
+      - user_text
+      - assistant_text
   sources:
     positives:
       - id: AlignmentResearch/ClearHarm
@@ -39,9 +63,12 @@ dataset:
         role: inspect_first
         notes: Use for harmful prompts/completions only if assistant completions are available.
     negatives:
+      - id: generated_matched_benign
+        role: primary_topic_matched_negative
+        notes: Same refusal-ablated generator and decoding pipeline as positives; use benign CBRN/science-adjacent prompts.
       - id: allenai/WildChat
-        role: hard_negative_and_random_negative
-        notes: Hard negatives should be benign CBRN/science-adjacent, not random-only.
+        role: secondary_natural_benign_reference
+        notes: Do not use as headline negatives for generated-completion probe results because it introduces generator/style mismatch.
   split:
     seed: 59841
     group_column: group_id

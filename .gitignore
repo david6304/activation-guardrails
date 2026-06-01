@@ -44,6 +44,7 @@ docs/*
 !docs/PROJECT_PLAN.md
 !docs/WORKFLOW.md
 !docs/CLUSTER.md
+!docs/ccpp_reproduction_matrix.md
 docs/research_log.md
 docs/meetings/
 docs/references/

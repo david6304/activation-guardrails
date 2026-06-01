@@ -20,7 +20,11 @@ def test_build_dataset_from_curated_jsonl(tmp_path: Path) -> None:
             "source_subset": "positive",
             "user_text": "unsafe request",
             "assistant_text": "A direct non-refusal completion placeholder.",
-            "completion_source": "public",
+            "completion_source": "generated_uncensored",
+            "metadata": {
+                "generator_model_id": "ablated-gemma",
+                "protected_model_id": "ablated-gemma",
+            },
         },
         {
             "example_id": "n1",
@@ -30,20 +34,29 @@ def test_build_dataset_from_curated_jsonl(tmp_path: Path) -> None:
             "source_dataset": "fixture",
             "source_subset": "hard_negative",
             "user_text": "Explain safe chemistry lab protocol.",
-            "assistant_text": "Follow the published safety procedure.",
-            "completion_source": "public",
+            "assistant_text": "Follow the published safety procedure carefully.",
+            "completion_source": "generated_uncensored",
             "faithfulness_tags": ["hard_negative"],
+            "metadata": {
+                "generator_model_id": "ablated-gemma",
+                "protected_model_id": "ablated-gemma",
+            },
         },
         {
             "example_id": "n2",
             "group_id": "gn-random",
             "label": 0,
-            "domain": "general",
+            "domain": "science",
             "source_dataset": "fixture",
             "source_subset": "random_negative",
-            "user_text": "Recommend a book.",
-            "assistant_text": "Try a recent nonfiction title.",
-            "completion_source": "public",
+            "user_text": "Explain safe biology lab notebook practices.",
+            "assistant_text": "Document observations clearly and follow lab protocol.",
+            "completion_source": "generated_uncensored",
+            "faithfulness_tags": ["hard_negative"],
+            "metadata": {
+                "generator_model_id": "ablated-gemma",
+                "protected_model_id": "ablated-gemma",
+            },
         },
     ]
     input_path.write_text(

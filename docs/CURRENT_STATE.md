@@ -25,6 +25,8 @@ Short project snapshot. Overwrite stale items; do not append history here.
     `src/agguardrails/swim_probe.py` and `scripts/ccpp/train_swim_probe.py`.
   - `scripts/ccpp/build_generation_prompts.py` builds a HarmBench prompt-only
     manifest for the generated-completion substitute path.
+  - generated-completion datasets now have stricter gates for single-generator
+    on-policy metadata, assistant-length balance, and text-only separability.
 - Supervisor direction on 2026-05-25 changed the immediate priority: first do a
   faithful CC++ paper reproduction, then adapt to WildJailbreak/other datasets.
 - Proposal plan in `msc-writeup/ipp/proposal.tex` is the source of truth, but
@@ -34,18 +36,21 @@ Short project snapshot. Overwrite stale items; do not append history here.
 
 Current implementation focus is no longer expanding the WildJailbreak/Gemma
 debug pipeline. The reproduction-spec audit has a first-pass matrix; the next
-step is to confirm/curate a public positive-completion dataset and then run the
-probe-only vertical slice.
+step is to create a matched-generator generated dataset that avoids off-policy,
+generator-style, topic, and length confounds before running the probe-only
+vertical slice.
 
 Next implementation target after this scaffold:
 
-1. Inspect candidate public sources (`AlignmentResearch/ClearHarm`, HarmBench,
-   and WildChat) for harmful/compliant assistant completions and matched benign
-   CBRN/science-adjacent negatives.
-2. Create or curate `data/processed/ccpp/public_cbrn_exchanges.jsonl` only
-   after the positive-completion gate is satisfied.
-3. Run the mock activation/probe vertical slice end to end, then replace mock
-   activations with Gemma2 activations once a gated dataset exists.
+1. Build HarmBench harmful prompts plus matched benign CBRN/science-adjacent
+   prompts.
+2. Pick one refusal-ablated Gemma generator/protected-model analogue after a
+   Heretic/OBLITERATUS bakeoff.
+3. Generate both positive and benign completions with that same model and
+   decoding setup, recording `generator_model_id == protected_model_id`.
+4. Run dataset gates plus TF-IDF text separability before activation extraction.
+5. Run the mock activation/probe vertical slice end to end, then replace mock
+   activations with the chosen ablated Gemma activations once the dataset passes.
 
 ## Decisions So Far
 
@@ -55,6 +60,10 @@ Next implementation target after this scaffold:
 - Track concise scaffold docs; ignore large/private/generated context.
 - Full Gemma response generation is not required yet and remains explicitly
   gated.
+- Normal safety-trained Gemma is not the primary protected model for generated
+  harmful-completion experiments unless on-policy jailbreak-elicited positives
+  are available. The primary generated path uses the refusal-ablated generator
+  itself as the protected-model analogue.
 - Dense prompt-final probe trains/selects thresholds on vanilla splits only and
   evaluates adversarial transfer at the frozen validation threshold.
 - WildJailbreak/Gemma work is now adaptation infrastructure, not the immediate
@@ -62,7 +71,7 @@ Next implementation target after this scaffold:
 
 ## Latest Local Checks
 
-- 2026-06-01: `python -m pytest` passes with 30 tests.
+- 2026-06-01: `python -m pytest` passes with 39 tests.
 - 2026-06-01: `python -m ruff check src/agguardrails scripts/ccpp tests`
   passes.
 - 2026-06-01: after Hugging Face access was granted,
@@ -85,6 +94,7 @@ Next implementation target after this scaffold:
     fields usable for benign hard-negative candidates.
 - The likely next path is a controlled `generated_uncensored` completion
   substitute from the HarmBench prompt manifest, with raw harmful outputs kept
-  local and out of logs.
+  local and out of logs. This must use matched benign prompts and the same
+  generator for both labels; WildChat is secondary reference data only.
 - Run tiny activation/probe smoke tests only after the normalized dataset passes
   gates.

@@ -309,10 +309,145 @@ def validate_no_group_leakage(examples: Sequence[NormalizedExchange]) -> None:
         )
 
 
-def validate_dataset_gates(examples: Sequence[NormalizedExchange]) -> None:
+def validate_on_policy_generation_gate(
+    examples: Sequence[NormalizedExchange],
+    *,
+    allowed_completion_sources: Sequence[str],
+    require_single_generator: bool,
+    require_on_policy_model: bool,
+) -> None:
+    """Validate the matched-generator/on-policy design for generated datasets."""
+
+    allowed_sources = set(allowed_completion_sources)
+    source_violations = [
+        example.example_id
+        for example in examples
+        if example.completion_source not in allowed_sources
+    ]
+    if source_violations:
+        raise DatasetGateError(
+            "on-policy gate failed: unexpected completion_source "
+            f"({len(source_violations)} examples)"
+        )
+
+    generator_by_label: dict[int, set[str]] = defaultdict(set)
+    protected_models: set[str] = set()
+    missing_generator = []
+    missing_protected = []
+    off_policy = []
+    for example in examples:
+        generator_id = str(example.metadata.get("generator_model_id") or "")
+        protected_id = str(example.metadata.get("protected_model_id") or "")
+        if not generator_id:
+            missing_generator.append(example.example_id)
+            continue
+        generator_by_label[example.label].add(generator_id)
+        if require_on_policy_model:
+            if not protected_id:
+                missing_protected.append(example.example_id)
+            elif protected_id != generator_id:
+                off_policy.append(example.example_id)
+            else:
+                protected_models.add(protected_id)
+
+    if missing_generator:
+        raise DatasetGateError(
+            "on-policy gate failed: examples missing metadata.generator_model_id "
+            f"({len(missing_generator)} examples)"
+        )
+    if missing_protected:
+        raise DatasetGateError(
+            "on-policy gate failed: examples missing metadata.protected_model_id "
+            f"({len(missing_protected)} examples)"
+        )
+    if off_policy:
+        raise DatasetGateError(
+            "on-policy gate failed: generator_model_id != protected_model_id "
+            f"({len(off_policy)} examples)"
+        )
+
+    if require_single_generator:
+        all_generators = set().union(*generator_by_label.values())
+        if len(all_generators) != 1:
+            raise DatasetGateError(
+                "on-policy gate failed: expected a single generator across labels, "
+                f"got {sorted(all_generators)}"
+            )
+        if set(generator_by_label) != {LABEL_NEGATIVE, LABEL_POSITIVE}:
+            raise DatasetGateError(
+                "on-policy gate failed: both labels must be present for generator check"
+            )
+        if generator_by_label[LABEL_NEGATIVE] != generator_by_label[LABEL_POSITIVE]:
+            raise DatasetGateError(
+                "on-policy gate failed: labels use different generators"
+            )
+    if (
+        require_on_policy_model
+        and require_single_generator
+        and len(protected_models) > 1
+    ):
+        raise DatasetGateError(
+            "on-policy gate failed: multiple protected-model analogues "
+            f"{sorted(protected_models)}"
+        )
+
+
+def validate_length_balance_gate(
+    examples: Sequence[NormalizedExchange],
+    *,
+    max_median_assistant_word_ratio: float,
+) -> None:
+    """Reject obvious assistant-length confounds after filtering."""
+
+    if max_median_assistant_word_ratio < 1:
+        raise ValueError("max_median_assistant_word_ratio must be >= 1")
+    lengths_by_label: dict[int, list[int]] = defaultdict(list)
+    for example in examples:
+        lengths_by_label[example.label].append(len(example.assistant_text.split()))
+    if set(lengths_by_label) != {LABEL_NEGATIVE, LABEL_POSITIVE}:
+        raise DatasetGateError("length gate failed: both labels are required")
+
+    negative_median = _median(lengths_by_label[LABEL_NEGATIVE])
+    positive_median = _median(lengths_by_label[LABEL_POSITIVE])
+    smaller = max(1.0, min(negative_median, positive_median))
+    larger = max(negative_median, positive_median)
+    ratio = larger / smaller
+    if ratio > max_median_assistant_word_ratio:
+        raise DatasetGateError(
+            "length gate failed: assistant length medians differ too much "
+            f"(ratio={ratio:.3f}, max={max_median_assistant_word_ratio:.3f})"
+        )
+
+
+def validate_dataset_gates(
+    examples: Sequence[NormalizedExchange],
+    *,
+    on_policy_config: Mapping[str, Any] | None = None,
+    length_balance_config: Mapping[str, Any] | None = None,
+) -> None:
     validate_positive_class_gate(examples)
     validate_hard_negative_gate(examples)
     validate_no_group_leakage(examples)
+    if on_policy_config and on_policy_config.get("enabled", False):
+        validate_on_policy_generation_gate(
+            examples,
+            allowed_completion_sources=on_policy_config[
+                "allowed_completion_sources"
+            ],
+            require_single_generator=bool(
+                on_policy_config.get("require_single_generator", True)
+            ),
+            require_on_policy_model=bool(
+                on_policy_config.get("require_on_policy_model", True)
+            ),
+        )
+    if length_balance_config and length_balance_config.get("enabled", False):
+        validate_length_balance_gate(
+            examples,
+            max_median_assistant_word_ratio=float(
+                length_balance_config["max_median_assistant_word_ratio"]
+            ),
+        )
 
 
 def dataset_metadata(
@@ -326,6 +461,16 @@ def dataset_metadata(
     domains = Counter(example.domain for example in examples)
     sources = Counter(example.source_dataset for example in examples)
     completion_sources = Counter(example.completion_source for example in examples)
+    generators = Counter(
+        str(example.metadata.get("generator_model_id"))
+        for example in examples
+        if example.metadata.get("generator_model_id")
+    )
+    protected_models = Counter(
+        str(example.metadata.get("protected_model_id"))
+        for example in examples
+        if example.metadata.get("protected_model_id")
+    )
     positive_count = labels[LABEL_POSITIVE]
     refusal_positive_count = sum(
         example.label == LABEL_POSITIVE and is_refusal_like(example.assistant_text)
@@ -340,6 +485,9 @@ def dataset_metadata(
         "domain_counts": dict(domains),
         "source_dataset_counts": dict(sources),
         "completion_source_counts": dict(completion_sources),
+        "generator_model_counts": dict(generators),
+        "protected_model_counts": dict(protected_models),
+        "assistant_length_by_label": assistant_length_summary(examples),
         "positive_refusal_like_count": refusal_positive_count,
         "positive_non_refusal_fraction": (
             None
@@ -372,6 +520,27 @@ def is_refusal_like(text: str) -> bool:
 def contains_cbrn_terms(text: str) -> bool:
     lowered = text.lower()
     return any(term in lowered for term in CBRN_TERMS)
+
+
+def assistant_length_summary(
+    examples: Sequence[NormalizedExchange],
+) -> dict[str, dict[str, float]]:
+    summary = {}
+    for label in [LABEL_NEGATIVE, LABEL_POSITIVE]:
+        lengths = [
+            len(example.assistant_text.split())
+            for example in examples
+            if example.label == label
+        ]
+        if lengths:
+            summary[str(label)] = {
+                "count": len(lengths),
+                "median_words": _median(lengths),
+                "mean_words": sum(lengths) / len(lengths),
+                "min_words": float(min(lengths)),
+                "max_words": float(max(lengths)),
+            }
+    return summary
 
 
 def normalize_clearharm_row(
@@ -543,6 +712,16 @@ def _split_name(index: int, train_cut: int, val_cut: int) -> str:
     if index < val_cut:
         return "val"
     return "test"
+
+
+def _median(values: Sequence[int]) -> float:
+    if not values:
+        raise ValueError("cannot compute median of empty values")
+    ordered = sorted(values)
+    midpoint = len(ordered) // 2
+    if len(ordered) % 2:
+        return float(ordered[midpoint])
+    return (ordered[midpoint - 1] + ordered[midpoint]) / 2
 
 
 def _moderation_flagged(moderation_rows: Sequence[Mapping[str, Any]]) -> bool:

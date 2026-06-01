@@ -56,7 +56,11 @@ def main() -> int:
         val_fraction=float(split_config["val"]),
         test_fraction=float(split_config["test"]),
     )
-    validate_dataset_gates(examples)
+    validate_dataset_gates(
+        examples,
+        on_policy_config=dataset_config.get("on_policy_generation_gate"),
+        length_balance_config=dataset_config.get("length_balance_gate"),
+    )
 
     write_jsonl(args.output, examples)
     metadata = dataset_metadata(
