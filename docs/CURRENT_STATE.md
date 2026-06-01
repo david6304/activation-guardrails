@@ -46,8 +46,9 @@ Next implementation target after this scaffold:
 
 1. Build ClearHarm CBRN harmful prompts as the primary scaled source, grouped by
    underlying prompt hash, plus matched dual-use benign CBRN/science-adjacent
-   prompts. Keep HarmBench `chemical_biological` as a small supplementary/smoke
-   slice.
+   prompts. Effective positive N is unique groups, currently 179, not the 7160
+   `rep40` rows. Keep HarmBench `chemical_biological` as a small
+   supplementary/smoke slice.
 2. Pick one refusal-ablated Gemma generator/protected-model analogue after a
    Heretic/OBLITERATUS bakeoff.
 3. Generate both positive and benign completions with that same model and
@@ -86,6 +87,9 @@ Next implementation target after this scaffold:
 - 2026-06-01: ClearHarm `rep40` exposes 7160 positive rows over 179 unique
   prompt contents; use this as the primary scaled prompt source with grouped
   splits.
+- 2026-06-01: reportable metrics must be group-level. The benign prompt target
+  is now oversized for the low-FPR axis: about 1000 independent benign groups,
+  with 300 as the minimum rough TPR@1%FPR denominator.
 
 ## Open Checks Before Experiments
 

@@ -175,6 +175,7 @@ def score_activation_examples(
             rows.append(
                 {
                     "example_id": example.example_id,
+                    "group_id": example.group_id,
                     "split": example.split,
                     "label": example.label,
                     "score": float(score.cpu()),

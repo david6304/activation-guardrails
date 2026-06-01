@@ -47,8 +47,16 @@ For the first vertical slice:
 - Supplementary/smoke prompt pool: `walledai/HarmBench` `standard` rows with
   `category == chemical_biological`. The current accessible split has 28 such
   rows, so it is not reportable by itself.
-- Build at least one benign prompt for each positive prompt row selected for the
-  reportable pool, and preserve `topic_match_group` for analysis.
+- Reportable positive N is the number of unique prompt groups, not the number
+  of paraphrase rows. ClearHarm `rep40` currently gives 179 unique positive
+  groups.
+- Build substantially more benign prompt groups than positive groups because
+  low-FPR metrics are limited by the negative denominator. Target about 1000
+  independent benign prompt groups for the primary run, with 300 as a minimum
+  for a rough TPR@1%FPR estimate. TPR@0.1%FPR should be treated as unresolved
+  unless there are at least 1000 benign validation/evaluation groups.
+- Preserve `topic_match_group` for analysis, but prioritize distinct benign base
+  prompts over deep paraphrase replication.
 - If subdomain labels are assigned manually or with a classifier, sample benign
   prompts so `topic_domain` histograms are approximately matched across labels.
 - If exact matching is not possible, report the mismatch in dataset metadata and
@@ -56,6 +64,10 @@ For the first vertical slice:
 - Multiple generated completions for the same prompt may be used for training
   augmentation only after prompt-grouped splits are frozen. Do not place
   completions from the same prompt group in multiple splits.
+- Evaluation should be group-level. Aggregate paraphrases/completions within a
+  group before computing AUROC or fixed-FPR metrics, or use grouped bootstrap
+  confidence intervals. Do not report row-level metrics over ClearHarm `rep40`
+  as if the rows were independent.
 
 ## Required Metadata
 
@@ -82,7 +94,8 @@ Before activation extraction:
 
 - category/domain histograms must be written to metadata;
 - reportable runs require at least the configured minimum total prompt count and
-  unique prompt-group count after filtering;
+  unique prompt-group count after filtering; the reportable gate is keyed to
+  unique groups;
 - on-policy single-generator gate must pass;
 - assistant length-only ROC-AUC must not exceed the configured threshold;
 - TF-IDF text baseline must be reported, and if it exceeds the configured

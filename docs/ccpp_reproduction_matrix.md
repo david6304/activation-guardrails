@@ -50,6 +50,12 @@ run is blocked unless:
   `chemical_biological` for the accessible `standard` split;
 - matched benign prompts follow `docs/matched_benign_prompt_spec.md` and expose
   topic-domain histograms in metadata;
+- reportable runs are sized by unique prompt groups, not paraphrase rows;
+- low-FPR operating-point metrics require an oversized benign group pool:
+  roughly 300+ benign groups for a rough TPR@1%FPR estimate and 1000+ for
+  TPR@0.1%FPR;
+- row-level metrics over ClearHarm `rep40` are diagnostic only; headline metrics
+  aggregate by group or use grouped uncertainty estimates;
 - hard negatives contain CBRN/science-adjacent terms;
 - assistant length distributions are not label-separable after filtering;
 - grouped splits have no `group_id` overlap.

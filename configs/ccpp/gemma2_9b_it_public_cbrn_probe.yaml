@@ -37,6 +37,12 @@ dataset:
       - chemical_biological
     min_total_prompts_for_report: 300
     min_unique_groups_for_report: 100
+    reportable_n_is_unique_groups: true
+  benign_prompt_targets:
+    target_unique_groups: 1000
+    minimum_unique_groups_for_tpr_at_1pct_fpr: 300
+    minimum_unique_groups_for_tpr_at_0_1pct_fpr: 1000
+    target_ratio_vs_positive_unique_groups: 5.0
     supplementary_sources:
       - dataset_id: walledai/HarmBench
         source_subset: standard
@@ -119,6 +125,8 @@ swim_probe:
   evaluation:
     headline_slice: hard_negative
     sanity_slice: random_negative
+    headline_level: group
+    group_score_aggregation: mean
 
 exchange_classifier:
   artifact_dir: artifacts/ccpp/classifiers/gemma2_lora_exchange

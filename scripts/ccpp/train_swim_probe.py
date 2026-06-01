@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -122,20 +123,23 @@ def evaluate_scores(
     *,
     config: dict[str, Any],
 ) -> dict[str, Any]:
-    by_split = {
-        split: [row for row in rows if row["split"] == split]
-        for split in sorted({str(row["split"]) for row in rows})
+    row_by_split = split_rows(rows)
+    evaluation_config = config["swim_probe"].get("evaluation", {})
+    group_rows = aggregate_group_scores(
+        rows,
+        aggregation=evaluation_config.get(
+            "group_score_aggregation",
+            "mean",
+        ),
+    )
+    group_by_split = split_rows(group_rows)
+    metrics: dict[str, Any] = {
+        "row_level": {"splits": split_metrics(row_by_split)},
+        "group_level": {"splits": split_metrics(group_by_split)},
+        "headline_level": "group_level",
     }
-    metrics: dict[str, Any] = {"splits": {}}
-    for split, split_rows in by_split.items():
-        labels = [int(row["label"]) for row in split_rows]
-        scores = [float(row["score"]) for row in split_rows]
-        split_metrics: dict[str, Any] = {"count": len(split_rows)}
-        if len(set(labels)) == 2:
-            split_metrics["roc_auc"] = roc_auc(labels, scores)
-        metrics["splits"][split] = split_metrics
+    metrics["splits"] = metrics["group_level"]["splits"]
 
-    val_rows = by_split.get("val", [])
     threshold_config = config["swim_probe"]["threshold"]
     threshold_metrics: dict[str, Any] = {}
     for name, max_fpr in {
@@ -143,12 +147,75 @@ def evaluate_scores(
         "secondary": float(threshold_config["secondary_max_fpr"]),
     }.items():
         threshold_metrics[name] = threshold_report(
-            val_rows,
-            by_split,
+            group_by_split.get("val", []),
+            group_by_split,
             max_fpr=max_fpr,
         )
     metrics["thresholds"] = threshold_metrics
     return metrics
+
+
+def split_rows(
+    rows: list[dict[str, float | int | str]],
+) -> dict[str, list[dict[str, float | int | str]]]:
+    return {
+        split: [row for row in rows if row["split"] == split]
+        for split in sorted({str(row["split"]) for row in rows})
+    }
+
+
+def split_metrics(
+    by_split: dict[str, list[dict[str, float | int | str]]],
+) -> dict[str, Any]:
+    metrics = {}
+    for split, split_rows in by_split.items():
+        labels = [int(row["label"]) for row in split_rows]
+        scores = [float(row["score"]) for row in split_rows]
+        split_metrics: dict[str, Any] = {"count": len(split_rows)}
+        split_metrics["positive_count"] = sum(label == 1 for label in labels)
+        split_metrics["negative_count"] = sum(label == 0 for label in labels)
+        if len(set(labels)) == 2:
+            split_metrics["roc_auc"] = roc_auc(labels, scores)
+        metrics[split] = split_metrics
+    return metrics
+
+
+def aggregate_group_scores(
+    rows: list[dict[str, float | int | str]],
+    *,
+    aggregation: str,
+) -> list[dict[str, float | int | str]]:
+    grouped: dict[str, list[dict[str, float | int | str]]] = {}
+    for row in rows:
+        group_id = str(row.get("group_id") or row["example_id"])
+        grouped.setdefault(group_id, []).append(row)
+
+    group_rows = []
+    for group_id, group in grouped.items():
+        labels = {int(row["label"]) for row in group}
+        splits = {str(row["split"]) for row in group}
+        if len(labels) != 1:
+            raise ValueError(f"group {group_id} contains multiple labels")
+        if len(splits) != 1:
+            raise ValueError(f"group {group_id} appears in multiple splits")
+        scores = [float(row["score"]) for row in group]
+        if aggregation == "mean":
+            score = sum(scores) / len(scores)
+        elif aggregation == "max":
+            score = max(scores)
+        else:
+            raise ValueError(f"unsupported group_score_aggregation: {aggregation}")
+        group_rows.append(
+            {
+                "example_id": group_id,
+                "group_id": group_id,
+                "split": next(iter(splits)),
+                "label": next(iter(labels)),
+                "score": score,
+                "row_count": len(group),
+            }
+        )
+    return group_rows
 
 
 def threshold_report(
@@ -165,10 +232,20 @@ def threshold_report(
         [float(row["score"]) for row in val_rows],
         max_fpr=max_fpr,
     )
+    negative_count = validation.negative_count
+    minimum_negative_count = math.ceil(1 / max_fpr) if max_fpr > 0 else None
+    fpr_warning = None
+    if minimum_negative_count is not None and negative_count < minimum_negative_count:
+        fpr_warning = (
+            "validation negatives are too few to resolve this FPR with one "
+            "false positive"
+        )
     report: dict[str, Any] = {
         "max_fpr": max_fpr,
         "threshold": validation.threshold,
         "validation": validation.__dict__,
+        "minimum_negative_count_for_one_false_positive": minimum_negative_count,
+        "fpr_resolution_warning": fpr_warning,
         "splits": {},
     }
     for split, rows in by_split.items():

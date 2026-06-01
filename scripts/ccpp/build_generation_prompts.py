@@ -52,6 +52,8 @@ def main() -> int:
     unique_group_count = len({prompt.group_id for prompt in prompts})
     min_total = int(prompt_config.get("min_total_prompts_for_report", 0))
     min_unique = int(prompt_config.get("min_unique_groups_for_report", 0))
+    total_gate = "passed" if len(prompts) >= min_total else "smoke_only"
+    unique_gate = "passed" if unique_group_count >= min_unique else "smoke_only"
     write_metadata(
         args.metadata_output,
         {
@@ -63,11 +65,9 @@ def main() -> int:
             "unique_group_count": unique_group_count,
             "min_total_prompts_for_report": min_total,
             "min_unique_groups_for_report": min_unique,
-            "reportable_size_gate": (
-                "passed"
-                if len(prompts) >= min_total and unique_group_count >= min_unique
-                else "smoke_only"
-            ),
+            "total_row_size_gate": total_gate,
+            "unique_group_size_gate": unique_gate,
+            "reportable_size_gate": unique_gate,
             "allowed_domains": sorted(allowed_domains),
             "domain_counts_before_filter": dict(domain_counts_before),
             "domain_counts_after_filter": dict(

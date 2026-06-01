@@ -89,9 +89,18 @@ swim_probe:
 
     assert model_path.exists()
     assert len(score_rows) == len(examples)
+    assert "group_id" in score_rows[0]
+    assert metrics["headline_level"] == "group_level"
     assert metrics["splits"]["test"]["roc_auc"] == 1.0
+    assert metrics["row_level"]["splits"]["test"]["roc_auc"] == 1.0
+    assert metrics["group_level"]["splits"]["test"]["roc_auc"] == 1.0
     assert "threshold" in metrics["thresholds"]["secondary"]
     assert metrics["thresholds"]["secondary"]["validation"]["tpr"] == 1.0
+    expected_warning = (
+        "validation negatives are too few to resolve this FPR with one false positive"
+    )
+    actual_warning = metrics["thresholds"]["primary"]["fpr_resolution_warning"]
+    assert actual_warning == expected_warning
 
 
 def _example(
