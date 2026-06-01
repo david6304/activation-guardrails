@@ -1,0 +1,107 @@
+experiment:
+  name: ccpp_gemma2_9b_it_public_cbrn_probe
+  phase: probe_vertical_slice
+  description: >
+    Probe-first open-weight CC++ replication scaffold. This config is blocked
+    until the positive class contains harmful/compliant assistant completions.
+
+model:
+  id: google/gemma-2-9b-it
+  revision: null
+  role: protected_model
+
+tokenizer:
+  id: google/gemma-2-9b-it
+  revision: null
+
+dataset:
+  normalized_path: data/processed/ccpp/public_cbrn_exchanges.jsonl
+  metadata_path: data/processed/ccpp/public_cbrn_exchanges.metadata.json
+  positive_completion_policy:
+    require_assistant_text: true
+    reject_refusal_like_positives: true
+    allowed_completion_sources:
+      - public
+      - generated_uncensored
+  sources:
+    positives:
+      - id: AlignmentResearch/ClearHarm
+        role: inspect_first
+        notes: Use only if rows include or can be paired with harmful/compliant assistant completions.
+      - id: HarmBench
+        role: inspect_first
+        notes: Use for harmful prompts/completions only if assistant completions are available.
+    negatives:
+      - id: WildChat/WildChat-1M
+        role: hard_negative_and_random_negative
+        notes: Hard negatives should be benign CBRN/science-adjacent, not random-only.
+  split:
+    seed: 59841
+    group_column: group_id
+    train: 0.70
+    val: 0.15
+    test: 0.15
+
+activation:
+  artifact_dir: artifacts/ccpp/activations/gemma2_9b_it_public_cbrn
+  source: hidden_residual
+  layers: all
+  dtype: float32
+  max_length: 4096
+  batch_size: 1
+  extraction:
+    teacher_forced_exchange: true
+    include_assistant_tokens_only_for_scoring: false
+
+swim_probe:
+  artifact_dir: artifacts/ccpp/probes/swim_gemma2_9b_it_public_cbrn
+  scores_path: results/ccpp/swim_probe_scores.jsonl
+  metrics_path: results/ccpp/swim_probe_metrics.json
+  seed: 59841
+  window_size: 16
+  softmax_temperature: 1.0
+  ema_gamma: 0.1
+  ema_gamma_source_type: our_default
+  train:
+    epochs: 5
+    learning_rate: 0.00005
+    weight_decay: 0.0
+    batch_size: 8
+  threshold:
+    selection_split: val
+    primary_max_fpr: 0.001
+    secondary_max_fpr: 0.01
+  evaluation:
+    headline_slice: hard_negative
+    sanity_slice: random_negative
+
+exchange_classifier:
+  artifact_dir: artifacts/ccpp/classifiers/gemma2_lora_exchange
+  scores_path: results/ccpp/exchange_classifier_scores.jsonl
+  preferred_method: gemma2_lora_yes_no
+  fallback_method: gemma2_prompt_logit
+  prompt_template: cbrn_yes_no_exchange
+  lora:
+    rank: 32
+    alpha: 16
+    dropout: 0.1
+    target_modules: all_linear
+    source_type: Segment-Level Coherence implementation reference, not CC++ faithful component
+
+cascade:
+  scores_path: results/ccpp/cascade_scores.jsonl
+  metrics_path: results/ccpp/cascade_metrics.json
+  probe_weight: 0.55
+  classifier_weight: 0.45
+  weights_source: CC++ Section 6
+  route_fractions:
+    - 0.01
+    - 0.025
+    - 0.055
+    - 0.10
+    - 0.25
+
+provenance:
+  reproduction_matrix: docs/ccpp_reproduction_matrix.md
+  paper_target: CC++ Sections 5 and 6 open-weight static analogue
+  vdr_status: unavailable_without_human_red_teaming
