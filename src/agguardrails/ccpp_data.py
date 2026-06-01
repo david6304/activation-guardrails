@@ -77,6 +77,26 @@ class NormalizedExchange:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class GenerationPrompt:
+    """Prompt-only source row for controlled positive-completion generation."""
+
+    prompt_id: str
+    group_id: str
+    source_dataset: str
+    source_subset: str
+    source_split: str
+    domain: str
+    user_text: str
+    context: str
+    faithfulness_tags: list[str]
+    hashes: dict[str, str]
+    metadata: dict[str, Any]
+
+    def to_json_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 def stable_text_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -100,6 +120,15 @@ def write_jsonl(path: Path, examples: Iterable[NormalizedExchange]) -> None:
     with path.open("w", encoding="utf-8") as handle:
         for example in examples:
             handle.write(json.dumps(example.to_json_dict(), sort_keys=True) + "\n")
+
+
+def write_generation_prompts(
+    path: Path, prompts: Iterable[GenerationPrompt]
+) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        for prompt in prompts:
+            handle.write(json.dumps(prompt.to_json_dict(), sort_keys=True) + "\n")
 
 
 def load_normalized_jsonl(path: Path) -> list[NormalizedExchange]:
@@ -436,6 +465,45 @@ def normalize_wildchat_negative_row(
                 "language": row.get("language"),
             },
         }
+    )
+
+
+def normalize_harmbench_prompt_row(
+    row: Mapping[str, Any],
+    *,
+    row_index: int,
+    source_subset: str,
+    source_split: str,
+) -> GenerationPrompt | None:
+    """Normalize a HarmBench prompt-only row for later completion generation."""
+
+    user_text = str(row.get("prompt") or "").strip()
+    if not user_text:
+        return None
+
+    context = str(row.get("context") or "").strip()
+    category = str(row.get("category") or row.get("tags") or "unknown").strip()
+    prompt_id = f"harmbench-{source_subset}-{source_split}-{row_index}"
+    prompt_payload = "\n".join(part for part in [context, user_text] if part)
+    return GenerationPrompt(
+        prompt_id=prompt_id,
+        group_id=stable_text_hash(prompt_payload)[:16],
+        source_dataset="walledai/HarmBench",
+        source_subset=source_subset,
+        source_split=source_split,
+        domain=category or "unknown",
+        user_text=user_text,
+        context=context,
+        faithfulness_tags=[
+            "harmbench_prompt_only",
+            "requires_generated_uncensored_completion",
+        ],
+        hashes={
+            "user_text_sha256": stable_text_hash(user_text),
+            "context_sha256": stable_text_hash(context),
+            "prompt_payload_sha256": stable_text_hash(prompt_payload),
+        },
+        metadata={"category": category, "row_index": row_index},
     )
 
 

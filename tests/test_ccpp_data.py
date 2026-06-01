@@ -7,6 +7,7 @@ from agguardrails.ccpp_data import (
     apply_grouped_split,
     dataset_metadata,
     normalize_clearharm_row,
+    normalize_harmbench_prompt_row,
     normalize_record,
     normalize_wildchat_negative_row,
     validate_dataset_gates,
@@ -235,3 +236,21 @@ def test_normalize_wildchat_negative_row_rejects_flagged_rows() -> None:
     )
 
     assert example is None
+
+
+def test_normalize_harmbench_prompt_row_requires_generated_completion() -> None:
+    prompt = normalize_harmbench_prompt_row(
+        {
+            "prompt": "Synthetic harmful-behavior prompt placeholder.",
+            "category": "chemical_biological",
+        },
+        row_index=4,
+        source_subset="standard",
+        source_split="train",
+    )
+
+    assert prompt is not None
+    assert prompt.source_dataset == "walledai/HarmBench"
+    assert prompt.domain == "chemical_biological"
+    assert "harmbench_prompt_only" in prompt.faithfulness_tags
+    assert "requires_generated_uncensored_completion" in prompt.faithfulness_tags

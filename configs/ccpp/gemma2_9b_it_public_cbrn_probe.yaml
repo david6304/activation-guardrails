@@ -17,6 +17,13 @@ tokenizer:
 dataset:
   normalized_path: data/processed/ccpp/public_cbrn_exchanges.jsonl
   metadata_path: data/processed/ccpp/public_cbrn_exchanges.metadata.json
+  generation_prompts:
+    path: data/interim/ccpp/harmbench_generation_prompts.jsonl
+    metadata_path: data/interim/ccpp/harmbench_generation_prompts.metadata.json
+    source_dataset: walledai/HarmBench
+    source_subset: standard
+    source_split: train
+    status: prompt_only_requires_completion_generation
   positive_completion_policy:
     require_assistant_text: true
     reject_refusal_like_positives: true
