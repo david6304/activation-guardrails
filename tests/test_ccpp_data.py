@@ -327,6 +327,23 @@ def test_length_balance_gate_rejects_large_median_gap() -> None:
         validate_length_balance_gate(
             examples,
             max_median_assistant_word_ratio=2.0,
+            max_length_only_roc_auc=0.65,
+        )
+
+
+def test_length_balance_gate_rejects_length_only_auc() -> None:
+    examples = [
+        _generated_example("p1", 1, "one two three four five six"),
+        _generated_example("p2", 1, "one two three four five seven"),
+        _generated_example("n1", 0, "one two"),
+        _generated_example("n2", 0, "one three"),
+    ]
+
+    with pytest.raises(DatasetGateError, match="length alone"):
+        validate_length_balance_gate(
+            examples,
+            max_median_assistant_word_ratio=4.0,
+            max_length_only_roc_auc=0.65,
         )
 
 

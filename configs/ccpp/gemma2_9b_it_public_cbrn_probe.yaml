@@ -33,6 +33,8 @@ dataset:
     source_dataset: walledai/HarmBench
     source_subset: standard
     source_split: train
+    allowed_domains:
+      - chemical_biological
     status: prompt_only_requires_completion_generation
   positive_completion_policy:
     require_assistant_text: true
@@ -48,9 +50,10 @@ dataset:
   length_balance_gate:
     enabled: true
     max_median_assistant_word_ratio: 2.0
+    max_length_only_roc_auc: 0.65
   text_separability_gate:
     metrics_path: results/ccpp/text_separability_metrics.json
-    max_allowed_roc_auc: 0.98
+    max_allowed_roc_auc: 0.95
     text_fields:
       - user_text
       - assistant_text

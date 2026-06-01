@@ -10,6 +10,19 @@ def test_build_generation_prompts_from_jsonl(tmp_path: Path) -> None:
     input_path = tmp_path / "harmbench_rows.jsonl"
     output_path = tmp_path / "prompts.jsonl"
     metadata_path = tmp_path / "prompts.metadata.json"
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        f"""
+dataset:
+  normalized_path: unused.jsonl
+  generation_prompts:
+    path: {output_path}
+    metadata_path: {metadata_path}
+    allowed_domains:
+      - chemical_biological
+""",
+        encoding="utf-8",
+    )
     input_path.write_text(
         json.dumps(
             {
@@ -25,6 +38,8 @@ def test_build_generation_prompts_from_jsonl(tmp_path: Path) -> None:
         [
             sys.executable,
             "scripts/ccpp/build_generation_prompts.py",
+            "--config",
+            str(config_path),
             "--input-jsonl",
             str(input_path),
             "--output",
@@ -43,3 +58,4 @@ def test_build_generation_prompts_from_jsonl(tmp_path: Path) -> None:
     assert rows[0]["source_dataset"] == "walledai/HarmBench"
     assert "requires_generated_uncensored_completion" in rows[0]["faithfulness_tags"]
     assert metadata["status"] == "prompt_only_requires_completion_generation"
+    assert metadata["domain_counts_after_filter"] == {"chemical_biological": 1}

@@ -45,6 +45,7 @@ docs/*
 !docs/WORKFLOW.md
 !docs/CLUSTER.md
 !docs/ccpp_reproduction_matrix.md
+!docs/matched_benign_prompt_spec.md
 docs/research_log.md
 docs/meetings/
 docs/references/

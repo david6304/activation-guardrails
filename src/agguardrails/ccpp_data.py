@@ -11,6 +11,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+from agguardrails.metrics import roc_auc
+
 LABEL_NEGATIVE = 0
 LABEL_POSITIVE = 1
 
@@ -396,6 +398,7 @@ def validate_length_balance_gate(
     examples: Sequence[NormalizedExchange],
     *,
     max_median_assistant_word_ratio: float,
+    max_length_only_roc_auc: float,
 ) -> None:
     """Reject obvious assistant-length confounds after filtering."""
 
@@ -416,6 +419,12 @@ def validate_length_balance_gate(
         raise DatasetGateError(
             "length gate failed: assistant length medians differ too much "
             f"(ratio={ratio:.3f}, max={max_median_assistant_word_ratio:.3f})"
+        )
+    length_auc = length_only_roc_auc(examples)
+    if length_auc > max_length_only_roc_auc:
+        raise DatasetGateError(
+            "length gate failed: assistant length alone is label-separable "
+            f"(roc_auc={length_auc:.3f}, max={max_length_only_roc_auc:.3f})"
         )
 
 
@@ -446,6 +455,9 @@ def validate_dataset_gates(
             examples,
             max_median_assistant_word_ratio=float(
                 length_balance_config["max_median_assistant_word_ratio"]
+            ),
+            max_length_only_roc_auc=float(
+                length_balance_config["max_length_only_roc_auc"]
             ),
         )
 
@@ -488,6 +500,7 @@ def dataset_metadata(
         "generator_model_counts": dict(generators),
         "protected_model_counts": dict(protected_models),
         "assistant_length_by_label": assistant_length_summary(examples),
+        "assistant_length_only_roc_auc": length_only_roc_auc(examples),
         "positive_refusal_like_count": refusal_positive_count,
         "positive_non_refusal_fraction": (
             None
@@ -541,6 +554,12 @@ def assistant_length_summary(
                 "max_words": float(max(lengths)),
             }
     return summary
+
+
+def length_only_roc_auc(examples: Sequence[NormalizedExchange]) -> float:
+    labels = [example.label for example in examples]
+    lengths = [len(example.assistant_text.split()) for example in examples]
+    return roc_auc(labels, lengths)
 
 
 def normalize_clearharm_row(

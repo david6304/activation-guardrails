@@ -19,7 +19,7 @@ Primary sources:
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Protected model | Claude Opus/Sonnet family depending on system section; final production system guards Claude Sonnet 4.5. | CC++ Sections 3, 4, 6. | Primary generated-completion vertical slice uses a refusal-ablated `google/gemma-2-9b-it` derivative as the protected-model analogue. Normal Gemma is a later safety-trained control unless on-policy jailbreak positives are available. | Project decision after off-policy confound review. | substitute | Cleaner than teacher-forcing ablated completions through normal Gemma, but now characterises a refusal-ablated open model rather than the safety-trained model. | Every example must record `metadata.generator_model_id` and `metadata.protected_model_id`, and they must match for the primary dataset. |
 | Positive assistant completions | Harmful/compliant model completions from red-team attempts or static jailbreak exchanges. | CC++ Sections 5.2 and B. | HarmBench prompts completed by the same refusal-ablated Gemma protected-model analogue used for activation extraction. Do not use Gemma2 IT refusal completions as positives. | Project gate and CC/CC++ helpful-only synthetic-data analogue. | substitute | This approximates CC++'s helpful-only/synthetic pipeline while avoiding refusal-positive labels. | Dataset builder must fail if positives are dominated by refusal-like completions or if generator/protected-model metadata is off-policy. |
-| Benign negatives | WildChat calibration/production-like benign traffic; classifiers calibrated to low refusal rates. | CC++ Sections 3, 4, 5.2, 6. | Headline negatives are topic-matched benign CBRN/science-adjacent prompts completed by the same refusal-ablated generator. WildChat is secondary natural-benign reference only. | Off-policy/generator-confound review. | substitute | Matched generated negatives reduce generator/style and topic shortcuts; not production traffic. | Report WildChat separately from headline matched-generator results. |
+| Benign negatives | WildChat calibration/production-like benign traffic; classifiers calibrated to low refusal rates. | CC++ Sections 3, 4, 5.2, 6. | Headline negatives are topic-matched benign CBRN/science-adjacent prompts completed by the same refusal-ablated generator. WildChat is secondary natural-benign reference only. | Off-policy/generator-confound review; `docs/matched_benign_prompt_spec.md`. | substitute | Matched generated negatives reduce generator/style and topic shortcuts; not production traffic. | Report WildChat separately from headline matched-generator results. |
 | Exchange framing | Classifier evaluates output in context of input and monitors response during generation. | CC++ Section 3. | Full user + assistant exchange from the same protected-model analogue. Primary provenance must show on-policy generation; teacher-forced replay is a cache/debug implementation detail. | Local implementation. | mixed | Preserves exchange-level mechanism and avoids cross-model traces, but local extraction may replay generated tokens for cacheability. | Dataset schema stores `exchange_messages`, `user_text`, `assistant_text`, and generator/protected model metadata. |
 | Activation source | Linear probe over protected model activations; CC++ describes intermediate activations and concatenated multi-layer features. | CC++ Section 5.1. | Start with all-layer hidden/residual stream features from Gemma2. | Local default pending deeper source audit. | our_default | May differ from Anthropic internal activation naming. | Do not use SLC attention/MLP as the headline baseline. |
 | Layer set | Default probe uses concatenated activations across all layers; fewer-layer ablations are worse. | CC++ Section 5.2 and Figure 2c. | All hidden layers, configurable in YAML. | CC++ Section 5.2. | faithful | Faithful at the level available in Transformers hidden states. | Matrix should be updated if exact layer subset is later found. |
@@ -46,13 +46,18 @@ run is blocked unless:
   source and the same `generator_model_id`;
 - primary examples are on-policy for the protected-model analogue:
   `metadata.generator_model_id == metadata.protected_model_id`;
+- HarmBench positives are restricted to CBRN-relevant categories, currently
+  `chemical_biological` for the accessible `standard` split;
+- matched benign prompts follow `docs/matched_benign_prompt_spec.md` and expose
+  topic-domain histograms in metadata;
 - hard negatives contain CBRN/science-adjacent terms;
-- assistant length distributions are not grossly label-separable after filtering;
+- assistant length distributions are not label-separable after filtering;
 - grouped splits have no `group_id` overlap.
 
-Before activation extraction, the text-only separability diagnostic must run. If
-the TF-IDF logistic baseline is near ceiling, treat the dataset as confounded by
-surface features, generator register, topic, or length and fix the data before
-training activation probes.
+Before activation extraction, the text-only separability diagnostic must run and
+be reported next to probe metrics. If the TF-IDF logistic baseline exceeds the
+configured `0.95` ROC-AUC design-smell threshold, treat the dataset as likely
+confounded by surface features, generator register, topic, or length and harden
+the benign prompts before training activation probes.
 
 If these checks fail, fix the data source before training probes or classifiers.

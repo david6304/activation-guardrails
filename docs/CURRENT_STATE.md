@@ -27,6 +27,8 @@ Short project snapshot. Overwrite stale items; do not append history here.
     manifest for the generated-completion substitute path.
   - generated-completion datasets now have stricter gates for single-generator
     on-policy metadata, assistant-length balance, and text-only separability.
+  - `docs/matched_benign_prompt_spec.md` defines the dual-use CBRN benign prompt
+    design for the primary generated-completion dataset.
 - Supervisor direction on 2026-05-25 changed the immediate priority: first do a
   faithful CC++ paper reproduction, then adapt to WildJailbreak/other datasets.
 - Proposal plan in `msc-writeup/ipp/proposal.tex` is the source of truth, but
@@ -42,8 +44,9 @@ vertical slice.
 
 Next implementation target after this scaffold:
 
-1. Build HarmBench harmful prompts plus matched benign CBRN/science-adjacent
-   prompts.
+1. Build HarmBench harmful prompts restricted to CBRN-relevant categories
+   (`chemical_biological` in the accessible `standard` split) plus matched
+   dual-use benign CBRN/science-adjacent prompts.
 2. Pick one refusal-ablated Gemma generator/protected-model analogue after a
    Heretic/OBLITERATUS bakeoff.
 3. Generate both positive and benign completions with that same model and
@@ -71,12 +74,14 @@ Next implementation target after this scaffold:
 
 ## Latest Local Checks
 
-- 2026-06-01: `python -m pytest` passes with 39 tests.
+- 2026-06-01: `python -m pytest` passes with 40 tests.
 - 2026-06-01: `python -m ruff check src/agguardrails scripts/ccpp tests`
   passes.
 - 2026-06-01: after Hugging Face access was granted,
   `scripts/ccpp/build_generation_prompts.py --limit 3` successfully built a
   local HarmBench prompt-only manifest under `/tmp`.
+- 2026-06-01: full HarmBench `standard` prompt manifest filtering keeps 28
+  `chemical_biological` rows out of 200 total rows.
 
 ## Open Checks Before Experiments
 
@@ -96,5 +101,8 @@ Next implementation target after this scaffold:
   substitute from the HarmBench prompt manifest, with raw harmful outputs kept
   local and out of logs. This must use matched benign prompts and the same
   generator for both labels; WildChat is secondary reference data only.
+- Text-only ROC-AUC is a required marginal-value control. The current
+  configured design-smell threshold is `0.95`; above that, harden the benign
+  prompt set rather than proceeding to activation extraction.
 - Run tiny activation/probe smoke tests only after the normalized dataset passes
   gates.

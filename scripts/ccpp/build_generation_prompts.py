@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,7 @@ from agguardrails.ccpp_data import (
 def main() -> int:
     args = parse_args()
     config = load_yaml(args.config)
+    allowed_domains = set(config["dataset"]["generation_prompts"]["allowed_domains"])
     if args.input_jsonl is not None:
         prompts = prompts_from_jsonl(
             args.input_jsonl,
@@ -35,6 +37,13 @@ def main() -> int:
             source_split=args.source_split,
             limit=args.limit,
         )
+    domain_counts_before = Counter(prompt.domain for prompt in prompts)
+    prompts = [prompt for prompt in prompts if prompt.domain in allowed_domains]
+    if not prompts:
+        raise SystemExit(
+            "blocked: no prompts remain after CBRN/domain filtering; inspect "
+            "allowed_domains and source categories"
+        )
 
     write_generation_prompts(args.output, prompts)
     write_metadata(
@@ -45,6 +54,11 @@ def main() -> int:
             "source_subset": args.source_subset,
             "source_split": args.source_split,
             "num_prompts": len(prompts),
+            "allowed_domains": sorted(allowed_domains),
+            "domain_counts_before_filter": dict(domain_counts_before),
+            "domain_counts_after_filter": dict(
+                Counter(prompt.domain for prompt in prompts)
+            ),
             "status": "prompt_only_requires_completion_generation",
             "completion_source_required": "generated_uncensored",
             "normalized_dataset_target": config["dataset"]["normalized_path"],
