@@ -6,6 +6,7 @@ from agguardrails.ccpp_data import (
     DatasetGateError,
     apply_grouped_split,
     dataset_metadata,
+    normalize_clearharm_prompt_row,
     normalize_clearharm_row,
     normalize_harmbench_prompt_row,
     normalize_record,
@@ -257,6 +258,25 @@ def test_normalize_harmbench_prompt_row_requires_generated_completion() -> None:
     assert prompt.domain == "chemical_biological"
     assert "harmbench_prompt_only" in prompt.faithfulness_tags
     assert "requires_generated_uncensored_completion" in prompt.faithfulness_tags
+
+
+def test_normalize_clearharm_prompt_row_groups_by_prompt_hash() -> None:
+    prompt = normalize_clearharm_prompt_row(
+        {
+            "clf_label": 1,
+            "content": ["Synthetic CBRN harmful prompt placeholder."],
+            "proxy_clf_label": 0,
+        },
+        row_index=4,
+        source_subset="rep40",
+        source_split="train",
+    )
+
+    assert prompt is not None
+    assert prompt.source_dataset == "AlignmentResearch/ClearHarm"
+    assert prompt.domain == "chemical_biological"
+    assert prompt.metadata["source_unique_prompt_hash"] == prompt.group_id
+    assert "clearharm_cbrn_positive_prompt" in prompt.faithfulness_tags
 
 
 def test_on_policy_generation_gate_accepts_single_generated_model() -> None:

@@ -13,6 +13,7 @@ import yaml
 
 from agguardrails.ccpp_data import (
     GenerationPrompt,
+    normalize_clearharm_prompt_row,
     normalize_harmbench_prompt_row,
     read_jsonl,
     write_generation_prompts,
@@ -24,9 +25,11 @@ def main() -> int:
     args = parse_args()
     config = load_yaml(args.config)
     allowed_domains = set(config["dataset"]["generation_prompts"]["allowed_domains"])
+    prompt_config = config["dataset"]["generation_prompts"]
     if args.input_jsonl is not None:
         prompts = prompts_from_jsonl(
             args.input_jsonl,
+            dataset_id=args.dataset_id,
             source_subset=args.source_subset,
             source_split=args.source_split,
         )
@@ -46,6 +49,9 @@ def main() -> int:
         )
 
     write_generation_prompts(args.output, prompts)
+    unique_group_count = len({prompt.group_id for prompt in prompts})
+    min_total = int(prompt_config.get("min_total_prompts_for_report", 0))
+    min_unique = int(prompt_config.get("min_unique_groups_for_report", 0))
     write_metadata(
         args.metadata_output,
         {
@@ -54,6 +60,14 @@ def main() -> int:
             "source_subset": args.source_subset,
             "source_split": args.source_split,
             "num_prompts": len(prompts),
+            "unique_group_count": unique_group_count,
+            "min_total_prompts_for_report": min_total,
+            "min_unique_groups_for_report": min_unique,
+            "reportable_size_gate": (
+                "passed"
+                if len(prompts) >= min_total and unique_group_count >= min_unique
+                else "smoke_only"
+            ),
             "allowed_domains": sorted(allowed_domains),
             "domain_counts_before_filter": dict(domain_counts_before),
             "domain_counts_after_filter": dict(
@@ -102,13 +116,15 @@ def load_yaml(path: Path) -> dict[str, Any]:
 def prompts_from_jsonl(
     path: Path,
     *,
+    dataset_id: str,
     source_subset: str,
     source_split: str,
 ) -> list[GenerationPrompt]:
     prompts = []
     for row_index, row in enumerate(read_jsonl(path)):
-        prompt = normalize_harmbench_prompt_row(
+        prompt = normalize_prompt_row(
             row,
+            dataset_id=dataset_id,
             row_index=row_index,
             source_subset=source_subset,
             source_split=source_split,
@@ -116,6 +132,31 @@ def prompts_from_jsonl(
         if prompt is not None:
             prompts.append(prompt)
     return prompts
+
+
+def normalize_prompt_row(
+    row: dict[str, Any],
+    *,
+    dataset_id: str,
+    row_index: int,
+    source_subset: str,
+    source_split: str,
+) -> GenerationPrompt | None:
+    if dataset_id == "AlignmentResearch/ClearHarm":
+        return normalize_clearharm_prompt_row(
+            row,
+            row_index=row_index,
+            source_subset=source_subset,
+            source_split=source_split,
+        )
+    if dataset_id == "walledai/HarmBench":
+        return normalize_harmbench_prompt_row(
+            row,
+            row_index=row_index,
+            source_subset=source_subset,
+            source_split=source_split,
+        )
+    raise ValueError(f"unsupported prompt dataset: {dataset_id}")
 
 
 def prompts_from_hf(
@@ -135,8 +176,9 @@ def prompts_from_hf(
     dataset = load_dataset(dataset_id, source_subset, split=split)
     prompts = []
     for row_index, row in enumerate(dataset):
-        prompt = normalize_harmbench_prompt_row(
+        prompt = normalize_prompt_row(
             row,
+            dataset_id=dataset_id,
             row_index=row_index,
             source_subset=source_subset,
             source_split=source_split,

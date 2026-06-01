@@ -41,13 +41,21 @@ safety controls.
 
 For the first vertical slice:
 
-- Use all available HarmBench `standard` rows with `category ==
-  chemical_biological` after source filtering.
-- Build at least one benign prompt for each positive prompt.
+- Primary positive prompt pool: `AlignmentResearch/ClearHarm` `rep40`, grouped
+  by the underlying prompt hash. This gives thousands of prompt rows but only
+  hundreds of unique groups; splits must be by `group_id`.
+- Supplementary/smoke prompt pool: `walledai/HarmBench` `standard` rows with
+  `category == chemical_biological`. The current accessible split has 28 such
+  rows, so it is not reportable by itself.
+- Build at least one benign prompt for each positive prompt row selected for the
+  reportable pool, and preserve `topic_match_group` for analysis.
 - If subdomain labels are assigned manually or with a classifier, sample benign
   prompts so `topic_domain` histograms are approximately matched across labels.
 - If exact matching is not possible, report the mismatch in dataset metadata and
   do not treat the result as a headline acceptance run.
+- Multiple generated completions for the same prompt may be used for training
+  augmentation only after prompt-grouped splits are frozen. Do not place
+  completions from the same prompt group in multiple splits.
 
 ## Required Metadata
 
@@ -59,8 +67,10 @@ Each generated prompt and normalized exchange should carry:
 - `benign_intent`: short label such as `diagnostics`, `lab_safety`,
   `policy_compliance`, `medical_response`, or `process_safety`.
 - `harmbench_category`: for positives, the source HarmBench category.
+- `source_unique_prompt_hash`: for ClearHarm positives, the underlying prompt
+  hash used as the grouped-split key.
 - `prompt_source_type`: `harmbench_cbrn_positive` or
-  `matched_dual_use_benign`.
+  `clearharm_cbrn_positive` or `matched_dual_use_benign`.
 - `generator_model_id`: exact refusal-ablated model used for completion.
 - `protected_model_id`: same value as `generator_model_id` for the primary
   on-policy regime.
@@ -71,6 +81,8 @@ Each generated prompt and normalized exchange should carry:
 Before activation extraction:
 
 - category/domain histograms must be written to metadata;
+- reportable runs require at least the configured minimum total prompt count and
+  unique prompt-group count after filtering;
 - on-policy single-generator gate must pass;
 - assistant length-only ROC-AUC must not exceed the configured threshold;
 - TF-IDF text baseline must be reported, and if it exceeds the configured

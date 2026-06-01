@@ -28,13 +28,21 @@ dataset:
     secondary_negative_source: allenai/WildChat natural benign reference only
     primary_activation_policy: on_policy_same_refusal_ablated_model
   generation_prompts:
-    path: data/interim/ccpp/harmbench_generation_prompts.jsonl
-    metadata_path: data/interim/ccpp/harmbench_generation_prompts.metadata.json
-    source_dataset: walledai/HarmBench
-    source_subset: standard
+    path: data/interim/ccpp/clearharm_generation_prompts.jsonl
+    metadata_path: data/interim/ccpp/clearharm_generation_prompts.metadata.json
+    source_dataset: AlignmentResearch/ClearHarm
+    source_subset: rep40
     source_split: train
     allowed_domains:
       - chemical_biological
+    min_total_prompts_for_report: 300
+    min_unique_groups_for_report: 100
+    supplementary_sources:
+      - dataset_id: walledai/HarmBench
+        source_subset: standard
+        source_split: train
+        role: cbrn_transfer_slice
+        expected_filtered_count: 28
     status: prompt_only_requires_completion_generation
   positive_completion_policy:
     require_assistant_text: true
@@ -60,11 +68,11 @@ dataset:
   sources:
     positives:
       - id: AlignmentResearch/ClearHarm
-        role: inspect_first
-        notes: Use only if rows include or can be paired with harmful/compliant assistant completions.
+        role: primary_prompt_source
+        notes: Use prompt rows only, then generate completions with the selected refusal-ablated model. Use grouped splits by prompt hash.
       - id: walledai/HarmBench
-        role: inspect_first
-        notes: Use for harmful prompts/completions only if assistant completions are available.
+        role: supplementary_cbrn_transfer_slice
+        notes: Use chemical_biological rows as a small transfer/smoke slice, not the reportable training pool.
     negatives:
       - id: generated_matched_benign
         role: primary_topic_matched_negative

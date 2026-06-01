@@ -44,9 +44,10 @@ vertical slice.
 
 Next implementation target after this scaffold:
 
-1. Build HarmBench harmful prompts restricted to CBRN-relevant categories
-   (`chemical_biological` in the accessible `standard` split) plus matched
-   dual-use benign CBRN/science-adjacent prompts.
+1. Build ClearHarm CBRN harmful prompts as the primary scaled source, grouped by
+   underlying prompt hash, plus matched dual-use benign CBRN/science-adjacent
+   prompts. Keep HarmBench `chemical_biological` as a small supplementary/smoke
+   slice.
 2. Pick one refusal-ablated Gemma generator/protected-model analogue after a
    Heretic/OBLITERATUS bakeoff.
 3. Generate both positive and benign completions with that same model and
@@ -74,7 +75,7 @@ Next implementation target after this scaffold:
 
 ## Latest Local Checks
 
-- 2026-06-01: `python -m pytest` passes with 40 tests.
+- 2026-06-01: `python -m pytest` passes with 42 tests.
 - 2026-06-01: `python -m ruff check src/agguardrails scripts/ccpp tests`
   passes.
 - 2026-06-01: after Hugging Face access was granted,
@@ -82,6 +83,9 @@ Next implementation target after this scaffold:
   local HarmBench prompt-only manifest under `/tmp`.
 - 2026-06-01: full HarmBench `standard` prompt manifest filtering keeps 28
   `chemical_biological` rows out of 200 total rows.
+- 2026-06-01: ClearHarm `rep40` exposes 7160 positive rows over 179 unique
+  prompt contents; use this as the primary scaled prompt source with grouped
+  splits.
 
 ## Open Checks Before Experiments
 
@@ -95,6 +99,8 @@ Next implementation target after this scaffold:
   - `walledai/HarmBench` is accessible after Hugging Face approval, but the
     inspected configs (`standard`, `contextual`, `copyright`) expose prompts and
     categories/tags, not assistant completions.
+  - `AlignmentResearch/ClearHarm` `rep40` is accessible and large enough for the
+    primary prompt manifest, but still requires generated completions.
   - `allenai/WildChat` is reachable and has conversation-level moderation
     fields usable for benign hard-negative candidates.
 - The likely next path is a controlled `generated_uncensored` completion

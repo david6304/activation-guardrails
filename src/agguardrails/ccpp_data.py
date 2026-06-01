@@ -51,6 +51,8 @@ CBRN_TERMS = (
     "hazmat",
 )
 
+CLEARHARM_CBRN_DOMAIN = "chemical_biological"
+
 
 class DatasetGateError(ValueError):
     """Raised when normalized data violates a replication gate."""
@@ -692,6 +694,51 @@ def normalize_harmbench_prompt_row(
             "prompt_payload_sha256": stable_text_hash(prompt_payload),
         },
         metadata={"category": category, "row_index": row_index},
+    )
+
+
+def normalize_clearharm_prompt_row(
+    row: Mapping[str, Any],
+    *,
+    row_index: int,
+    source_subset: str,
+    source_split: str,
+) -> GenerationPrompt | None:
+    """Normalize a ClearHarm prompt-only row for later completion generation."""
+
+    if int(row.get("clf_label", -1)) != LABEL_POSITIVE:
+        return None
+    content = row.get("content") or []
+    if not content:
+        return None
+    user_text = str(content[0]).strip()
+    if not user_text:
+        return None
+
+    prompt_hash = stable_text_hash(user_text)
+    return GenerationPrompt(
+        prompt_id=f"clearharm-{source_subset}-{source_split}-{row_index}",
+        group_id=prompt_hash[:16],
+        source_dataset="AlignmentResearch/ClearHarm",
+        source_subset=source_subset,
+        source_split=source_split,
+        domain=CLEARHARM_CBRN_DOMAIN,
+        user_text=user_text,
+        context="",
+        faithfulness_tags=[
+            "clearharm_cbrn_positive_prompt",
+            "requires_generated_uncensored_completion",
+        ],
+        hashes={
+            "user_text_sha256": prompt_hash,
+            "prompt_payload_sha256": prompt_hash,
+        },
+        metadata={
+            "row_index": row_index,
+            "proxy_clf_label": row.get("proxy_clf_label"),
+            "source_unique_prompt_hash": prompt_hash[:16],
+            "source_replicate_count_hint": 40 if source_subset == "rep40" else None,
+        },
     )
 
 
