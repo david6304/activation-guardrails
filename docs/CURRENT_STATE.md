@@ -35,6 +35,12 @@ Short project snapshot. Overwrite stale items; do not append history here.
     `data/interim/ccpp/`. It enforces unique prompt IDs, a harmful-intent
     tripwire, and a near-duplicate diversity check; metadata carries
     domain/intent histograms and unique-group counts.
+  - `scripts/ccpp/generate_completions.py` (+ `src/agguardrails/ccpp_generation.py`)
+    completes a prompt manifest with the chosen refusal-ablated model and emits
+    normalized exchanges (`completion_source=generated_uncensored`,
+    `generator_model_id == protected_model_id`). It has a CPU `mock` backend for
+    tests and a gated `transformers` backend for the GPU run; output feeds
+    `build_dataset.py`.
 - Supervisor direction on 2026-05-25 changed the immediate priority: first do a
   faithful CC++ paper reproduction, then adapt to WildJailbreak/other datasets.
 - Proposal plan in `msc-writeup/ipp/proposal.tex` is the source of truth, but
@@ -82,7 +88,7 @@ Next implementation target after this scaffold:
 
 ## Latest Local Checks
 
-- 2026-06-01: `python -m pytest` passes with 53 tests.
+- 2026-06-01: `python -m pytest` passes with 60 tests.
 - 2026-06-01: `build_matched_benign_prompts.py` assembles 1000 unique benign
   groups across the 7 matched subdomains with balanced topic/intent histograms
   and zero near-duplicates (Jaccard threshold 0.9).

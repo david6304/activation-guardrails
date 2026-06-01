@@ -1,0 +1,119 @@
+#!/usr/bin/env python
+"""Generate on-policy completions for a CC++ prompt manifest.
+
+Reads a prompt-only manifest (ClearHarm CBRN positives or matched dual-use benign
+negatives), completes each prompt with the selected refusal-ablated protected-
+model analogue, and writes normalized exchanges ready for ``build_dataset.py``.
+
+The same model id is recorded as ``generator_model_id`` and ``protected_model_id``
+so the on-policy gate passes. Raw completions are written only to the output file;
+stdout carries aggregate counts only.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+
+from agguardrails.ccpp_data import (
+    LABEL_NEGATIVE,
+    LABEL_POSITIVE,
+    read_jsonl,
+    write_jsonl,
+)
+from agguardrails.ccpp_generation import (
+    DecodingParams,
+    build_generator,
+    generate_exchanges,
+    read_generation_prompts,
+)
+
+_LABEL_BY_NAME = {
+    "auto": None,
+    "positive": LABEL_POSITIVE,
+    "negative": LABEL_NEGATIVE,
+}
+
+
+def main() -> int:
+    args = parse_args()
+
+    rows = read_jsonl(args.manifest)
+    if args.limit is not None:
+        rows = rows[: args.limit]
+    prompts = read_generation_prompts(rows)
+    if not prompts:
+        raise SystemExit(f"no prompts found in {args.manifest}")
+
+    protected_model_id = args.protected_model_id or args.model_id
+    decoding = DecodingParams(
+        backend=args.backend,
+        max_new_tokens=args.max_new_tokens,
+        temperature=args.temperature,
+        top_p=args.top_p,
+        do_sample=not args.greedy,
+        seed=args.seed,
+    )
+    generator = build_generator(
+        args.backend, model_id=args.model_id, decoding=decoding
+    )
+
+    exchanges = generate_exchanges(
+        prompts,
+        generator,
+        generator_model_id=args.model_id,
+        protected_model_id=protected_model_id,
+        decoding=decoding,
+        label=_LABEL_BY_NAME[args.label],
+    )
+    write_jsonl(args.output, exchanges)
+
+    label_counts: dict[int, int] = {}
+    for exchange in exchanges:
+        label_counts[exchange.label] = label_counts.get(exchange.label, 0) + 1
+    print(
+        json.dumps(
+            {
+                "num_exchanges": len(exchanges),
+                "label_counts": label_counts,
+                "model_id": args.model_id,
+                "on_policy": args.model_id == protected_model_id,
+                "output": str(args.output),
+            }
+        )
+    )
+    return 0
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--model-id",
+        required=True,
+        help="Refusal-ablated protected-model analogue (local path or HF id).",
+    )
+    parser.add_argument(
+        "--protected-model-id",
+        default=None,
+        help="Defaults to --model-id to keep the run on-policy.",
+    )
+    parser.add_argument(
+        "--backend", choices=["transformers", "mock"], default="transformers"
+    )
+    parser.add_argument(
+        "--label", choices=list(_LABEL_BY_NAME), default="auto"
+    )
+    parser.add_argument("--max-new-tokens", type=int, default=512)
+    parser.add_argument("--temperature", type=float, default=0.7)
+    parser.add_argument("--top-p", type=float, default=0.95)
+    parser.add_argument("--greedy", action="store_true")
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--limit", type=int, default=None)
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
