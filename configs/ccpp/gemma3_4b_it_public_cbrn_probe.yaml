@@ -1,23 +1,25 @@
 experiment:
-  name: ccpp_gemma2_9b_it_public_cbrn_probe
+  name: ccpp_gemma3_4b_it_public_cbrn_probe
   phase: probe_vertical_slice
   description: >
     Probe-first open-weight CC++ replication scaffold. This config is blocked
     until the positive class contains harmful/compliant assistant completions.
 
 model:
-  id: google/gemma-2-9b-it
+  id: google/gemma-3-4b-it
   revision: null
   role: base_model_for_refusal_ablated_protected_analogue
   primary_regime: on_policy_refusal_ablated
   notes: >
-    Primary generated-completion experiments must use a refusal-ablated Gemma
-    model as the protected-model analogue and record its exact local/HF id in
+    Primary generated-completion experiments must use a refusal-ablated Gemma 3
+    4B model as the protected-model analogue and record its exact local/HF id in
     each example's metadata.protected_model_id. Normal Gemma is a later
     safety-trained control unless on-policy jailbreak positives are available.
+    Gemma 3 4B is chosen for full every-layer SAE/transcoder coverage in Gemma
+    Scope 2, enabling the interpretability arm without training bespoke SAEs.
 
 tokenizer:
-  id: google/gemma-2-9b-it
+  id: google/gemma-3-4b-it
   revision: null
 
 dataset:
@@ -99,7 +101,7 @@ dataset:
     test: 0.15
 
 activation:
-  artifact_dir: artifacts/ccpp/activations/gemma2_9b_it_public_cbrn
+  artifact_dir: artifacts/ccpp/activations/gemma3_4b_it_public_cbrn
   source: hidden_residual
   layers: all
   dtype: float32
@@ -110,7 +112,7 @@ activation:
     include_assistant_tokens_only_for_scoring: false
 
 swim_probe:
-  artifact_dir: artifacts/ccpp/probes/swim_gemma2_9b_it_public_cbrn
+  artifact_dir: artifacts/ccpp/probes/swim_gemma3_4b_it_public_cbrn
   scores_path: results/ccpp/swim_probe_scores.jsonl
   metrics_path: results/ccpp/swim_probe_metrics.json
   seed: 59841
@@ -141,10 +143,10 @@ swim_probe:
     group_score_aggregation: mean
 
 exchange_classifier:
-  artifact_dir: artifacts/ccpp/classifiers/gemma2_lora_exchange
+  artifact_dir: artifacts/ccpp/classifiers/gemma3_lora_exchange
   scores_path: results/ccpp/exchange_classifier_scores.jsonl
-  preferred_method: gemma2_lora_yes_no
-  fallback_method: gemma2_prompt_logit
+  preferred_method: gemma3_lora_yes_no
+  fallback_method: gemma3_prompt_logit
   prompt_template: cbrn_yes_no_exchange
   lora:
     rank: 32

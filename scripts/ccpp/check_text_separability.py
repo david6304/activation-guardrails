@@ -43,7 +43,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         type=Path,
-        default=Path("configs/ccpp/gemma2_9b_it_public_cbrn_probe.yaml"),
+        default=Path("configs/ccpp/gemma3_4b_it_public_cbrn_probe.yaml"),
     )
     parser.add_argument("--dataset-jsonl", type=Path, default=None)
     parser.add_argument("--output", type=Path, default=None)

@@ -25,7 +25,7 @@ from agguardrails.ccpp_generation import (
     read_generation_prompts,
 )
 
-MODEL_ID = "local/gemma-2-9b-it-heretic"
+MODEL_ID = "local/gemma-3-4b-it-heretic"
 
 
 def _clearharm_prompt(text: str, row_index: int):

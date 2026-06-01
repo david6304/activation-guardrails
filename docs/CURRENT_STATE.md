@@ -61,8 +61,8 @@ Next implementation target after this scaffold:
    prompts. Effective positive N is unique groups, currently 179, not the 7160
    `rep40` rows. Keep HarmBench `chemical_biological` as a small
    supplementary/smoke slice.
-2. Pick one refusal-ablated Gemma generator/protected-model analogue after a
-   Heretic/OBLITERATUS bakeoff.
+2. Abliterate `google/gemma-3-4b-it` with Heretic to produce the
+   refusal-ablated generator/protected-model analogue; record its id/path.
 3. Generate both positive and benign completions with that same model and
    decoding setup, recording `generator_model_id == protected_model_id`.
 4. Run dataset gates plus TF-IDF text separability before activation extraction.
@@ -71,6 +71,13 @@ Next implementation target after this scaffold:
 
 ## Decisions So Far
 
+- Primary model is `google/gemma-3-4b-it` (switched from Gemma 2 9B IT on
+  2026-06-01). Rationale: Gemma Scope 2 gives Gemma 3 full every-layer SAE +
+  transcoder coverage, Heretic abliteration is demonstrated on Gemma 3, 4B
+  enables fast iteration, and nothing was built yet so switching cost was zero.
+  Config: `configs/ccpp/gemma3_4b_it_public_cbrn_probe.yaml`. The historical
+  WildJailbreak/SAE work in `research_log.md` was done on Gemma 2 9B IT and is
+  left as a record.
 - Use `main` as stable-ish solo working history.
 - Use short-lived branches only for substantial experiment/code chunks.
 - Keep `docs/research_log.md` local and ignored.
