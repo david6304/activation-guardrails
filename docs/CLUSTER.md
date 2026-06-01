@@ -259,6 +259,34 @@ Default design preferences:
 - allow command-line overrides for GPU type and similar cluster/job parameters
 - expose switches to run only part of a pipeline when useful, rather than forcing every stage every time
 
+## CC++ GEMMA 3 OFFLINE GENERATION
+
+Compute nodes have no internet, so before any offline GPU job, cache everything
+on the head node (`hastings`):
+
+```bash
+python scripts/cluster/prefetch_hf.py
+```
+
+This caches `google/gemma-3-4b-it` plus Heretic's evaluation datasets
+(`mlabonne/harmless_alpaca`, `mlabonne/harmful_behaviors`) into `~/models`, so
+Heretic can run offline on a compute node. Abliteration is interactive (it ends
+with a save menu), so run it under `srun --pty`, not `sbatch`:
+
+```bash
+srun -p Teaching --gres=gpu:a40:1 --pty bash
+export HF_HOME=~/models HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
+heretic google/gemma-3-4b-it   # save to ~/models/gemma-3-4b-it-heretic
+```
+
+Completion generation is a batch job; submit it with the configurable wrapper
+(`--dry-run` to preview, `--gpu-type`, `--stage`, `--limit` for smoke tests):
+
+```bash
+scripts/cluster/submit_generate_completions.sh --dry-run
+scripts/cluster/submit_generate_completions.sh --stage both
+```
+
 ## PROJECT-SPECIFIC TUNING NOTES
 
 - Do not default to very conservative batch sizes for Gemma 2 9B jobs on `A40` / `A6000`. Check utilisation early and tune upward unless there is clear memory pressure.
