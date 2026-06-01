@@ -128,7 +128,9 @@ def log_space_auc(
     tprs = [fixed_fpr_point(y_true, scores, max_fpr=float(fpr)).tpr for fpr in grid]
     log_grid = np.log(grid)
     width = log_grid[-1] - log_grid[0]
-    return float(np.trapz(tprs, x=log_grid) / width)
+    # np.trapezoid replaced the deprecated np.trapz in NumPy 2.0+.
+    trapezoid = getattr(np, "trapezoid", None) or np.trapz
+    return float(trapezoid(tprs, x=log_grid) / width)
 
 
 def flag_at_any_token(token_scores: Sequence[Sequence[float]]) -> np.ndarray:

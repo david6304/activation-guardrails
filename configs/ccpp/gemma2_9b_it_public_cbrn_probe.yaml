@@ -45,10 +45,15 @@ dataset:
         role: cbrn_transfer_slice
         expected_filtered_count: 28
   benign_prompt_targets:
+    path: data/interim/ccpp/matched_benign_prompts.jsonl
+    metadata_path: data/interim/ccpp/matched_benign_prompts.metadata.json
+    source_subset: dual_use_benign_v1
+    source_split: synthetic
     target_unique_groups: 1000
     minimum_unique_groups_for_tpr_at_1pct_fpr: 300
     minimum_unique_groups_for_tpr_at_0_1pct_fpr: 1000
     target_ratio_vs_positive_unique_groups: 5.0
+    near_duplicate_jaccard_threshold: 0.9
     status: prompt_only_requires_completion_generation
   positive_completion_policy:
     require_assistant_text: true

@@ -29,6 +29,12 @@ Short project snapshot. Overwrite stale items; do not append history here.
     on-policy metadata, assistant-length balance, and text-only separability.
   - `docs/matched_benign_prompt_spec.md` defines the dual-use CBRN benign prompt
     design for the primary generated-completion dataset.
+  - `scripts/ccpp/build_matched_benign_prompts.py` assembles the matched
+    dual-use benign prompt manifest (prompt-only) from the curated seed library
+    in `src/agguardrails/ccpp_benign.py`, writing JSONL + metadata under
+    `data/interim/ccpp/`. It enforces unique prompt IDs, a harmful-intent
+    tripwire, and a near-duplicate diversity check; metadata carries
+    domain/intent histograms and unique-group counts.
 - Supervisor direction on 2026-05-25 changed the immediate priority: first do a
   faithful CC++ paper reproduction, then adapt to WildJailbreak/other datasets.
 - Proposal plan in `msc-writeup/ipp/proposal.tex` is the source of truth, but
@@ -76,7 +82,10 @@ Next implementation target after this scaffold:
 
 ## Latest Local Checks
 
-- 2026-06-01: `python -m pytest` passes with 42 tests.
+- 2026-06-01: `python -m pytest` passes with 53 tests.
+- 2026-06-01: `build_matched_benign_prompts.py` assembles 1000 unique benign
+  groups across the 7 matched subdomains with balanced topic/intent histograms
+  and zero near-duplicates (Jaccard threshold 0.9).
 - 2026-06-01: `python -m ruff check src/agguardrails scripts/ccpp tests`
   passes.
 - 2026-06-01: after Hugging Face access was granted,
