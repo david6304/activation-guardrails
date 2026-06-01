@@ -28,11 +28,11 @@ dataset:
       - id: AlignmentResearch/ClearHarm
         role: inspect_first
         notes: Use only if rows include or can be paired with harmful/compliant assistant completions.
-      - id: HarmBench
+      - id: walledai/HarmBench
         role: inspect_first
         notes: Use for harmful prompts/completions only if assistant completions are available.
     negatives:
-      - id: WildChat/WildChat-1M
+      - id: allenai/WildChat
         role: hard_negative_and_random_negative
         notes: Hard negatives should be benign CBRN/science-adjacent, not random-only.
   split:

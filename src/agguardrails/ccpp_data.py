@@ -198,6 +198,7 @@ def validate_positive_class_gate(
     examples: Sequence[NormalizedExchange],
     *,
     min_non_refusal_positive_fraction: float = 0.8,
+    min_positive_assistant_chars: int = 20,
 ) -> None:
     positives = [example for example in examples if example.label == LABEL_POSITIVE]
     if not positives:
@@ -210,6 +211,17 @@ def validate_positive_class_gate(
         raise DatasetGateError(
             "positive-class gate failed: positive examples missing assistant_text "
             f"({len(missing_text)} examples)"
+        )
+
+    too_short = [
+        example.example_id
+        for example in positives
+        if len(example.assistant_text.strip()) < min_positive_assistant_chars
+    ]
+    if too_short:
+        raise DatasetGateError(
+            "positive-class gate failed: positive assistant_text is too short "
+            f"({len(too_short)} examples below {min_positive_assistant_chars} chars)"
         )
 
     refusal_like = [
@@ -333,6 +345,100 @@ def contains_cbrn_terms(text: str) -> bool:
     return any(term in lowered for term in CBRN_TERMS)
 
 
+def normalize_clearharm_row(
+    row: Mapping[str, Any],
+    *,
+    row_index: int,
+    source_subset: str,
+    source_split: str,
+    assistant_field: str = "proxy_gen_target",
+) -> NormalizedExchange | None:
+    """Normalize a ClearHarm row if it is a harmful candidate exchange."""
+
+    if int(row.get("clf_label", -1)) != LABEL_POSITIVE:
+        return None
+
+    content = row.get("content") or []
+    if not content:
+        return None
+
+    user_text = str(content[0]).strip()
+    assistant_text = str(row.get(assistant_field) or "").strip()
+    if not user_text or not assistant_text:
+        return None
+
+    faithfulness_tags = ["clearharm_positive_candidate"]
+    if assistant_field == "proxy_gen_target":
+        faithfulness_tags.append("clearharm_proxy_gen_target")
+    if len(assistant_text) < 20:
+        faithfulness_tags.append("positive_prefill_only")
+
+    return normalize_record(
+        {
+            "example_id": f"clearharm-{source_subset}-{source_split}-{row_index}",
+            "group_id": stable_text_hash(user_text)[:16],
+            "split": "unassigned",
+            "label": LABEL_POSITIVE,
+            "domain": "cbrn" if contains_cbrn_terms(user_text) else "harmful",
+            "source_dataset": "AlignmentResearch/ClearHarm",
+            "source_subset": source_subset,
+            "user_text": user_text,
+            "assistant_text": assistant_text,
+            "completion_source": "public",
+            "faithfulness_tags": faithfulness_tags,
+            "metadata": {
+                "source_split": source_split,
+                "assistant_field": assistant_field,
+                "proxy_clf_label": row.get("proxy_clf_label"),
+            },
+        }
+    )
+
+
+def normalize_wildchat_negative_row(
+    row: Mapping[str, Any],
+    *,
+    row_index: int,
+    require_cbrn_terms: bool = True,
+) -> NormalizedExchange | None:
+    """Normalize a benign WildChat conversation as a negative candidate."""
+
+    if bool(row.get("toxic")) or bool(row.get("redacted")):
+        return None
+    if _moderation_flagged(row.get("openai_moderation") or []):
+        return None
+
+    messages = row.get("conversation") or []
+    user_text, assistant_text = _first_user_assistant_pair(messages)
+    if not user_text or not assistant_text:
+        return None
+    if require_cbrn_terms and not (
+        contains_cbrn_terms(user_text) or contains_cbrn_terms(assistant_text)
+    ):
+        return None
+
+    return normalize_record(
+        {
+            "example_id": f"wildchat-{row.get('conversation_id', row_index)}",
+            "group_id": str(row.get("conversation_id") or stable_text_hash(user_text)),
+            "split": "unassigned",
+            "label": LABEL_NEGATIVE,
+            "domain": "science" if contains_cbrn_terms(user_text) else "general",
+            "source_dataset": "allenai/WildChat",
+            "source_subset": "train",
+            "user_text": user_text,
+            "assistant_text": assistant_text,
+            "completion_source": "public",
+            "faithfulness_tags": ["hard_negative", "wildchat_non_toxic"],
+            "metadata": {
+                "model": row.get("model"),
+                "turn": row.get("turn"),
+                "language": row.get("language"),
+            },
+        }
+    )
+
+
 def _normalize_messages(
     raw_messages: Any, user_text: str, assistant_text: str
 ) -> list[dict[str, str]]:
@@ -369,3 +475,29 @@ def _split_name(index: int, train_cut: int, val_cut: int) -> str:
     if index < val_cut:
         return "val"
     return "test"
+
+
+def _moderation_flagged(moderation_rows: Sequence[Mapping[str, Any]]) -> bool:
+    for moderation in moderation_rows:
+        if bool(moderation.get("flagged")):
+            return True
+        categories = moderation.get("categories") or {}
+        if any(bool(value) for value in categories.values()):
+            return True
+    return False
+
+
+def _first_user_assistant_pair(
+    messages: Sequence[Mapping[str, Any]],
+) -> tuple[str | None, str | None]:
+    pending_user: str | None = None
+    for message in messages:
+        role = str(message.get("role") or "")
+        content = str(message.get("content") or "").strip()
+        if not content:
+            continue
+        if role == "user":
+            pending_user = content
+        elif role == "assistant" and pending_user is not None:
+            return pending_user, content
+    return None, None

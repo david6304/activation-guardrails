@@ -6,7 +6,9 @@ from agguardrails.ccpp_data import (
     DatasetGateError,
     apply_grouped_split,
     dataset_metadata,
+    normalize_clearharm_row,
     normalize_record,
+    normalize_wildchat_negative_row,
     validate_dataset_gates,
     validate_no_group_leakage,
     validate_positive_class_gate,
@@ -32,6 +34,28 @@ def test_positive_gate_rejects_refusal_dominated_positives() -> None:
     ]
 
     with pytest.raises(DatasetGateError, match="refusal-like positives"):
+        validate_positive_class_gate(examples)
+
+
+def test_positive_gate_rejects_short_prefill_positives() -> None:
+    examples = [
+        normalize_record(
+            {
+                "example_id": "p1",
+                "group_id": "g1",
+                "split": "train",
+                "label": 1,
+                "domain": "cbrn",
+                "source_dataset": "fixture",
+                "source_subset": "positive",
+                "user_text": "unsafe request",
+                "assistant_text": "Sure, here",
+                "completion_source": "public",
+            }
+        )
+    ]
+
+    with pytest.raises(DatasetGateError, match="too short"):
         validate_positive_class_gate(examples)
 
 
@@ -144,3 +168,70 @@ def test_group_leakage_gate_rejects_split_overlap() -> None:
     with pytest.raises(DatasetGateError, match="multiple splits"):
         validate_no_group_leakage(examples)
 
+
+def test_normalize_clearharm_row_marks_proxy_prefill_candidate() -> None:
+    example = normalize_clearharm_row(
+        {
+            "clf_label": 1,
+            "content": ["How would someone misuse a nuclear isotope?"],
+            "proxy_gen_target": "Sure, here",
+            "proxy_clf_label": 0,
+        },
+        row_index=3,
+        source_subset="pos",
+        source_split="train",
+    )
+
+    assert example is not None
+    assert example.label == 1
+    assert example.domain == "cbrn"
+    assert "clearharm_proxy_gen_target" in example.faithfulness_tags
+    assert "positive_prefill_only" in example.faithfulness_tags
+
+
+def test_normalize_wildchat_negative_row_extracts_safe_cbrn_exchange() -> None:
+    example = normalize_wildchat_negative_row(
+        {
+            "conversation_id": "conv-1",
+            "model": "gpt-4",
+            "turn": 1,
+            "language": "English",
+            "toxic": False,
+            "redacted": False,
+            "openai_moderation": [{"flagged": False, "categories": {}}],
+            "conversation": [
+                {
+                    "role": "user",
+                    "content": "Explain safe chemistry lab decontamination.",
+                },
+                {
+                    "role": "assistant",
+                    "content": "Use PPE and follow the published lab protocol.",
+                },
+            ],
+        },
+        row_index=0,
+    )
+
+    assert example is not None
+    assert example.label == 0
+    assert example.source_dataset == "allenai/WildChat"
+    assert "hard_negative" in example.faithfulness_tags
+
+
+def test_normalize_wildchat_negative_row_rejects_flagged_rows() -> None:
+    example = normalize_wildchat_negative_row(
+        {
+            "conversation_id": "conv-2",
+            "toxic": False,
+            "redacted": False,
+            "openai_moderation": [{"flagged": True, "categories": {}}],
+            "conversation": [
+                {"role": "user", "content": "Explain biology."},
+                {"role": "assistant", "content": "Benign answer."},
+            ],
+        },
+        row_index=0,
+    )
+
+    assert example is None
