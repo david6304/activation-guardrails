@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import random
 from dataclasses import dataclass
-from typing import Any, Mapping, Protocol, Sequence
+from typing import Any, Callable, Iterator, Mapping, Protocol, Sequence
 
 from agguardrails.ccpp_data import (
     LABEL_NEGATIVE,
@@ -140,6 +140,38 @@ def build_exchange_record(
     )
 
 
+def iter_generate_exchanges(
+    prompts: Sequence[GenerationPrompt],
+    generator: Generator,
+    *,
+    generator_model_id: str,
+    protected_model_id: str,
+    decoding: DecodingParams,
+    label: int | None = None,
+    progress: Callable[[int, int], None] | None = None,
+) -> Iterator[NormalizedExchange]:
+    """Yield normalized exchanges one at a time as each prompt is completed.
+
+    ``progress`` is called after each item with ``(done, total)`` so callers can
+    log throughput/ETA and write incrementally without buffering everything.
+    """
+
+    total = len(prompts)
+    for index, prompt in enumerate(prompts, start=1):
+        prompt_label = label if label is not None else infer_label(prompt)
+        assistant_text = generator.generate(prompt.user_text, prompt.context).strip()
+        yield build_exchange_record(
+            prompt,
+            assistant_text,
+            label=prompt_label,
+            generator_model_id=generator_model_id,
+            protected_model_id=protected_model_id,
+            decoding=decoding,
+        )
+        if progress is not None:
+            progress(index, total)
+
+
 def generate_exchanges(
     prompts: Sequence[GenerationPrompt],
     generator: Generator,
@@ -151,21 +183,16 @@ def generate_exchanges(
 ) -> list[NormalizedExchange]:
     """Complete every prompt and return normalized exchanges."""
 
-    exchanges = []
-    for prompt in prompts:
-        prompt_label = label if label is not None else infer_label(prompt)
-        assistant_text = generator.generate(prompt.user_text, prompt.context).strip()
-        exchanges.append(
-            build_exchange_record(
-                prompt,
-                assistant_text,
-                label=prompt_label,
-                generator_model_id=generator_model_id,
-                protected_model_id=protected_model_id,
-                decoding=decoding,
-            )
+    return list(
+        iter_generate_exchanges(
+            prompts,
+            generator,
+            generator_model_id=generator_model_id,
+            protected_model_id=protected_model_id,
+            decoding=decoding,
+            label=label,
         )
-    return exchanges
+    )
 
 
 # ---------------------------------------------------------------------------
