@@ -87,6 +87,9 @@ def main() -> int:
 
     num_exchanges = sum(label_counts.values())
     logger.info("done: %d exchanges written to %s", num_exchanges, args.output)
+    peak_memory = getattr(generator, "peak_memory_gib", None)
+    if peak_memory is not None and (value := peak_memory()) is not None:
+        logger.info("peak GPU memory: %.1f GiB (batch_size=%d)", value, args.batch_size)
     print(
         json.dumps(
             {

@@ -319,6 +319,14 @@ class TransformersGenerator:
         new_tokens = output[:, prompt_length:]
         return self.tokenizer.batch_decode(new_tokens, skip_special_tokens=True)
 
+    def peak_memory_gib(self) -> float | None:
+        """Peak CUDA memory allocated so far, in GiB (None on CPU)."""
+
+        torch = self._torch
+        if torch.cuda.is_available():
+            return torch.cuda.max_memory_allocated() / 1024**3
+        return None
+
 
 def build_generator(
     backend: str,
