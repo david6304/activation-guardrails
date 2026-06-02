@@ -237,17 +237,19 @@ class TransformersGenerator:
             [{"role": "user", "content": content}],
             add_generation_prompt=True,
             return_tensors="pt",
+            return_dict=True,
         ).to(self.model.device)
+        prompt_length = inputs["input_ids"].shape[-1]
         with torch.no_grad():
             output = self.model.generate(
-                inputs,
+                **inputs,
                 max_new_tokens=self.decoding.max_new_tokens,
                 do_sample=self.decoding.do_sample,
                 temperature=self.decoding.temperature,
                 top_p=self.decoding.top_p,
                 pad_token_id=self.tokenizer.eos_token_id,
             )
-        new_tokens = output[0][inputs.shape[-1] :]
+        new_tokens = output[0][prompt_length:]
         return self.tokenizer.decode(new_tokens, skip_special_tokens=True)
 
 
