@@ -377,6 +377,15 @@ srun --jobid=<JOB_ID> --overlap nvidia-smi \
 - Default assumption going forward for Gemma 2 9B response generation: try
   batch size `8` first on A100 80GB / A6000-class GPUs, not `4`, unless a
   job-specific prompt length or decoding setting suggests otherwise.
+- Measured 2026-06-02, `gemma-3-4b-it-heretic` completion generation on
+  `Wintermute` A100 80GB, `max_new_tokens=512`, left-padded batched HF
+  `generate`: **batch 64 used ~18 GiB and only ~52% GPU-util** — heavily
+  under-utilised. Weights ~8 GiB, so KV cache costs ~0.16 GiB/prompt at this
+  decode length. Rule of thumb for a 4B model at 512 tokens on 80 GB: cache
+  budget ≈ (0.85·80 − 8) ≈ 62 GiB ⇒ ~390 prompts, so **start at batch 256**
+  (margin for the longest-prompt batch) and only back off on OOM. The submit
+  script default is now `256`. Scale this estimate with model weights and
+  `max_new_tokens` for other jobs.
 - If VRAM usage is still comfortably below capacity and there is no OOM, prefer increasing batch size before changing other aspects of the experiment. If GPU utilisation is already high, expect only moderate speedups; if you need a larger runtime reduction, shortening decode length (`max_new_tokens`) matters more than small batch-size increases.
 - expose options to target only a subset of models / layers / datasets / stages when the script naturally supports that
 - keep sensible defaults for the common path, but make partial reruns easy

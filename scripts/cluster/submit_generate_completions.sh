@@ -19,7 +19,7 @@ SEED=0
 LIMIT=""
 STAGE=both                        # positives | benign | both
 MAX_NEW_TOKENS=512
-BATCH_SIZE=64                      # overshoot on A100 80GB; lower if OOM
+BATCH_SIZE=256                     # ~18GiB at 64 on A100 80GB (4B, 512 tok); 256 leaves margin. Lower if OOM
 TIME_LIMIT=02:00:00                # SLURM --time; ~6x slack over a ~20min batched run, backfill-friendly. Set "" for partition default
 DRY_RUN=0
 
@@ -40,7 +40,7 @@ Options (all optional):
   --seed N                generation seed (default: 0)
   --limit N               cap prompts per manifest (smoke test)
   --max-new-tokens N      decode length (default: 512)
-  --batch-size N          prompts per generate() call (default: 64; lower if OOM)
+  --batch-size N          prompts per generate() call (default: 256; lower if OOM)
   --time HH:MM:SS         SLURM --time limit (default: 02:00:00; "" = partition default)
   --dry-run               print the sbatch command, do not submit
 EOF
