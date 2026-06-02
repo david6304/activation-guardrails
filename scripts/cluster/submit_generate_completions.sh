@@ -19,6 +19,7 @@ SEED=0
 LIMIT=""
 STAGE=both                        # positives | benign | both
 MAX_NEW_TOKENS=512
+BATCH_SIZE=64                      # overshoot on A100 80GB; lower if OOM
 DRY_RUN=0
 
 usage() {
@@ -38,6 +39,7 @@ Options (all optional):
   --seed N                generation seed (default: 0)
   --limit N               cap prompts per manifest (smoke test)
   --max-new-tokens N      decode length (default: 512)
+  --batch-size N          prompts per generate() call (default: 64; lower if OOM)
   --dry-run               print the sbatch command, do not submit
 EOF
 }
@@ -56,6 +58,7 @@ while [[ $# -gt 0 ]]; do
     --seed) SEED="$2"; shift 2;;
     --limit) LIMIT="$2"; shift 2;;
     --max-new-tokens) MAX_NEW_TOKENS="$2"; shift 2;;
+    --batch-size) BATCH_SIZE="$2"; shift 2;;
     --dry-run) DRY_RUN=1; shift;;
     -h|--help) usage; exit 0;;
     *) echo "unknown option: $1" >&2; usage; exit 1;;
@@ -80,7 +83,7 @@ gen_cmd() {  # $1 = manifest, $2 = output basename
   echo "python scripts/ccpp/generate_completions.py" \
        "--manifest $1 --output $OUT_DIR/$2" \
        "--model-id '$MODEL_ID' --backend transformers" \
-       "--seed $SEED --max-new-tokens $MAX_NEW_TOKENS $LIMIT_ARG"
+       "--seed $SEED --max-new-tokens $MAX_NEW_TOKENS --batch-size $BATCH_SIZE $LIMIT_ARG"
 }
 
 CMDS="source /home/htang2/toolchain-20251006/toolchain.rc"

@@ -51,9 +51,13 @@ class DecodingParams:
 
 
 class Generator(Protocol):
-    """Produces an assistant completion for one user turn."""
+    """Produces assistant completions for user turns."""
 
     def generate(self, user_text: str, context: str = "") -> str: ...
+
+    def generate_batch(self, items: Sequence[tuple[str, str]]) -> list[str]:
+        """Complete a batch of ``(user_text, context)`` pairs in order."""
+        ...
 
 
 def infer_label(prompt: GenerationPrompt) -> int:
@@ -149,27 +153,43 @@ def iter_generate_exchanges(
     decoding: DecodingParams,
     label: int | None = None,
     progress: Callable[[int, int], None] | None = None,
+    batch_size: int = 1,
 ) -> Iterator[NormalizedExchange]:
-    """Yield normalized exchanges one at a time as each prompt is completed.
+    """Yield normalized exchanges as prompts are completed, batch by batch.
 
-    ``progress`` is called after each item with ``(done, total)`` so callers can
-    log throughput/ETA and write incrementally without buffering everything.
+    Prompts are completed in chunks of ``batch_size`` via ``generator.generate_batch``;
+    each exchange is yielded as soon as its batch finishes, so callers can write
+    incrementally (a timeout loses at most one in-flight batch). ``progress`` is
+    called after each item with ``(done, total)`` for throughput/ETA logging.
     """
 
+    if batch_size < 1:
+        raise ValueError(f"batch_size must be >= 1, got {batch_size!r}")
+
     total = len(prompts)
-    for index, prompt in enumerate(prompts, start=1):
-        prompt_label = label if label is not None else infer_label(prompt)
-        assistant_text = generator.generate(prompt.user_text, prompt.context).strip()
-        yield build_exchange_record(
-            prompt,
-            assistant_text,
-            label=prompt_label,
-            generator_model_id=generator_model_id,
-            protected_model_id=protected_model_id,
-            decoding=decoding,
-        )
-        if progress is not None:
-            progress(index, total)
+    done = 0
+    for start in range(0, total, batch_size):
+        batch = prompts[start : start + batch_size]
+        items = [(prompt.user_text, prompt.context) for prompt in batch]
+        completions = generator.generate_batch(items)
+        if len(completions) != len(batch):
+            raise ValueError(
+                f"generator returned {len(completions)} completions for "
+                f"{len(batch)} prompts"
+            )
+        for prompt, assistant_text in zip(batch, completions):
+            prompt_label = label if label is not None else infer_label(prompt)
+            yield build_exchange_record(
+                prompt,
+                assistant_text.strip(),
+                label=prompt_label,
+                generator_model_id=generator_model_id,
+                protected_model_id=protected_model_id,
+                decoding=decoding,
+            )
+            done += 1
+            if progress is not None:
+                progress(done, total)
 
 
 def generate_exchanges(
@@ -180,6 +200,7 @@ def generate_exchanges(
     protected_model_id: str,
     decoding: DecodingParams,
     label: int | None = None,
+    batch_size: int = 1,
 ) -> list[NormalizedExchange]:
     """Complete every prompt and return normalized exchanges."""
 
@@ -191,6 +212,7 @@ def generate_exchanges(
             protected_model_id=protected_model_id,
             decoding=decoding,
             label=label,
+            batch_size=batch_size,
         )
     )
 
@@ -226,6 +248,9 @@ class MockGenerator:
         sentences = [rng.choice(_MOCK_SENTENCES) for _ in range(self.num_sentences)]
         return " ".join(sentences)
 
+    def generate_batch(self, items: Sequence[tuple[str, str]]) -> list[str]:
+        return [self.generate(user_text, context) for user_text, context in items]
+
 
 class TransformersGenerator:
     """Hugging Face Transformers backend for the GPU run.
@@ -242,42 +267,57 @@ class TransformersGenerator:
         decoding: DecodingParams,
         device_map: str = "auto",
         dtype: str = "bfloat16",
+        attn_implementation: str = "sdpa",
     ) -> None:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
 
         self._torch = torch
         self.decoding = decoding
-        self.tokenizer = AutoTokenizer.from_pretrained(model_id)
+        # Decoder-only batched generation requires left padding so that the
+        # newly generated tokens of every row start at the same offset.
+        self.tokenizer = AutoTokenizer.from_pretrained(model_id, padding_side="left")
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
         self.model = AutoModelForCausalLM.from_pretrained(
             model_id,
             device_map=device_map,
             dtype=getattr(torch, dtype),
+            attn_implementation=attn_implementation,
         )
         self.model.eval()
 
     def generate(self, user_text: str, context: str = "") -> str:
+        return self.generate_batch([(user_text, context)])[0]
+
+    def generate_batch(self, items: Sequence[tuple[str, str]]) -> list[str]:
         torch = self._torch
+        if not items:
+            return []
         torch.manual_seed(self.decoding.seed)
-        content = _compose_user_turn(user_text, context)
+        conversations = [
+            [{"role": "user", "content": _compose_user_turn(user_text, context)}]
+            for user_text, context in items
+        ]
         inputs = self.tokenizer.apply_chat_template(
-            [{"role": "user", "content": content}],
+            conversations,
             add_generation_prompt=True,
             return_tensors="pt",
             return_dict=True,
+            padding=True,
         ).to(self.model.device)
         prompt_length = inputs["input_ids"].shape[-1]
-        with torch.no_grad():
+        with torch.inference_mode():
             output = self.model.generate(
                 **inputs,
                 max_new_tokens=self.decoding.max_new_tokens,
                 do_sample=self.decoding.do_sample,
                 temperature=self.decoding.temperature,
                 top_p=self.decoding.top_p,
-                pad_token_id=self.tokenizer.eos_token_id,
+                pad_token_id=self.tokenizer.pad_token_id,
             )
-        new_tokens = output[0][prompt_length:]
-        return self.tokenizer.decode(new_tokens, skip_special_tokens=True)
+        new_tokens = output[:, prompt_length:]
+        return self.tokenizer.batch_decode(new_tokens, skip_special_tokens=True)
 
 
 def build_generator(

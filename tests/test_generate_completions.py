@@ -22,6 +22,7 @@ from agguardrails.ccpp_generation import (
     build_exchange_record,
     generate_exchanges,
     infer_label,
+    iter_generate_exchanges,
     read_generation_prompts,
 )
 
@@ -112,6 +113,31 @@ def test_generated_exchanges_pass_dataset_gates() -> None:
             "max_length_only_roc_auc": 0.65,
         },
     )
+
+
+def test_batch_size_does_not_change_exchanges() -> None:
+    decoding = DecodingParams(backend="mock", seed=0)
+    prompts = build_benign_prompts(target_unique_groups=10, seed=0)
+    kwargs = dict(
+        generator_model_id=MODEL_ID,
+        protected_model_id=MODEL_ID,
+        decoding=decoding,
+    )
+    unbatched = [
+        e.to_json_dict()
+        for e in iter_generate_exchanges(
+            prompts, MockGenerator(seed=0), batch_size=1, **kwargs
+        )
+    ]
+    batched = [
+        e.to_json_dict()
+        for e in iter_generate_exchanges(
+            prompts, MockGenerator(seed=0), batch_size=4, **kwargs
+        )
+    ]
+    # Order and content must be identical regardless of batching.
+    assert unbatched == batched
+    assert len(batched) == len(prompts)
 
 
 def test_read_generation_prompts_roundtrip() -> None:

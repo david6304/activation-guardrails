@@ -60,7 +60,12 @@ def main() -> int:
     generator = build_generator(
         args.backend, model_id=args.model_id, decoding=decoding
     )
-    logger.info("generating %d completions -> %s", len(prompts), args.output)
+    logger.info(
+        "generating %d completions (batch_size=%d) -> %s",
+        len(prompts),
+        args.batch_size,
+        args.output,
+    )
 
     progress = ProgressLogger(len(prompts), logger=logger, label="generated")
     label_counts: dict[int, int] = {}
@@ -74,6 +79,7 @@ def main() -> int:
             decoding=decoding,
             label=_LABEL_BY_NAME[args.label],
             progress=progress,
+            batch_size=args.batch_size,
         ):
             handle.write(json.dumps(exchange.to_json_dict(), sort_keys=True) + "\n")
             handle.flush()
@@ -116,6 +122,13 @@ def parse_args() -> argparse.Namespace:
         "--label", choices=list(_LABEL_BY_NAME), default="auto"
     )
     parser.add_argument("--max-new-tokens", type=int, default=512)
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=32,
+        help="Prompts per generate() call. Higher = faster on big GPUs; "
+        "lower if you hit OOM.",
+    )
     parser.add_argument("--temperature", type=float, default=0.7)
     parser.add_argument("--top-p", type=float, default=0.95)
     parser.add_argument("--greedy", action="store_true")
