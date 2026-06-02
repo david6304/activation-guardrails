@@ -20,7 +20,7 @@ LIMIT=""
 STAGE=both                        # positives | benign | both
 MAX_NEW_TOKENS=512
 BATCH_SIZE=64                      # overshoot on A100 80GB; lower if OOM
-TIME_LIMIT=""                      # SLURM --time (e.g. 02:00:00); empty = partition default
+TIME_LIMIT=02:00:00                # SLURM --time; ~6x slack over a ~20min batched run, backfill-friendly. Set "" for partition default
 DRY_RUN=0
 
 usage() {
@@ -41,7 +41,7 @@ Options (all optional):
   --limit N               cap prompts per manifest (smoke test)
   --max-new-tokens N      decode length (default: 512)
   --batch-size N          prompts per generate() call (default: 64; lower if OOM)
-  --time HH:MM:SS         SLURM --time limit (default: partition default)
+  --time HH:MM:SS         SLURM --time limit (default: 02:00:00; "" = partition default)
   --dry-run               print the sbatch command, do not submit
 EOF
 }
