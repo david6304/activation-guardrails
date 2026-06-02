@@ -20,6 +20,7 @@ LIMIT=""
 STAGE=both                        # positives | benign | both
 MAX_NEW_TOKENS=512
 BATCH_SIZE=64                      # overshoot on A100 80GB; lower if OOM
+TIME_LIMIT=""                      # SLURM --time (e.g. 02:00:00); empty = partition default
 DRY_RUN=0
 
 usage() {
@@ -40,6 +41,7 @@ Options (all optional):
   --limit N               cap prompts per manifest (smoke test)
   --max-new-tokens N      decode length (default: 512)
   --batch-size N          prompts per generate() call (default: 64; lower if OOM)
+  --time HH:MM:SS         SLURM --time limit (default: partition default)
   --dry-run               print the sbatch command, do not submit
 EOF
 }
@@ -59,6 +61,7 @@ while [[ $# -gt 0 ]]; do
     --limit) LIMIT="$2"; shift 2;;
     --max-new-tokens) MAX_NEW_TOKENS="$2"; shift 2;;
     --batch-size) BATCH_SIZE="$2"; shift 2;;
+    --time) TIME_LIMIT="$2"; shift 2;;
     --dry-run) DRY_RUN=1; shift;;
     -h|--help) usage; exit 0;;
     *) echo "unknown option: $1" >&2; usage; exit 1;;
@@ -101,6 +104,7 @@ esac
 
 SBATCH=(sbatch -p "$PARTITION" --gres="$GRES" -J ccpp_gen -o "slurm-ccpp-gen-%j.out")
 [[ -n "$NODELIST" ]] && SBATCH+=(--nodelist="$NODELIST")
+[[ -n "$TIME_LIMIT" ]] && SBATCH+=(--time="$TIME_LIMIT")
 SBATCH+=(--wrap "$CMDS")
 
 if [[ "$DRY_RUN" == "1" ]]; then
