@@ -1,10 +1,25 @@
-# MLP GPU Cluster - Quick Guide
+# ICF / MLP GPU Cluster - Quick Guide
+
+For this account, `ssh icf` and `ssh mlp` both land on the `hastings` head
+node. Treat this as one Slurm environment. The important choice is the
+partition, not the SSH alias.
+
+Live access check on 2026-06-02:
+
+- Accessible: `Teaching`, `Interactive`, `Wintermute`.
+- Not currently accessible: `ICF-Free`, `Open-Research`, `ICF-Research`
+  (`Invalid account or account/partition combination specified` on `sbatch`).
+- `sacctmgr show assoc user=$USER ...` shows only the teaching account/QOS, but
+  direct `sbatch` tests confirm access to `Teaching`, `Interactive`, and
+  `Wintermute`.
 
 ## FIRST TIME SETUP
 
 ```bash
 # 1. Connect to cluster
 ssh s2296274@mlp -J s2296274@student.ssh.inf.ed.ac.uk
+# Equivalent for this account:
+# ssh s2296274@icf -J s2296274@student.ssh.inf.ed.ac.uk
 # Enter DICE password twice
 
 # 2. Setup CUDA + Python environment
@@ -87,8 +102,8 @@ chmod +x run.sh
 ### Step 4: Test interactively
 
 ```bash
-# Get GPU for testing (2hr max)
-srun -p Teaching --gres=gpu:1 --pty bash
+# Get GPU for testing (Interactive is short/debug-only)
+srun -p Interactive --gres=gpu:1 --time=00:30:00 --pty bash
 
 # Check GPU works
 nvidia-smi
@@ -108,8 +123,8 @@ exit
 ### Step 5: Submit real job
 
 ```bash
-# Submit job (3 days 8hrs max)
-sbatch -p Teaching --gres=gpu:1 run.sh
+# Submit job on the Teaching A6000 node (2 days max)
+sbatch -p Teaching --gres=gpu:nvidia_rtx_a6000:1 --nodelist=landonia11 run.sh
 
 # Output: Submitted batch job 12345
 ```
@@ -160,16 +175,17 @@ scp -J s2296274@student.ssh.inf.ed.ac.uk s2296274@mlp:~/your-project/results/mod
 ```bash
 # Connect
 ssh s2296274@mlp -J s2296274@student.ssh.inf.ed.ac.uk
+# or: ssh s2296274@icf -J s2296274@student.ssh.inf.ed.ac.uk
 
 # Activate environment (do this every session)
 source /home/htang2/toolchain-20251006/toolchain.rc
 source ~/venvs/ml/bin/activate
 
-# Interactive GPU (testing)
-srun -p Teaching --gres=gpu:1 --pty bash
+# Interactive GPU (short debugging)
+srun -p Interactive --gres=gpu:1 --time=00:30:00 --pty bash
 
 # Submit job
-sbatch -p Teaching --gres=gpu:1 run.sh
+sbatch -p Teaching --gres=gpu:nvidia_rtx_a6000:1 --nodelist=landonia11 run.sh
 
 # Check jobs
 squeue -u s2296274
@@ -215,24 +231,76 @@ AutoModelForCausalLM.from_pretrained('Qwen/Qwen2.5-7B-Instruct', torch_dtype='au
 
 ---
 
+## PARTITION CHOICE
+
+Use this decision rule:
+
+| Partition | Use for | Avoid for | Max time | Current hardware seen |
+|---|---|---|---|---|
+| `Wintermute` | Serious LLM jobs: Heretic, Gemma generation, activation extraction, large batches | Casual smoke tests or jobs that fit cheaply elsewhere | 5 days | `wintermute`, 2x A100 80GB PCIe reported by Slurm, 112 CPUs, 755 GiB RAM, 3.5T scratch |
+| `Teaching` | Normal batch jobs and fallback GPU work, especially A6000 on `landonia11` | Bare `--gres=gpu:1` for 4B+ LLMs | 2 days | mostly 2080 Ti 11GB, plus A6000 on `landonia11`, A100 MIG on `saxa` |
+| `Interactive` | Short interactive debugging and CUDA sanity checks | Long jobs, large models | 4 hours | `landonia[01-02]`, 2080 Ti 11GB |
+
+Recommended commands:
+
+```bash
+# Best current route for serious single-GPU LLM work.
+srun -p Wintermute --gres=gpu:1 --time=04:00:00 --pty bash
+sbatch -p Wintermute --gres=gpu:1 --time=1-00:00:00 run.sh
+
+# Only request both A100s if the code genuinely uses multi-GPU.
+srun -p Wintermute --gres=gpu:2 --time=01:00:00 --pty bash
+
+# Teaching A6000 route. Avoid bare gpu:1 for large models.
+srun -p Teaching --gres=gpu:nvidia_rtx_a6000:1 --nodelist=landonia11 --time=02:00:00 --pty bash
+sbatch -p Teaching --gres=gpu:nvidia_rtx_a6000:1 --nodelist=landonia11 --time=1-00:00:00 run.sh
+
+# Cheap short debugging; these are 11GB GPUs.
+srun -p Interactive --gres=gpu:1 --time=00:30:00 --pty bash
+```
+
+Check live availability before submitting:
+
+```bash
+sinfo -N -p Teaching,Interactive,Wintermute \
+  -O partition,nodelist:20,statecompact,gres:80,cpus:10,memory:12
+squeue -p Teaching,Interactive,Wintermute
+```
+
+Confirm access with tiny jobs if anything changes:
+
+```bash
+for p in Teaching Interactive Wintermute; do
+  echo "== $p =="
+  sbatch -p "$p" --time=00:01:00 --wrap='hostname && nvidia-smi -L || true'
+done
+```
+
 ## NODES AND GPUS
 
-As of 2026-03-29 (`sinfo -p Teaching`):
+As of 2026-06-02 (`sinfo -N -p Teaching,Interactive,Wintermute ...`):
 
-| Nodes | GPU | Count | VRAM | Suitable for 7B? |
-|---|---|---|---|---|
-| `crannog[01-02]` | A40 | 4 per node | 48 GB | Yes — preferred |
-| `landonia11` | RTX A6000 | 8 | 48 GB | Yes |
-| `saxa` | A100 MIG (1g.18gb / 3g.71gb) | 49 / 2 | 18 / 71 GB | 3g.71gb only, complex to request |
-| `damnii[07-12]`, `landonia[03,05,08,23,25]` | RTX 2080 Ti | 8 per node | 11 GB | **No — will OOM on 7B models** |
+| Partition | Nodes | GPU | Count | VRAM | Suitable for 4B+/7B LLM work? |
+|---|---|---|---|---|---|
+| `Wintermute` | `wintermute` | A100 80GB PCIe | 2 reported by Slurm; `--gres=gpu:1` exposes one GPU | 80 GB each | **Yes — preferred for serious LLM jobs** |
+| `Teaching` | `landonia11` | RTX A6000 | 8 | 48 GB | Yes |
+| `Teaching` | `saxa` | A100 MIG (`1g.18gb`, `3g.71gb`) | 49 / 2 | 18 / 71 GB | 3g.71gb only, complex to request |
+| `Teaching` | `damnii[07-12]`, `landonia[03,05,08,23,25]` | RTX 2080 Ti | 8 per node | 11 GB | **No for 4B+/7B unless tiny/quantized** |
+| `Interactive` | `landonia[01-02]` | RTX 2080 Ti | 8 per node | 11 GB | Debugging only |
 
-Max job time: **2 days** (`MaxTime=2-00:00:00`).
+Max job times:
+
+- `Wintermute`: **5 days** (`MaxTime=5-00:00:00`)
+- `Teaching`: **2 days** (`MaxTime=2-00:00:00`)
+- `Interactive`: **4 hours** (`MaxTime=04:00:00`)
 
 **GPU selection in submit scripts:**
 - `--constraint` does **not** work on this cluster (returns "Invalid feature specification")
-- Use GRES type names directly: `--gres=gpu:a40:1`, `--gres=gpu:nvidia_rtx_a6000:1`
-- To get any capable GPU (A40 or A6000): `--gres=gpu:1 --nodelist=crannog[01-02],landonia11`
-- Submit scripts handle this via `--gpu-type a40|a6000|any|unrestricted`
+- Use GRES type names directly: `--gres=gpu:nvidia_rtx_a6000:1`,
+  `--gres=gpu:nvidia_a100_80gb_pcie:1`, or the MIG names shown by live `sinfo`
+- For Wintermute, `--gres=gpu:1` worked interactively and exposed one A100 80GB
+- For Teaching A6000: `--gres=gpu:nvidia_rtx_a6000:1 --nodelist=landonia11`
+- Submit scripts handle this via `--gpu-type wintermute|a6000|any`
 
 ---
 
@@ -243,10 +311,10 @@ Max job time: **2 days** (`MaxTime=2-00:00:00`).
 3. Copy large datasets to `/disk/scratch/` for fast training
 4. Zip datasets before copying — way faster than many small files
 5. No backups on NFS — push important stuff to GitHub (or AFS)
-6. Interactive jobs = 2hrs max — for testing/debugging only
-7. Batch jobs = 2 days max — save checkpoints to resume
+6. `Interactive` partition jobs = 4hrs max — for testing/debugging only
+7. `Teaching` batch jobs = 2 days max; `Wintermute` jobs = 5 days max — save checkpoints to resume
 8. One GPU per job — jobs queue faster than multi-GPU requests
-9. Never submit with `--gres=gpu:1` alone — will land on a 2080 Ti and OOM for 7B+ models
+9. Never submit to `Teaching` with `--gres=gpu:1` alone for 4B+/7B models — it will usually land on an 11GB 2080 Ti and OOM
 
 ---
 
@@ -255,7 +323,10 @@ Max job time: **2 days** (`MaxTime=2-00:00:00`).
 When writing cluster-facing scripts, prefer scripts that are reusable and configurable rather than hard-coded for one exact run.
 
 Default design preferences:
-- default to queueing for `A40` where GPU type selection is supported
+- default serious single-GPU LLM runs to `Wintermute` where access and queue
+  pressure allow
+- otherwise default capable Teaching jobs to `landonia11` with
+  `--gres=gpu:nvidia_rtx_a6000:1`
 - allow command-line overrides for GPU type and similar cluster/job parameters
 - expose switches to run only part of a pipeline when useful, rather than forcing every stage every time
 
@@ -274,7 +345,7 @@ Heretic can run offline on a compute node. Abliteration is interactive (it ends
 with a save menu), so run it under `srun --pty`, not `sbatch`:
 
 ```bash
-srun -p Teaching --gres=gpu:a40:1 --pty bash
+srun -p Wintermute --gres=gpu:1 --time=04:00:00 --pty bash
 export HF_HOME=~/models HF_HUB_OFFLINE=1 TRANSFORMERS_OFFLINE=1 HF_DATASETS_OFFLINE=1
 heretic google/gemma-3-4b-it   # save to ~/models/gemma-3-4b-it-heretic
 ```
@@ -289,7 +360,9 @@ scripts/cluster/submit_generate_completions.sh --stage both
 
 ## PROJECT-SPECIFIC TUNING NOTES
 
-- Do not default to very conservative batch sizes for Gemma 2 9B jobs on `A40` / `A6000`. Check utilisation early and tune upward unless there is clear memory pressure.
+- Do not default to very conservative batch sizes for Gemma jobs on `A100 80GB`
+  / `A6000`. Check utilisation early and tune upward unless there is clear
+  memory pressure.
 - Preferred monitoring command for an active job:
 
 ```bash
@@ -298,14 +371,19 @@ srun --jobid=<JOB_ID> --overlap nvidia-smi \
   --format=csv -l 5
 ```
 
-- For the refusal-probing `generate_responses.py` stage on `crannog01` (`NVIDIA A40`, 48 GB), an observed run on 2026-04-02 reached `91-98%` GPU utilisation but used only about `19 / 46 GiB` VRAM at batch size `4`. This means the initial setting was too conservative on memory and future runs should start from a larger batch size.
-- Default assumption going forward for Gemma 2 9B response generation: try batch size `8` first on `A40` / `A6000`, not `4`, unless a job-specific prompt length or decoding setting suggests otherwise.
+- Historical A40 notes from `crannog01` may still be useful as rough
+  utilisation guidance, but `crannog` is not currently in the accessible
+  partitions for this account.
+- Default assumption going forward for Gemma 2 9B response generation: try
+  batch size `8` first on A100 80GB / A6000-class GPUs, not `4`, unless a
+  job-specific prompt length or decoding setting suggests otherwise.
 - If VRAM usage is still comfortably below capacity and there is no OOM, prefer increasing batch size before changing other aspects of the experiment. If GPU utilisation is already high, expect only moderate speedups; if you need a larger runtime reduction, shortening decode length (`max_new_tokens`) matters more than small batch-size increases.
 - expose options to target only a subset of models / layers / datasets / stages when the script naturally supports that
 - keep sensible defaults for the common path, but make partial reruns easy
 
 Examples of useful CLI controls:
-- GPU type selection such as `--gpu-type a40` with overrides for other supported types
+- GPU type selection such as `--gpu-type wintermute|a6000|any` with overrides
+  for other supported types
 - stage controls such as `--train-only`, `--eval-only`, or `--stage train`
 - subset controls such as `--models qwen`, `--layers 8 16 24`, or similar
 - dry-run / print-only options for checking the exact command or `sbatch` submission before launching
@@ -333,12 +411,12 @@ source /home/htang2/toolchain-20251006/toolchain.rc
 source ~/venvs/ml/bin/activate
 
 # Test
-srun -p Teaching --gres=gpu:1 --pty bash
+srun -p Interactive --gres=gpu:1 --time=00:30:00 --pty bash
 python train.py --epochs 1
 exit
 
 # Submit
-sbatch -p Teaching --gres=gpu:1 run.sh
+sbatch -p Wintermute --gres=gpu:1 run.sh
 # Job 12345 submitted
 
 # Monitor
@@ -362,7 +440,7 @@ git pull
 # Did you activate toolchain?
 source /home/htang2/toolchain-20251006/toolchain.rc
 # Did you request GPU?
-srun -p Teaching --gres=gpu:1 --pty bash
+srun -p Interactive --gres=gpu:1 --time=00:30:00 --pty bash
 ```
 
 **"Import torch is slow"**
