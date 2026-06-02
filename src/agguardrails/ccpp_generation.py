@@ -214,7 +214,7 @@ class TransformersGenerator:
         *,
         decoding: DecodingParams,
         device_map: str = "auto",
-        torch_dtype: str = "bfloat16",
+        dtype: str = "bfloat16",
     ) -> None:
         import torch
         from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -225,7 +225,7 @@ class TransformersGenerator:
         self.model = AutoModelForCausalLM.from_pretrained(
             model_id,
             device_map=device_map,
-            torch_dtype=getattr(torch, torch_dtype),
+            dtype=getattr(torch, dtype),
         )
         self.model.eval()
 
