@@ -8,7 +8,7 @@
 set -euo pipefail
 
 PARTITION=Teaching
-GPU_TYPE=a40                       # a40 | a6000 | any
+GPU_TYPE=a6000                     # a6000 | a40 | any  (Teaching has A6000 on landonia11; no A40)
 MODEL_ID="$HOME/models/gemma-3-4b-it-heretic"
 REPO_DIR="$HOME/activation-guardrails"
 HF_HOME_DIR="$HOME/models"
@@ -64,10 +64,10 @@ done
 
 NODELIST=""
 case "$GPU_TYPE" in
+  a6000) GRES="gpu:nvidia_rtx_a6000:1"; NODELIST="landonia11";;
   a40) GRES="gpu:a40:1";;
-  a6000) GRES="gpu:nvidia_rtx_a6000:1";;
-  any) GRES="gpu:1"; NODELIST="crannog[01-02],landonia11";;
-  *) echo "unsupported --gpu-type: $GPU_TYPE (a40|a6000|any)" >&2; exit 1;;
+  any) GRES="gpu:1"; NODELIST="landonia11";;  # only capable GPU in Teaching
+  *) echo "unsupported --gpu-type: $GPU_TYPE (a6000|a40|any)" >&2; exit 1;;
 esac
 
 LIMIT_ARG=""
