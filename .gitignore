@@ -38,19 +38,18 @@ data/processed/
 # Local editor config (not part of the research artefact)
 ?GENTS.md
 CLAUDE.md
-# Track the lightweight scaffold docs; keep old/private notes local.
-docs/*
-!docs/CURRENT_STATE.md
-!docs/PROJECT_PLAN.md
-!docs/WORKFLOW.md
-!docs/CLUSTER.md
-!docs/ccpp_reproduction_matrix.md
-!docs/matched_benign_prompt_spec.md
-docs/research_log.md
-docs/meetings/
-docs/references/
+
+# All documentation is local-only. NEVER add exceptions for docs/, and never
+# add, stage, or commit any file beneath it.
+docs/
 course-docs/
+
+# Agent instructions and workflows are always local-only. NEVER add negation
+# rules for these paths or add, stage, or commit them to Git.
+AGENTS.md
+CLAUDE.md
 .claude/
+.codex/
 
 # Packaging metadata
 *.egg-info/
