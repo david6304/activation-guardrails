@@ -47,7 +47,7 @@ stage.
 
 ## Verification Baseline
 
-The documentation reset must record dated local results here:
+Verification at reset:
 
 - 2026-06-08: `python -m pytest` passed with 61 tests in 15.75 seconds.
 - 2026-06-08: `python -m ruff check src/agguardrails scripts tests` passed.

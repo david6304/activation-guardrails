@@ -20,7 +20,6 @@ add interpretable evidence.
 | Current status and next action | `docs/CURRENT_STATE.md` |
 | Research phases and decision gates | `docs/PROJECT_PLAN.md` |
 | Coding, experiment, planning, and review workflow | `docs/WORKFLOW.md` |
-| Parked CBRN experiment | `docs/PARKED_CBRN.md` |
 | Cluster or Slurm work | `docs/CLUSTER.md` |
 | Package or API decisions | dependency files, installed metadata/local source, then official documentation |
 | File placement | nearest folder `README.md` |
@@ -31,14 +30,14 @@ add interpretable evidence.
 ## Authority And History
 
 - Active project documentation and this file are tracked in Git.
+- Respect the status and next action recorded in `docs/CURRENT_STATE.md`; do not
+  infer active work from the presence of code, configs, artifacts, or history.
 - `docs/research_log.md`, `docs/references/`, `docs/meetings/`, `.codex/`, and
   `.claude/` are local or private context, not startup reading.
 - The pre-reset plans preserved in commit `280d363` are a non-authoritative
   historical archive. Do not inspect or restore them by default. Use them only
   for an explicit provenance question or to recover a specific discarded
   detail that is absent from active documentation.
-- The CBRN experiment is parked, not deleted. Do not resume, extend, or rewrite
-  it unless the task explicitly reactivates it.
 
 ## Working Rules
 
@@ -56,10 +55,10 @@ add interpretable evidence.
 
 ## Research Log
 
-`docs/research_log.md` is local and ignored. Ask whether to log when a result
-changes direction, a non-obvious scientific decision is made, a surprising
-finding is resolved, or a supervisor-relevant question emerges. Do not log
-routine commands or minor fixes.
+Consequential scientific decisions and direction-changing conclusions must be
+summarized in tracked authoritative documentation. `docs/research_log.md` is
+local and ignored; ask whether to add supporting detail there, but never use it
+as the sole record. Do not log routine commands or minor fixes.
 
 ## Tooling
 

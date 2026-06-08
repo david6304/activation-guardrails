@@ -110,8 +110,10 @@ milestone, check failure paths, and run targeted verification.
 ### Independent Engineering Review
 
 Use for broad changes, shared contracts, cache/provenance logic, cluster-facing
-jobs, or code whose failure could waste a substantial run. The reviewer checks
-the frozen diff and acceptance evidence, not a moving implementation.
+jobs, or code whose failure could waste a substantial run. It is one read-only
+review of a frozen diff and acceptance evidence by a fresh Codex
+context/subagent or a non-author human. It is not required for routine,
+low-risk work covered by self-review.
 
 ### Scientific-Risk Review
 
@@ -176,5 +178,7 @@ exact environment for reportable runs.
 - Commit only compact outputs directly required for a reported claim.
 - Diagnose labels, splits, thresholds, text shortcuts, and artifact integrity
   before extending a surprising result.
-- Ask before adding direction-changing decisions or resolved surprises to the
-  ignored `docs/research_log.md`.
+- Summarize consequential scientific decisions and direction-changing
+  conclusions in tracked authoritative documentation.
+- Ask before adding supporting detail to the ignored `docs/research_log.md`;
+  it must never be the sole record of a consequential decision or conclusion.

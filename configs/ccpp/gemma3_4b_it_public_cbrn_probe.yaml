@@ -169,6 +169,5 @@ cascade:
     - 0.25
 
 provenance:
-  reproduction_matrix: docs/ccpp_reproduction_matrix.md
   paper_target: CC++ Sections 5 and 6 open-weight static analogue
   vdr_status: unavailable_without_human_red_teaming
