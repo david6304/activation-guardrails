@@ -35,19 +35,13 @@ data/processed/
 # Logs
 *.log
 
-# Local editor config (not part of the research artefact)
-?GENTS.md
-CLAUDE.md
-
-# All documentation is local-only. NEVER add exceptions for docs/, and never
-# add, stage, or commit any file beneath it.
-docs/
+# Local research notes and large/private documentation sources
+docs/research_log.md
+docs/meetings/
+docs/references/
 course-docs/
 
-# Agent instructions and workflows are always local-only. NEVER add negation
-# rules for these paths or add, stage, or commit them to Git.
-AGENTS.md
-CLAUDE.md
+# Local agent state and tool-specific settings
 .claude/
 .codex/
 
