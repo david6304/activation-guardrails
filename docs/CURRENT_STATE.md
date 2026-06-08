@@ -1,106 +1,63 @@
 # Current State
 
-Short project snapshot. Overwrite stale items; do not append history here.
+Short project snapshot. Replace stale facts rather than appending history.
 
 ## Now
 
-- The repository contains a fresh CC++ implementation scaffold.
-- Safety tag for the removed earlier pipeline: `pre-ccpp-fresh-start`.
-- Current HEAD at planning time: `203a18f`.
-- The generated ClearHarm CBRN positives and bespoke matched-benign negatives
-  proved almost perfectly text-separable. That dataset is not suitable for the
-  next activation experiment.
-- The current implementation target is the reviewed WildJailbreak open-weight
-  CC++ analogue in `docs/WILDJAILBREAK_CCPP_IMPLEMENTATION_PLAN.md`.
-- The plan passed the double-agent planning workflow with mandatory preflight
-  gates.
-- Implement one checkpoint at a time. Start with C0 only.
+- The repository contains a CC++-style data, generation, activation, metric,
+  text-diagnostic, and SWiM-probe scaffold.
+- The implemented CBRN experiment is parked. Its harmful and matched-benign
+  examples were almost perfectly text-separable, so it cannot support the
+  intended claim that activations add useful signal beyond text.
+- The CBRN implementation remains intact and is documented in
+  `docs/PARKED_CBRN.md`.
+- Earlier WildJailbreak implementation plans and agent-specific multi-agent
+  workflows were discarded during the documentation reset. Their
+  non-authoritative snapshot is recoverable from commit `280d363`.
+- No replacement experiment protocol is currently frozen.
 
-Existing reusable scaffold:
+## Next Bounded Milestone
 
-- normalized exchanges and dataset gates in `src/agguardrails/ccpp_data.py`;
-- generation helpers in `src/agguardrails/ccpp_generation.py`;
-- metrics in `src/agguardrails/metrics.py`;
-- activation contracts in `src/agguardrails/activations.py`;
-- minimal SWiM code in `src/agguardrails/swim_probe.py`;
-- runnable scripts under `scripts/ccpp/`;
-- CC++ source mapping in `docs/ccpp_reproduction_matrix.md`.
+Select and freeze the next empirical milestone before changing experiment code.
+The milestone must specify:
 
-The existing code is a starting point, not a verified implementation of the
-reviewed WildJailbreak protocol. In particular, activation storage, SWiM window
-semantics, split roles, exchange labels, and system calibration must change.
+1. the precise claim and comparison;
+2. dataset, model, labels, split roles, and leakage controls;
+3. exploratory or reportable status;
+4. primary metric and threshold-selection rule;
+5. required baselines and acceptance criteria;
+6. provenance and review requirements.
 
-## Active Focus
+This is a planning milestone. It does not authorize implementation of a
+WildJailbreak pipeline, SAE pipeline, public-guard comparison, or other future
+stage.
 
-Implement checkpoint C0:
+## Stable Decisions
 
-1. Add `configs/ccpp/wildjailbreak_gemma3_4b_exchange.yaml`.
-2. Freeze an exchange-harmfulness rubric and judge prompt hash.
-3. Add the runtime/protocol validator.
-4. Resolve dataset, model, tokenizer, judge, duplicate-detection, PEFT, and
-   provenance contracts.
-5. Mark every component `faithful`, `substitute`, `our_default`, or
-   `pending_evidence`.
-6. Commit C0 as a recovery point before constructing manifests or running GPU
-   jobs.
+- Reproduce the core activation-guardrail mechanism before adding
+  dissertation-specific extensions.
+- Evaluate activation methods against a strong text baseline.
+- Keep harmfulness and refusal conceptually distinct.
+- Use group-safe splits and threshold calibration separated from final
+  evaluation.
+- Treat `TPR @ 1% FPR` as the intended primary operating-point metric when the
+  negative denominator supports it; retain ROC-AUC as a secondary metric.
+- Keep expensive stages cacheable and provenance-linked.
+- Diagnose surprising or near-ceiling results before extending the pipeline.
 
-Do not begin C1 until C0 tests and preflight gates pass.
+## Verification Baseline
 
-## Decisions
+The documentation reset must record dated local results here:
 
-- Primary model family: Gemma 3 4B.
-- Primary protected-model analogue: the refusal-ablated Gemma artifact, subject
-  to C0 identity and weight-hash verification.
-- Dataset: pinned `allenai/wildjailbreak`, subject to access, schema, count, and
-  pairing checks.
-- Primary target: adjudicated exchange harmfulness.
-- Secondary target: WildJailbreak source prompt intent.
-- Refusal is a diagnostic variable, not the primary label.
-- Expensive stages must be cacheable, checksummed, resumable, and provenance
-  linked.
-- Fit, development selection, final threshold calibration, vanilla test, and
-  adversarial transfer use separate group-level partitions.
-- Test and transfer remain sealed until models, score transforms, system
-  choices, and final threshold are frozen.
-- Primary operating point: `TPR @ 1% FPR`.
-- `0.1% FPR` is not a headline claim for the planned public-data denominators.
-- Reportable inference is group-level and includes multiple training seeds.
-- SAEs and public guards are deferred extensions after the dense CC++ system is
-  evaluated.
+- 2026-06-08: `python -m pytest` passed with 61 tests in 15.75 seconds.
+- 2026-06-08: `python -m ruff check src/agguardrails scripts tests` passed.
 
-## Latest Verified Checks
+These results describe only the checked-out commit and recorded environment.
+They must not be treated as evidence that later revisions pass.
 
-- 2026-06-01: `python -m pytest` passed with 60 tests in the then-current
-  environment.
-- 2026-06-01: `python -m ruff check src/agguardrails scripts/ccpp tests`
-  passed.
-- 2026-06-02: the generated CBRN dataset passed on-policy and length gates but
-  failed the text diagnostic near the ceiling. The user has confirmed this
-  finding as the reason to try WildJailbreak first.
-- 2026-06-07: the WildJailbreak implementation plan completed the double-agent
-  planning, review, revision, verification, and adjudication workflow.
+## Open Decision
 
-Do not infer that current tests pass today from the historical checks. The local
-workstation environment inspected during planning lacked the project ML
-packages; C0 must capture the actual implementation environment.
-
-## Open C0 Preflights
-
-- Pin and load the WildJailbreak revision.
-- Verify all four data types, pairing semantics, and sufficient unique groups.
-- Discover the Gemma runtime model class, dimensions, hidden-state ordering,
-  maximum sequence length, and assistant-token boundaries.
-- Verify the refusal-ablated artifact identity and weight hash.
-- Confirm an independent exchange-harmfulness judge or stop for manual labels.
-- Pin and validate the sentence-embedding duplicate stack.
-- Verify `torch`, `transformers`, `datasets`, `safetensors`, `peft`, and cluster
-  compatibility.
-- Verify the exchange-classifier label-scoring strategy.
-- Capture package, CUDA, driver, hardware, Git, config, and command provenance.
-
-## Research Log
-
-The CBRN text-separability result and switch to WildJailbreak changed the
-research direction. `docs/research_log.md` is local and may contain an
-inaccurate or premature WildJailbreak entry. Ask the user before replacing or
-correcting that entry.
+The next protocol needs a defensible dataset and label design that is not
+dominated by surface-form shortcuts. Because this choice can change the
+dissertation's empirical claim, it requires plan-first scientific review under
+`docs/WORKFLOW.md` before implementation.

@@ -1,67 +1,68 @@
 # Activation Guardrails - Agent Entrypoint
 
-MSc AI dissertation project, University of Edinburgh. The proposal plan is the
-source of truth: reproduce CC++-style activation guardrails on open-weight
-models, then test harmfulness/refusal separation, then use SAE features for
-interpretability.
+MSc AI dissertation project, University of Edinburgh. The research plan is the
+source of truth: reproduce activation-based guardrails, test whether activation
+signals separate harmfulness from refusal, then study SAE features where they
+add interpretable evidence.
 
 ## Start Here
 
 1. Read `README.md` and `docs/CURRENT_STATE.md`.
-2. Read only the routed doc needed for the task.
-3. Inspect folder READMEs before adding files to a folder.
-4. Do not read `msc-writeup/ipp/proposal.tex`, `course-docs/`, or large docs by
-   default. Use them only when the task needs proposal wording, rubric details,
-   or an exact citation/source check.
-
-## Current Focus
-
-- Fresh-start CC++ scaffold after commit `59841bf`.
-- Safety tag before cleanup: `pre-ccpp-fresh-start`.
-- Primary model: `Gemma 2 9B IT`.
-- Primary dataset: `WildJailbreak`.
-- Core metrics: `TPR @ 1% FPR` and `ROC-AUC`.
-- Build simple, cacheable experiment stages before adding abstractions.
+2. Read only the task-routed document below.
+3. Read the nearest folder `README.md` before adding files.
+4. For implementation work, define one bounded milestone and its observable
+   acceptance criteria before editing.
 
 ## Routing
 
 | Task | Read |
 | --- | --- |
-| Current status / next action | `docs/CURRENT_STATE.md` |
-| Research plan, phases, deliverables | `docs/PROJECT_PLAN.md` |
-| Git, experiment, logging, reproducibility workflow | `docs/WORKFLOW.md` |
-| Cluster or SLURM work | `docs/CLUSTER.md` plus existing cluster skill/instructions if available |
-| Package/API decisions | `requirements.txt`, installed package metadata, local package docs/code, then official docs |
-| Where files belong | nearest folder `README.md` |
-| Proposal/rubric exact wording | `msc-writeup/ipp/proposal.tex` or `course-docs/`, only when needed |
+| Current status and next action | `docs/CURRENT_STATE.md` |
+| Research phases and decision gates | `docs/PROJECT_PLAN.md` |
+| Coding, experiment, planning, and review workflow | `docs/WORKFLOW.md` |
+| Parked CBRN experiment | `docs/PARKED_CBRN.md` |
+| Cluster or Slurm work | `docs/CLUSTER.md` |
+| Package or API decisions | dependency files, installed metadata/local source, then official documentation |
+| File placement | nearest folder `README.md` |
+| Exact proposal or rubric wording | `msc-writeup/ipp/proposal.tex` or `course-docs/`, only when requested or necessary |
 
-`docs/PROJECT_PLAN.md` is the only active planning summary. Do not use older
-planning docs if they appear in local history or ignored files.
+`docs/PROJECT_PLAN.md` is the only active planning summary.
+
+## Authority And History
+
+- Active project documentation and this file are tracked in Git.
+- `docs/research_log.md`, `docs/references/`, `docs/meetings/`, `.codex/`, and
+  `.claude/` are local or private context, not startup reading.
+- The pre-reset plans preserved in commit `280d363` are a non-authoritative
+  historical archive. Do not inspect or restore them by default. Use them only
+  for an explicit provenance question or to recover a specific discarded
+  detail that is absent from active documentation.
+- The CBRN experiment is parked, not deleted. Do not resume, extend, or rewrite
+  it unless the task explicitly reactivates it.
 
 ## Working Rules
 
-- Treat the repo as actively edited by the user. Do not overwrite or revert
-  their changes unless explicitly asked.
-- Keep changes small and research-oriented. This is a solo dissertation repo,
-  not a production platform.
-- Prefer explicit scripts, configs, and saved metadata over framework layers.
-- Preserve reproducibility: every reportable result needs git commit, config,
-  seed, data/model revisions, threshold rule, and environment provenance.
-- Methods, baselines, datasets, and metric choices should be literature-backed.
-- Pause on surprising results. Diagnose before extending the pipeline, and
-  suggest a supervisor check-in at decision points.
-- Do not write polished dissertation prose unless asked. Prefer talking points,
-  outlines, or edit suggestions.
+- Treat the repository as actively edited by the user. Never overwrite or
+  revert unrelated work.
+- Keep changes small, explicit, and research-oriented.
+- Work on one bounded milestone at a time. Do not build infrastructure for
+  future stages.
+- Prefer scripts, configs, and saved metadata over framework layers.
+- Distinguish exploratory runs from reportable experiments before execution.
+- Methods, labels, splits, baselines, metrics, thresholds, and claims require
+  scientific justification proportionate to their effect on conclusions.
+- Pause on surprising results. Diagnose before extending the pipeline.
+- Do not write polished dissertation prose unless asked.
 
 ## Research Log
 
 `docs/research_log.md` is local and ignored. Ask whether to log when a result
-changes direction, a non-obvious decision is made, a surprising finding is
-resolved, or a supervisor-relevant question emerges. Do not log routine command
-runs or minor fixes.
+changes direction, a non-obvious scientific decision is made, a surprising
+finding is resolved, or a supervisor-relevant question emerges. Do not log
+routine commands or minor fixes.
 
 ## Tooling
 
-- `ruff` for linting/formatting.
-- `pytest` for tests.
-- Use `rg`/`rg --files` for repo search.
+- Use `rg` and `rg --files` for search.
+- Use `ruff` for linting and formatting.
+- Use `pytest` for tests.
