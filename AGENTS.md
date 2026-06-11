@@ -27,17 +27,13 @@ add interpretable evidence.
 
 `docs/PROJECT_PLAN.md` is the only active planning summary.
 
-## Authority And History
+## Authority
 
 - Active project documentation and this file are tracked in Git.
 - Respect the status and next action recorded in `docs/CURRENT_STATE.md`; do not
   infer active work from the presence of code, configs, artifacts, or history.
 - `docs/research_log.md`, `docs/references/`, `docs/meetings/`, `.codex/`, and
   `.claude/` are local or private context, not startup reading.
-- The pre-reset plans preserved in commit `280d363` are a non-authoritative
-  historical archive. Do not inspect or restore them by default. Use them only
-  for an explicit provenance question or to recover a specific discarded
-  detail that is absent from active documentation.
 
 ## Working Rules
 

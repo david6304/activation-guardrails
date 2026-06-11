@@ -4,33 +4,23 @@ Short project snapshot. Replace stale facts rather than appending history.
 
 ## Now
 
-- The repository contains a CC++-style data, generation, activation, metric,
-  text-diagnostic, and SWiM-probe scaffold.
-- The implemented CBRN experiment is parked. Its harmful and matched-benign
-  examples were almost perfectly text-separable, so it cannot support the
-  intended claim that activations add useful signal beyond text.
-- The CBRN implementation remains intact and is documented in
-  `docs/PARKED_CBRN.md`.
-- Earlier WildJailbreak implementation plans and agent-specific multi-agent
-  workflows were discarded during the documentation reset. Their
-  non-authoritative snapshot is recoverable from commit `280d363`.
+- The experiment implementation and tests have intentionally been removed so
+  the repository can be rebuilt through small, understandable milestones.
+- The previous implementation is recoverable from commit
+  `d389a35dd888ef773e4ecc5c69d2e17abb61a2e2`.
+- The tracked repository currently contains only the research scaffold, active
+  project guidance, dependency metadata, and directory ownership documentation.
 - No replacement experiment protocol is currently frozen.
 
 ## Next Bounded Milestone
 
-Select and freeze the next empirical milestone before changing experiment code.
-The milestone must specify:
+Establish the working workflow for the clean scaffold, then define and review
+one bounded planning milestone before adding experiment code. That milestone
+must state its scope, exclusions, acceptance evidence, and required review
+level.
 
-1. the precise claim and comparison;
-2. dataset, model, labels, split roles, and leakage controls;
-3. exploratory or reportable status;
-4. primary metric and threshold-selection rule;
-5. required baselines and acceptance criteria;
-6. provenance and review requirements.
-
-This is a planning milestone. It does not authorize implementation of a
-WildJailbreak pipeline, SAE pipeline, public-guard comparison, or other future
-stage.
+No empirical implementation is authorized until its scientific choices and
+observable acceptance criteria are frozen under `docs/WORKFLOW.md`.
 
 ## Stable Decisions
 
@@ -47,13 +37,9 @@ stage.
 
 ## Verification Baseline
 
-Verification at reset:
-
-- 2026-06-08: `python -m pytest` passed with 61 tests in 15.75 seconds.
-- 2026-06-08: `python -m ruff check src/agguardrails scripts tests` passed.
-
-These results describe only the checked-out commit and recorded environment.
-They must not be treated as evidence that later revisions pass.
+This is a documentation-and-scaffold repository. There is currently no
+experiment test suite or executable pipeline. Verification should check
+documentation, tracked structure, relative links, formatting, and diff scope.
 
 ## Open Decision
 

@@ -14,8 +14,6 @@ __pycache__/
 # Experiment artifacts (large / local caches)
 /artifacts/*
 !/artifacts/README.md
-!/artifacts/ccpp/
-!/artifacts/ccpp/.gitkeep
 
 # Local datasets
 data/raw/
@@ -29,8 +27,6 @@ data/processed/
 /results/*
 !/results/README.md
 !/results/.gitkeep
-!/results/ccpp/
-!/results/ccpp/.gitkeep
 
 # Logs
 *.log

@@ -151,14 +151,13 @@ command-line argument.
 
 Validate locally or in a short interactive allocation:
 
-1. targeted pytest coverage;
-2. Ruff for touched Python;
-3. entrypoint `--help`;
-4. config parsing and path validation;
-5. offline model/tokenizer/data loading;
-6. a tiny end-to-end or dry run;
-7. output metadata and resume behaviour;
-8. the exact rendered `sbatch` command.
+1. targeted tests and Ruff checks when the milestone contains Python;
+2. entrypoint `--help` when an entrypoint exists;
+3. config parsing and path validation;
+4. offline model/tokenizer/data loading;
+5. a tiny end-to-end or dry run;
+6. output metadata and resume behaviour;
+7. the exact rendered `sbatch` command.
 
 The cluster is not the first-pass debugger. A GPU-only step may remain, but
 imports, arguments, config, paths, and failure messages should be checked first.
