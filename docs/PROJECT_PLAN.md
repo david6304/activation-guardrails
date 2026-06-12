@@ -33,6 +33,42 @@ Decision gates:
 Phase 1 is complete only when the result maps to a paper result or an explicitly
 bounded local analogue and is suitable for supervisor review.
 
+### Approved Non-Reportable Smoke
+
+The first pipeline check uses:
+
+- 400 WildJailbreak prompts, balanced across harmful/benign and
+  vanilla/adversarial quadrants;
+- both vanilla and adversarial training examples, with preserved lineage and
+  group-safe 70/15/15 train/calibration/test splits;
+- one sampled Heretic Gemma 3 4B response per prompt at temperature `0.7`,
+  `top_p` `0.9`, deterministic per-example seeds, and a provisional 4096-token
+  response cap;
+- separate response-harmfulness and refusal judgments from aligned Gemma 3 12B,
+  with `exchange_unsafe = response_harmful`;
+- a TF-IDF logistic-regression full-exchange baseline;
+- an all-layer CC++ SWiM linear activation probe;
+- causal streaming simulation over assistant tokens;
+- TPR at 1% FPR as a pipeline check, plus ROC-AUC, PR-AUC, confusion counts, and
+  quadrant breakdowns.
+
+This run is exploratory. Judge labels and all resulting metrics are provisional
+and non-reportable. It does not authorize claims about low-FPR performance,
+generalization, harmfulness/refusal separation, or superiority over public
+guardrails.
+
+Deferred until after the smoke pipeline is diagnosed:
+
+- public guard models and cascades;
+- tactic holdouts;
+- 0.1% FPR evaluation;
+- reportable runs.
+
+The dataset manifest and local response-generation implementation are complete.
+The immediate next milestone is the explicitly authorized protected-model run
+described in `CURRENT_STATE.md`; judging and downstream experiment code remain
+deferred.
+
 ## Phase 2 - Harmfulness And Refusal
 
 Goal: test whether learned activation signals represent harmfulness, refusal,

@@ -12,8 +12,8 @@ be rebuilt through small, reviewable milestones. The previous implementation
 is recoverable from commit
 `d389a35dd888ef773e4ecc5c69d2e17abb61a2e2`.
 
-No empirical protocol is currently frozen. See `docs/CURRENT_STATE.md` for the
-current status and next action.
+The first empirical protocol is frozen only as a non-reportable smoke test.
+See `docs/CURRENT_STATE.md` for the approved scope and next action.
 
 ## Repository
 
@@ -48,8 +48,9 @@ not a frozen experiment environment. Install the working ranges with:
 pip install -r requirements.txt
 ```
 
-The next step is the planning-only dataset and label design milestone recorded
-in `docs/CURRENT_STATE.md`. No experiment code or data inspection is authorized
-until that milestone's scientific choices and acceptance criteria are approved.
-Reportable experiments must save exact environment and provenance metadata as
+The accepted dataset-manifest implementation and the locally validated
+response-generation entrypoint are described in `docs/CURRENT_STATE.md`.
+Response generation remains unexecuted pending explicit authorization for the
+exact cluster target and command. Reportable experiments require a later
+frozen protocol and must save exact environment and provenance metadata as
 defined in `docs/WORKFLOW.md`.

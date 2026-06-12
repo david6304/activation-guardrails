@@ -4,28 +4,46 @@ Short project snapshot. Replace stale facts rather than appending history.
 
 ## Now
 
-- The experiment implementation and tests have intentionally been removed so
-  the repository can be rebuilt through small, understandable milestones.
+- The experiment pipeline is being rebuilt through small, understandable
+  milestones rather than restoring the previous implementation wholesale.
 - The previous implementation is recoverable from commit
   `d389a35dd888ef773e4ecc5c69d2e17abb61a2e2`.
-- The tracked repository currently contains only the research scaffold, active
-  project guidance, dependency metadata, and directory ownership documentation.
-- No replacement experiment protocol is currently frozen.
+- The accepted WildJailbreak manifest implementation reproducibly builds and
+  validates the approved 400-example, group-safe smoke manifest.
+- The response-generation implementation is locally validated with CPU-safe
+  mocks and dry-run coverage. No protected-model response generation has been
+  run.
+- A two-hour, single-GPU Wintermute job script is prepared and locally
+  syntax-checked. It has not been submitted.
+- A replacement end-to-end protocol is approved only for a non-reportable
+  smoke test. Its labels, metrics, and results are provisional and cannot
+  support dissertation claims.
 
 ## Next Bounded Milestone
 
-Define and review a planning-only dataset and label design milestone for the
-Phase 1 activation-guardrail baseline. Compare a small number of defensible
-options against the intended claim, including label provenance, group unit,
-split roles, leakage and surface-form risks, availability, and reproduction
-faithfulness.
+Review and authorize the exact cluster target and command for the approved
+non-reportable response-generation smoke run.
 
-The deliverable is a decision proposal with alternatives, risks, unresolved
-questions, and acceptance evidence for a later implementation milestone. Do not
-download data, inspect final-evaluation examples, or add experiment code. No
-empirical implementation is authorized until the scientific choices and
-observable acceptance criteria are explicitly approved under
-`docs/WORKFLOW.md`.
+Scope:
+
+- use the accepted smoke manifest without changing its examples or splits;
+- load Heretic Gemma 3 4B and its processor from the protected local cache;
+- generate one sampled response per example with the approved provisional
+  decoding settings and deterministic per-example seeds;
+- preserve resumable per-example outputs and provenance without logging prompt
+  or response text;
+- keep all outputs explicitly non-reportable.
+
+For account `s2296274`, the cluster shorthand
+`~/models/gemma-3-4b-it-heretic` resolves to
+`/home/s2296274/models/gemma-3-4b-it-heretic`. The tokenizer/processor defaults
+to that same path unless inspection of the cached checkpoint establishes a
+different path.
+
+Local implementation does not authorize remote access or execution. Before a
+run, inspect the exact command, cluster target, resources, cached processor and
+model loading, output location, and dry-run summary. Do not judge responses,
+extract activations, or begin downstream stages in this milestone.
 
 ## Stable Decisions
 
@@ -40,15 +58,39 @@ observable acceptance criteria are explicitly approved under
 - Keep expensive stages cacheable and provenance-linked.
 - Diagnose surprising or near-ceiling results before extending the pipeline.
 
+## Approved Smoke Protocol
+
+The first end-to-end run is exploratory, provisional, and non-reportable:
+
+- use 400 WildJailbreak prompts balanced across harmful/benign and
+  vanilla/adversarial quadrants;
+- train on both vanilla and adversarial examples using lineage-preserving,
+  group-safe 70/15/15 train/calibration/test splits;
+- sample one response per prompt from Heretic Gemma 3 4B with temperature
+  `0.7`, `top_p` `0.9`, deterministic per-example seeds, and a provisional
+  4096-token response cap;
+- judge response harmfulness and refusal separately with aligned Gemma 3 12B,
+  then derive `exchange_unsafe = response_harmful`;
+- train a TF-IDF logistic-regression full-exchange baseline and an all-layer
+  CC++ SWiM linear activation probe;
+- simulate streaming detection causally over assistant tokens;
+- use TPR at 1% FPR only as a pipeline check, alongside ROC-AUC, PR-AUC,
+  confusion counts, and quadrant breakdowns.
+
+Judge labels and all smoke metrics are provisional. Public guard models,
+cascades, tactic holdouts, 0.1% FPR, and reportable runs are deferred.
+
 ## Verification Baseline
 
-This is a documentation-and-scaffold repository. There is currently no
-experiment test suite or executable pipeline. Verification should check
-documentation, tracked structure, relative links, formatting, and diff scope.
+Local verification covers manifest construction, response artifact contracts,
+resume behavior, exact chat-template invocation, decoding metadata, termination
+classification, argument parsing, and dry-run behavior. It does not establish
+that the protected checkpoint loads on the cluster, fits the selected GPU, or
+produces scientifically valid responses.
 
-## Open Decision
+## Open Decisions
 
-The next protocol needs a defensible dataset and label design that is not
-dominated by surface-form shortcuts. Because this choice can change the
-dissertation's empirical claim, it requires plan-first scientific review under
-`docs/WORKFLOW.md` before implementation.
+The smoke protocol does not freeze a reportable dataset, judge, threshold, or
+baseline comparison. Surface-form shortcuts, judge validity, lineage quality,
+split feasibility, reproduction faithfulness, and the evidential role of
+refusal labels must be diagnosed before any reportable protocol is proposed.
