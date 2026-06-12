@@ -36,6 +36,7 @@ Folder READMEs define what belongs in each directory.
 - `docs/CURRENT_STATE.md`: current status and next bounded milestone
 - `docs/PROJECT_PLAN.md`: research phases and decision gates
 - `docs/WORKFLOW.md`: coding, experiment, planning, and review workflow
+- `docs/USING_CODE_AGENTS.md`: practical guide to using Codex and Claude Code
 - `docs/CLUSTER.md`: cluster and Slurm guidance
 
 ## Environment
@@ -47,7 +48,8 @@ not a frozen experiment environment. Install the working ranges with:
 pip install -r requirements.txt
 ```
 
-The next step is to establish the working workflow, then define one bounded
-planning milestone before adding experiment code. Reportable experiments must
-save exact environment and provenance metadata as defined in
-`docs/WORKFLOW.md`.
+The next step is the planning-only dataset and label design milestone recorded
+in `docs/CURRENT_STATE.md`. No experiment code or data inspection is authorized
+until that milestone's scientific choices and acceptance criteria are approved.
+Reportable experiments must save exact environment and provenance metadata as
+defined in `docs/WORKFLOW.md`.

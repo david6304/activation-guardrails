@@ -14,13 +14,18 @@ Short project snapshot. Replace stale facts rather than appending history.
 
 ## Next Bounded Milestone
 
-Establish the working workflow for the clean scaffold, then define and review
-one bounded planning milestone before adding experiment code. That milestone
-must state its scope, exclusions, acceptance evidence, and required review
-level.
+Define and review a planning-only dataset and label design milestone for the
+Phase 1 activation-guardrail baseline. Compare a small number of defensible
+options against the intended claim, including label provenance, group unit,
+split roles, leakage and surface-form risks, availability, and reproduction
+faithfulness.
 
-No empirical implementation is authorized until its scientific choices and
-observable acceptance criteria are frozen under `docs/WORKFLOW.md`.
+The deliverable is a decision proposal with alternatives, risks, unresolved
+questions, and acceptance evidence for a later implementation milestone. Do not
+download data, inspect final-evaluation examples, or add experiment code. No
+empirical implementation is authorized until the scientific choices and
+observable acceptance criteria are explicitly approved under
+`docs/WORKFLOW.md`.
 
 ## Stable Decisions
 
