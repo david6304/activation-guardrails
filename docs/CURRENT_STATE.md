@@ -14,23 +14,27 @@ Short project snapshot. Replace stale facts rather than appending history.
   `vanilla`, `adversarial`, `completion`, and `data_type`, so tactics are
   recorded as unavailable rather than derived or substituted.
 - The response-generation implementation is locally validated with CPU-safe
-  mocks and dry-run coverage. No protected-model response generation has been
-  run.
-- A two-hour, single-GPU Wintermute job script is prepared and locally
-  syntax-checked. It has not been submitted.
+  mocks and dry-run coverage.
+- Wintermute job `3503323` was submitted for the protected-model smoke run and
+  failed during cache preflight before loading model weights or creating a
+  response artifact. Transformers selected `Gemma3Processor`, but the local
+  text-generation checkpoint has no image `preprocessor_config.json`.
+- The generation backend and cluster preflight now load the checkpoint's text
+  tokenizer directly while retaining the Gemma 3 image-text model class, whose
+  image inputs are optional for text-only generation.
 - A replacement end-to-end protocol is approved only for a non-reportable
   smoke test. Its labels, metrics, and results are provisional and cannot
   support dissertation claims.
 
 ## Next Bounded Milestone
 
-Review and authorize the exact cluster target and command for the approved
-non-reportable response-generation smoke run.
+Review the corrected cache preflight and authorize a replacement Wintermute job
+for the approved non-reportable response-generation smoke run.
 
 Scope:
 
 - use the accepted smoke manifest without changing its examples or splits;
-- load Heretic Gemma 3 4B and its processor from the protected local cache;
+- load Heretic Gemma 3 4B and its tokenizer from the protected local cache;
 - generate one sampled response per example with the approved provisional
   decoding settings and deterministic per-example seeds;
 - preserve resumable per-example outputs and provenance without logging prompt
@@ -39,12 +43,12 @@ Scope:
 
 For account `s2296274`, the cluster shorthand
 `~/models/gemma-3-4b-it-heretic` resolves to
-`/home/s2296274/models/gemma-3-4b-it-heretic`. The tokenizer/processor defaults
-to that same path unless inspection of the cached checkpoint establishes a
-different path.
+`/home/s2296274/models/gemma-3-4b-it-heretic`. The tokenizer defaults to that
+same path unless inspection of the cached checkpoint establishes a different
+path.
 
 Local implementation does not authorize remote access or execution. Before a
-run, inspect the exact command, cluster target, resources, cached processor and
+run, inspect the exact command, cluster target, resources, cached tokenizer and
 model loading, output location, and dry-run summary. Do not judge responses,
 extract activations, or begin downstream stages in this milestone.
 

@@ -107,20 +107,19 @@ python - "$MODEL_PATH" "$TOKENIZER_PATH" <<'PY'
 import hashlib
 import sys
 
-from transformers import AutoConfig, AutoProcessor
+from transformers import AutoConfig, AutoTokenizer
 
 model_path, tokenizer_path = sys.argv[1:]
 config = AutoConfig.from_pretrained(model_path, local_files_only=True)
-processor = AutoProcessor.from_pretrained(tokenizer_path, local_files_only=True)
-template = processor.chat_template or processor.tokenizer.chat_template
+tokenizer = AutoTokenizer.from_pretrained(tokenizer_path, local_files_only=True)
+template = tokenizer.chat_template
 if not template:
-    raise RuntimeError("cached processor/tokenizer has no chat template")
+    raise RuntimeError("cached tokenizer has no chat template")
 print(
     "cache_preflight",
     {
         "model_type": config.model_type,
-        "processor_class": type(processor).__name__,
-        "tokenizer_class": type(processor.tokenizer).__name__,
+        "tokenizer_class": type(tokenizer).__name__,
         "chat_template_sha256": hashlib.sha256(template.encode()).hexdigest(),
     },
 )

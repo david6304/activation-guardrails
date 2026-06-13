@@ -274,14 +274,14 @@ def generate_responses(
 
 
 class TransformersGemmaBackend:
-    """Lazy local-only Transformers backend for the protected Gemma 3 model."""
+    """Lazy local-only text-generation backend for the protected Gemma 3 model."""
 
     def __init__(self, model_path: str, tokenizer_path: str) -> None:
         import torch
-        from transformers import AutoModelForImageTextToText, AutoProcessor
+        from transformers import AutoModelForImageTextToText, AutoTokenizer
 
         self._torch = torch
-        self._processor = AutoProcessor.from_pretrained(
+        self._tokenizer = AutoTokenizer.from_pretrained(
             tokenizer_path, local_files_only=True
         )
         self._model = AutoModelForImageTextToText.from_pretrained(
@@ -291,8 +291,7 @@ class TransformersGemmaBackend:
             local_files_only=True,
         )
         self._model.eval()
-        tokenizer = self._processor.tokenizer
-        chat_template = self._processor.chat_template or tokenizer.chat_template
+        chat_template = self._tokenizer.chat_template
         if not chat_template:
             raise ResponseGenerationError("tokenizer has no chat template")
 
@@ -309,10 +308,9 @@ class TransformersGemmaBackend:
         }
         self.tokenizer_identity = {
             "path": tokenizer_path,
-            "processor_class": type(self._processor).__name__,
-            "tokenizer_class": type(tokenizer).__name__,
-            "name_or_path": tokenizer.name_or_path,
-            "commit_hash": getattr(tokenizer, "_commit_hash", None),
+            "tokenizer_class": type(self._tokenizer).__name__,
+            "name_or_path": self._tokenizer.name_or_path,
+            "commit_hash": getattr(self._tokenizer, "_commit_hash", None),
             "chat_template_sha256": hashlib.sha256(chat_template.encode()).hexdigest(),
         }
 
@@ -328,7 +326,7 @@ class TransformersGemmaBackend:
                 "content": [{"type": "text", "text": prompt}],
             }
         ]
-        inputs = self._processor.apply_chat_template(
+        inputs = self._tokenizer.apply_chat_template(
             messages,
             add_generation_prompt=True,
             tokenize=True,
@@ -357,7 +355,7 @@ class TransformersGemmaBackend:
         else:
             termination_reason = "other"
         return GeneratedResponse(
-            text=self._processor.decode(response_ids, skip_special_tokens=True),
+            text=self._tokenizer.decode(response_ids, skip_special_tokens=True),
             prompt_token_count=int(prompt_tokens),
             response_token_count=response_token_count,
             termination_reason=termination_reason,
@@ -366,7 +364,7 @@ class TransformersGemmaBackend:
     def _eos_token_ids(self) -> set[int]:
         values = (
             self._model.generation_config.eos_token_id,
-            self._processor.tokenizer.eos_token_id,
+            self._tokenizer.eos_token_id,
         )
         eos_ids: set[int] = set()
         for value in values:

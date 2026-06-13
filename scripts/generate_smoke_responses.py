@@ -89,7 +89,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--model-path", default=DEFAULT_MODEL_PATH)
     parser.add_argument(
         "--tokenizer-path",
-        help="Defaults to --model-path; this path is loaded as a Gemma 3 processor.",
+        help="Defaults to --model-path; this path is loaded as a Gemma 3 tokenizer.",
     )
     parser.add_argument("--base-seed", type=int, default=DEFAULT_BASE_SEED)
     parser.add_argument("--temperature", type=float, default=DEFAULT_TEMPERATURE)

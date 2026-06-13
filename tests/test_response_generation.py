@@ -188,11 +188,11 @@ def test_transformers_backend_uses_exact_chat_template_and_classifies_terminatio
     max_new_tokens: int,
     expected_reason: str,
 ) -> None:
-    processor = FakeProcessor()
+    tokenizer = FakeTokenizer()
     model = FakeModel(response_ids)
     backend = TransformersGemmaBackend.__new__(TransformersGemmaBackend)
     backend._torch = torch
-    backend._processor = processor
+    backend._tokenizer = tokenizer
     backend._model = model
     seeded: list[int] = []
     monkeypatch.setattr("transformers.set_seed", seeded.append)
@@ -204,7 +204,7 @@ def test_transformers_backend_uses_exact_chat_template_and_classifies_terminatio
     )
 
     assert seeded == [1234]
-    assert processor.template_call == {
+    assert tokenizer.template_call == {
         "conversation": [
             {
                 "role": "user",
@@ -216,7 +216,7 @@ def test_transformers_backend_uses_exact_chat_template_and_classifies_terminatio
         "return_dict": True,
         "return_tensors": "pt",
     }
-    assert "chat_template" not in processor.template_call
+    assert "chat_template" not in tokenizer.template_call
     assert model.generate_call["do_sample"] is True
     assert model.generate_call["temperature"] == DEFAULT_TEMPERATURE
     assert model.generate_call["top_p"] == DEFAULT_TOP_P
@@ -226,6 +226,47 @@ def test_transformers_backend_uses_exact_chat_template_and_classifies_terminatio
     assert result.prompt_token_count == 3
     assert result.response_token_count == len(response_ids)
     assert result.termination_reason == expected_reason
+
+
+def test_transformers_backend_loads_text_tokenizer_without_image_processor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tokenizer = FakeTokenizer()
+    tokenizer.chat_template = "test chat template"
+    tokenizer.name_or_path = MODEL_PATH
+    model = FakeLoadedModel()
+    tokenizer_calls: list[tuple[str, dict[str, object]]] = []
+    model_calls: list[tuple[str, dict[str, object]]] = []
+
+    def load_tokenizer(path: str, **kwargs):
+        tokenizer_calls.append((path, kwargs))
+        return tokenizer
+
+    def load_model(path: str, **kwargs):
+        model_calls.append((path, kwargs))
+        return model
+
+    monkeypatch.setattr("transformers.AutoTokenizer.from_pretrained", load_tokenizer)
+    monkeypatch.setattr(
+        "transformers.AutoModelForImageTextToText.from_pretrained", load_model
+    )
+
+    backend = TransformersGemmaBackend(MODEL_PATH, MODEL_PATH)
+
+    assert tokenizer_calls == [(MODEL_PATH, {"local_files_only": True})]
+    assert model_calls == [
+        (
+            MODEL_PATH,
+            {
+                "device_map": "auto",
+                "dtype": "auto",
+                "local_files_only": True,
+            },
+        )
+    ]
+    assert model.eval_called is True
+    assert backend.tokenizer_identity["tokenizer_class"] == "FakeTokenizer"
+    assert "processor_class" not in backend.tokenizer_identity
 
 
 def test_cli_argument_parsing_and_dry_run_do_not_load_model(
@@ -280,9 +321,9 @@ class FakeBatch(dict):
         return self
 
 
-class FakeProcessor:
+class FakeTokenizer:
     def __init__(self) -> None:
-        self.tokenizer = SimpleNamespace(eos_token_id=2)
+        self.eos_token_id = 2
         self.template_call: dict[str, object] = {}
 
     def apply_chat_template(self, conversation, **kwargs):
@@ -311,6 +352,20 @@ class FakeModel:
         self.generate_call = kwargs
         prompt_ids = kwargs["input_ids"][0].tolist()
         return torch.tensor([prompt_ids + self.response_ids])
+
+
+class FakeLoadedModel:
+    def __init__(self) -> None:
+        self.config = SimpleNamespace(
+            model_type="gemma3",
+            name_or_path=MODEL_PATH,
+            _commit_hash=None,
+            to_dict=lambda: {"model_type": "gemma3"},
+        )
+        self.eval_called = False
+
+    def eval(self) -> None:
+        self.eval_called = True
 
 
 def _small_rows() -> list[dict[str, object]]:

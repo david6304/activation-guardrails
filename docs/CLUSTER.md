@@ -171,6 +171,14 @@ export HF_DATASETS_OFFLINE=1
 An offline smoke test should load the exact pinned model/tokenizer/data from
 cache before a long run is submitted.
 
+For model-backed jobs, the preflight must exercise the same loading and input
+preparation path as the production command. In a short allocation, load the
+exact tokenizer or processor and model class from the pinned local cache,
+format one synthetic non-sensitive input, and run the smallest meaningful
+forward pass or one-token generation. A config-only or tokenizer-only check is
+not sufficient to establish checkpoint compatibility, CUDA availability, or
+memory fit.
+
 ## Job Script Contract
 
 A cluster job should:
@@ -183,6 +191,10 @@ A cluster job should:
 - accept config, output path, and resource-sensitive values as arguments;
 - write to a unique run directory;
 - checkpoint or append atomically when practical;
+- emit periodic sanitized progress to the Slurm output for long-running work
+  (completed/total, failures, elapsed time, and rate or ETA where useful), with
+  output buffering disabled when necessary; never log prompts, responses, or
+  other sensitive example content;
 - fail early if required caches or inputs are absent.
 
 Minimal shape:
