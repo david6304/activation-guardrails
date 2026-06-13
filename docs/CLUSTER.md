@@ -79,6 +79,71 @@ Never request bare `--gres=gpu:1` on a heterogeneous partition when the job has
 a known VRAM minimum. Inspect live GRES names and request a capable device.
 Request multiple GPUs only when the code is explicitly multi-GPU.
 
+## GPU Selection Workflow
+
+Choose resources from live evidence immediately before submission. `sinfo`
+shows advertised hardware and node state, while `squeue` shows current demand;
+neither reliably predicts a job's start time. Compare eligible requests with
+`sbatch --test-only`, which asks the scheduler for its current estimated start.
+
+1. Define the job contract before checking availability:
+
+   - minimum safe VRAM and acceptable GPU models;
+   - CPUs, host memory, and one versus multiple GPUs;
+   - a measured or conservative wall-time request;
+   - whether the output can resume safely after timeout or interruption.
+
+2. Inspect live resources and queues:
+
+   ```bash
+   sinfo -N -p Teaching,Interactive,Wintermute \
+     -O partition,nodelist:20,statecompact,gres:80,cpusstate:18,memory:12
+
+   squeue -p Teaching,Interactive,Wintermute \
+     -o "%.10i %.12P %.18j %.8u %.2t %.10M %.10l %.4D %R"
+   ```
+
+3. Exclude GPU types below the job's measured or justified VRAM requirement.
+   Do not choose a smaller GPU only because its queue appears shorter.
+
+4. Run one non-submitting scheduler estimate for each eligible target:
+
+   ```bash
+   sbatch --test-only \
+     --partition=<PARTITION> \
+     --gres=gpu:<GPU_TYPE>:1 \
+     --time=<WALL_TIME> \
+     scripts/<JOB_SCRIPT>
+   ```
+
+   On a homogeneous partition, `--gres=gpu:1` is acceptable after live
+   inspection confirms every possible node satisfies the requirement.
+
+5. Compare the estimated starts, then submit exactly one request. Do not leave
+   competing jobs that write to the same output path. Cancel the old pending
+   job before switching targets, or give the alternative job a distinct output
+   path when an intentional comparison requires both.
+
+6. Monitor the selected job:
+
+   ```bash
+   squeue -j <JOB_ID> \
+     -o "%.18i %.12P %.18j %.2t %.10M %.10l %.4D %R"
+   tail -f <SLURM_OUTPUT>
+   ```
+
+7. Record actual resource use after the job leaves the queue:
+
+   ```bash
+   sacct -j <JOB_ID> \
+     --format=JobID,Partition,State,Elapsed,Timelimit,AllocTRES,MaxRSS,ExitCode
+   ```
+
+Use measured elapsed time, peak memory, failures, and resume behavior to tighten
+the next request. An agent may interpret the live outputs and recommend one
+exact command, but remote submission still requires explicit user authorization
+for that target and action.
+
 ## Storage And Model Caches
 
 | Location | Use |
@@ -160,7 +225,10 @@ Validate locally or in a short interactive allocation:
 7. the exact rendered `sbatch` command.
 
 The cluster is not the first-pass debugger. A GPU-only step may remain, but
-imports, arguments, config, paths, and failure messages should be checked first.
+imports, arguments, config, paths, dataset shape, cached model/processor
+metadata, and failure messages should be checked locally or on the head node
+first. Request a GPU only for checks that genuinely require CUDA, such as
+weight loading, memory fit, or generation.
 
 ## Monitoring
 

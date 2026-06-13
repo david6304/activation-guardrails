@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ast
 import hashlib
 import json
 from collections import Counter, defaultdict
@@ -13,7 +12,7 @@ DATASET_ID = "allenai/wildjailbreak"
 DATASET_REVISION = "5ddc12a7894f842b0619b8e1c7ee496b198af009"
 SOURCE_CONFIG = "train"
 SOURCE_SPLIT = "train"
-MANIFEST_SCHEMA_VERSION = 1
+MANIFEST_SCHEMA_VERSION = 2
 
 DATA_TYPES = {
     "vanilla_harmful": ("harmful", "vanilla"),
@@ -24,7 +23,13 @@ DATA_TYPES = {
 LABELS = ("harmful", "benign")
 PROMPT_TYPES = ("vanilla", "adversarial")
 SPLIT_GROUP_COUNTS = {"train": 70, "calibration": 15, "test": 15}
-SOURCE_FIELDS = {"vanilla", "adversarial", "tactics", "completion", "data_type"}
+SOURCE_SCHEMA = {
+    "vanilla": "string",
+    "adversarial": "string",
+    "completion": "string",
+    "data_type": "string",
+}
+SOURCE_FIELDS = set(SOURCE_SCHEMA)
 MANIFEST_FIELDS = {
     "manifest_schema_version",
     "example_id",
@@ -36,13 +41,31 @@ MANIFEST_FIELDS = {
     "prompt",
     "vanilla_prompt",
     "adversarial_prompt",
-    "tactics",
     "source",
 }
 
 
 class ManifestValidationError(ValueError):
     """Raised when source rows or a manifest violate the data contract."""
+
+
+def validate_source_schema(features: Mapping[str, Any]) -> None:
+    """Fail before row iteration when the pinned dataset schema changes."""
+
+    expected = dict(sorted(SOURCE_SCHEMA.items()))
+    observed = dict(
+        sorted(
+            (
+                name,
+                str(getattr(feature, "dtype", type(feature).__name__)),
+            )
+            for name, feature in features.items()
+        )
+    )
+    if observed != expected:
+        raise ManifestValidationError(
+            f"source schema mismatch: expected {expected}, observed {observed}"
+        )
 
 
 def build_manifest(
@@ -123,6 +146,11 @@ def validate_manifest(rows: Sequence[Mapping[str, Any]]) -> None:
         missing = MANIFEST_FIELDS - row.keys()
         if missing:
             raise ManifestValidationError(f"row {index} missing {sorted(missing)}")
+        unexpected = row.keys() - MANIFEST_FIELDS
+        if unexpected:
+            raise ManifestValidationError(
+                f"row {index} has unexpected fields {sorted(unexpected)}"
+            )
 
         label, prompt_type, split = (
             row["harmfulness"],
@@ -135,10 +163,6 @@ def validate_manifest(rows: Sequence[Mapping[str, Any]]) -> None:
             or split not in SPLIT_GROUP_COUNTS
         ):
             raise ManifestValidationError(f"row {index} has invalid labels or version")
-        if not isinstance(row["tactics"], list) or not all(
-            isinstance(tactic, str) for tactic in row["tactics"]
-        ):
-            raise ManifestValidationError(f"row {index} tactics must be list[str]")
         if not isinstance(row["source"], dict) or "row_index" not in row["source"]:
             raise ManifestValidationError(f"row {index} has invalid source identity")
 
@@ -249,7 +273,6 @@ def _normalize_source_row(row: Mapping[str, Any], index: int) -> dict[str, Any]:
         "prompt": vanilla if prompt_type == "vanilla" else adversarial,
         "vanilla_prompt": vanilla,
         "adversarial_prompt": adversarial or None,
-        "tactics": _parse_tactics(row["tactics"], index),
         "source": {
             "dataset_id": DATASET_ID,
             "revision": DATASET_REVISION,
@@ -258,27 +281,6 @@ def _normalize_source_row(row: Mapping[str, Any], index: int) -> dict[str, Any]:
             "row_index": index,
         },
     }
-
-
-def _parse_tactics(value: Any, index: int) -> list[str]:
-    parsed = value
-    if value in (None, ""):
-        parsed = []
-    elif isinstance(value, str):
-        try:
-            parsed = json.loads(value)
-        except json.JSONDecodeError:
-            try:
-                parsed = ast.literal_eval(value)
-            except (SyntaxError, ValueError) as exc:
-                raise ManifestValidationError(
-                    f"source row {index} tactics are not a structured list"
-                ) from exc
-    if not isinstance(parsed, (list, tuple)) or not all(
-        isinstance(tactic, str) for tactic in parsed
-    ):
-        raise ManifestValidationError(f"source row {index} tactics must be list[str]")
-    return list(parsed)
 
 
 def _provenance(
@@ -327,6 +329,12 @@ def _provenance(
             },
             "source_fields_omitted": {
                 "completion": "response text is outside this prompt manifest"
+            },
+            "source_fields_unavailable": {
+                "tactics": (
+                    "not present in the pinned train/train.tsv source schema; "
+                    "not derived or substituted"
+                )
             },
         },
         "group_definition": (

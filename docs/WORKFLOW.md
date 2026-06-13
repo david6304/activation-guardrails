@@ -65,6 +65,9 @@ Within the approved scope:
 - use the repository's current patterns;
 - avoid new dependencies;
 - search for existing helpers, schemas, and boundaries before adding new ones;
+- where code depends on an external contract, include a representative
+  real-shape fixture or focused preflight when practical rather than relying
+  only on idealized synthetic inputs;
 - avoid abstractions used by only one concrete path;
 - do not implement later research phases;
 - do not change scientific choices while fixing engineering defects;
@@ -197,7 +200,8 @@ validate the scientific choice itself.
 10. Record limitations, blocked checks, and dated verification results.
 
 For GPU work, validate imports, argument parsing, config loading, output paths,
-dry-run behaviour, and CPU-safe tests locally before cluster submission.
+dry-run behaviour, external input shapes, and CPU-safe tests locally or on the
+cluster head node before cluster submission.
 Remote access and job submission require explicit authorization for the target
 host, resources, and action.
 

@@ -48,6 +48,10 @@ add interpretable evidence.
 - Inspect relevant code, tests, configs, and folder guidance before proposing
   new files, helpers, schemas, or abstractions. Reuse an existing boundary when
   it fits.
+- Before encoding an assumption about an external dataset, model, package, or
+  artifact, verify the relevant contract against the exact pinned or installed
+  version when practical. Do not silently drop, rename, derive, or substitute
+  fields or behaviour that affect the scientific contract.
 - Prefer scripts, configs, and saved metadata over framework layers.
 - Distinguish exploratory runs from reportable experiments before execution.
 - Methods, labels, splits, baselines, metrics, thresholds, and claims require

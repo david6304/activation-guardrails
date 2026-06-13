@@ -13,6 +13,7 @@ from agguardrails.wildjailbreak_manifest import (
     SOURCE_CONFIG,
     SOURCE_SPLIT,
     build_manifest,
+    validate_source_schema,
     write_manifest,
 )
 
@@ -40,7 +41,7 @@ def main() -> int:
 def _load_source_rows():
     from datasets import load_dataset
 
-    return load_dataset(
+    rows = load_dataset(
         DATASET_ID,
         SOURCE_CONFIG,
         split=SOURCE_SPLIT,
@@ -48,6 +49,8 @@ def _load_source_rows():
         delimiter="\t",
         keep_default_na=False,
     )
+    validate_source_schema(rows.features)
+    return rows
 
 
 def _parse_args() -> argparse.Namespace:

@@ -9,7 +9,10 @@ Short project snapshot. Replace stale facts rather than appending history.
 - The previous implementation is recoverable from commit
   `d389a35dd888ef773e4ecc5c69d2e17abb61a2e2`.
 - The accepted WildJailbreak manifest implementation reproducibly builds and
-  validates the approved 400-example, group-safe smoke manifest.
+  validates the approved 400-example, group-safe smoke manifest. Manifest
+  schema v2 omits `tactics`: the pinned `train/train.tsv` source exposes only
+  `vanilla`, `adversarial`, `completion`, and `data_type`, so tactics are
+  recorded as unavailable rather than derived or substituted.
 - The response-generation implementation is locally validated with CPU-safe
   mocks and dry-run coverage. No protected-model response generation has been
   run.
@@ -82,11 +85,12 @@ cascades, tactic holdouts, 0.1% FPR, and reportable runs are deferred.
 
 ## Verification Baseline
 
-Local verification covers manifest construction, response artifact contracts,
-resume behavior, exact chat-template invocation, decoding metadata, termination
-classification, argument parsing, and dry-run behavior. It does not establish
-that the protected checkpoint loads on the cluster, fits the selected GPU, or
-produces scientifically valid responses.
+Local verification covers pinned-source schema preflight, manifest
+construction, response artifact contracts, resume behavior, exact chat-template
+invocation, decoding metadata, termination classification, argument parsing,
+and dry-run behavior. It does not establish that the protected checkpoint loads
+on the cluster, fits the selected GPU, or produces scientifically valid
+responses.
 
 ## Open Decisions
 

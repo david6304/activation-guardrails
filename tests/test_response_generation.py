@@ -361,14 +361,12 @@ def _source_rows() -> list[dict[str, object]]:
                     {
                         "vanilla": vanilla,
                         "adversarial": "",
-                        "tactics": [],
                         "completion": "omitted",
                         "data_type": f"vanilla_{label}",
                     },
                     {
                         "vanilla": vanilla,
                         "adversarial": f"derived request {label} {group_index}",
-                        "tactics": ["synthetic"],
                         "completion": "omitted",
                         "data_type": f"adversarial_{label}",
                     },
