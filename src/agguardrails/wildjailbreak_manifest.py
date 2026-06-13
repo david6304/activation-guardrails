@@ -24,11 +24,12 @@ LABELS = ("harmful", "benign")
 PROMPT_TYPES = ("vanilla", "adversarial")
 SPLIT_GROUP_COUNTS = {"train": 70, "calibration": 15, "test": 15}
 SOURCE_SCHEMA = {
-    "vanilla": "string",
-    "adversarial": "string",
-    "completion": "string",
-    "data_type": "string",
+    "vanilla": "text",
+    "adversarial": "text",
+    "completion": "text",
+    "data_type": "text",
 }
+TEXT_DTYPES = {"string", "large_string"}
 SOURCE_FIELDS = set(SOURCE_SCHEMA)
 MANIFEST_FIELDS = {
     "manifest_schema_version",
@@ -52,19 +53,26 @@ class ManifestValidationError(ValueError):
 def validate_source_schema(features: Mapping[str, Any]) -> None:
     """Fail before row iteration when the pinned dataset schema changes."""
 
-    expected = dict(sorted(SOURCE_SCHEMA.items()))
-    observed = dict(
-        sorted(
-            (
-                name,
-                str(getattr(feature, "dtype", type(feature).__name__)),
-            )
-            for name, feature in features.items()
-        )
-    )
-    if observed != expected:
+    observed_fields = set(features)
+    observed_dtypes = {
+        name: str(getattr(feature, "dtype", type(feature).__name__))
+        for name, feature in features.items()
+    }
+    invalid_text_fields = {
+        name: observed_dtypes[name]
+        for name in SOURCE_FIELDS & observed_fields
+        if observed_dtypes[name] not in TEXT_DTYPES
+    }
+    if observed_fields != SOURCE_FIELDS or invalid_text_fields:
         raise ManifestValidationError(
-            f"source schema mismatch: expected {expected}, observed {observed}"
+            "source schema mismatch: "
+            f"expected fields {sorted(SOURCE_FIELDS)} with text values; "
+            f"observed fields {sorted(observed_fields)}"
+            + (
+                f", non-text fields {dict(sorted(invalid_text_fields.items()))}"
+                if invalid_text_fields
+                else ""
+            )
         )
 
 
@@ -75,16 +83,28 @@ def build_manifest(
 
     groups = {label: defaultdict(lambda: defaultdict(list)) for label in LABELS}
     source_counts: Counter[str] = Counter()
+    malformed_counts: Counter[str] = Counter()
     for row_index, source_row in enumerate(source_rows):
+        data_type = source_row.get("data_type")
+        if data_type in DATA_TYPES:
+            source_counts[data_type] += 1
         row = _normalize_source_row(source_row, row_index)
+        if row is None:
+            # The pinned source contains a few labelled rows with no usable prompt.
+            malformed_counts[f"{data_type}:invalid_lineage"] += 1
+            continue
         groups[row["harmfulness"]][row["group_id"]][row["prompt_type"]].append(row)
-        source_counts[row["data_type"]] += 1
 
     overlap = set(groups["harmful"]) & set(groups["benign"])
-    if overlap:
-        raise ManifestValidationError(
-            f"{len(overlap)} groups have conflicting harmfulness labels"
-        )
+    conflicting_rows = sum(
+        sum(len(rows) for rows in groups[label][group_id].values())
+        for group_id in overlap
+        for label in LABELS
+    )
+    # Conflicting source labels cannot define a leakage-safe group.
+    for group_id in overlap:
+        for label in LABELS:
+            del groups[label][group_id]
 
     manifest: list[dict[str, Any]] = []
     stats: dict[str, dict[str, int]] = {}
@@ -130,7 +150,15 @@ def build_manifest(
         )
     )
     validate_manifest(manifest)
-    return manifest, _provenance(manifest, source_counts, stats, seed)
+    return manifest, _provenance(
+        manifest,
+        source_counts,
+        malformed_counts,
+        len(overlap),
+        conflicting_rows,
+        stats,
+        seed,
+    )
 
 
 def validate_manifest(rows: Sequence[Mapping[str, Any]]) -> None:
@@ -241,7 +269,7 @@ def write_manifest(
     )
 
 
-def _normalize_source_row(row: Mapping[str, Any], index: int) -> dict[str, Any]:
+def _normalize_source_row(row: Mapping[str, Any], index: int) -> dict[str, Any] | None:
     missing = SOURCE_FIELDS - row.keys()
     if missing:
         raise ManifestValidationError(f"source row {index} missing {sorted(missing)}")
@@ -261,7 +289,7 @@ def _normalize_source_row(row: Mapping[str, Any], index: int) -> dict[str, Any]:
         or (prompt_type == "adversarial" and not adversarial.strip())
     )
     if invalid:
-        raise ManifestValidationError(f"source row {index} has invalid lineage")
+        return None
 
     return {
         "manifest_schema_version": MANIFEST_SCHEMA_VERSION,
@@ -286,6 +314,9 @@ def _normalize_source_row(row: Mapping[str, Any], index: int) -> dict[str, Any]:
 def _provenance(
     manifest: Sequence[Mapping[str, Any]],
     source_counts: Counter[str],
+    malformed_counts: Counter[str],
+    conflicting_groups: int,
+    conflicting_rows: int,
     stats: Mapping[str, Mapping[str, int]],
     seed: int,
 ) -> dict[str, Any]:
@@ -311,6 +342,9 @@ def _provenance(
             ),
         },
         "exclusions": {
+            "conflicting_label_groups": conflicting_groups,
+            "rows_in_conflicting_label_groups": conflicting_rows,
+            "malformed_source_rows": dict(sorted(malformed_counts.items())),
             "source_rows_not_selected": {
                 kind: count - selected[kind]
                 for kind, count in sorted(source_counts.items())

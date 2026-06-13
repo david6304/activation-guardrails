@@ -18,6 +18,14 @@ from agguardrails.wildjailbreak_manifest import (
 def test_manifest_is_balanced_and_group_safe(
     pinned_source_rows: list[dict[str, str]],
 ) -> None:
+    pinned_source_rows.append(
+        {
+            "vanilla": "malformed but labelled source row",
+            "adversarial": "",
+            "completion": "omitted",
+            "data_type": "adversarial_benign",
+        }
+    )
     rows, metadata = build_manifest(pinned_source_rows, seed=17)
 
     assert len(rows) == 400
@@ -43,6 +51,11 @@ def test_manifest_is_balanced_and_group_safe(
     assert all(len(splits) == 1 for splits in splits_by_group.values())
     assert metadata["dataset"]["revision"] == DATASET_REVISION
     assert metadata["counts"]["selected_rows"] == 400
+    assert metadata["exclusions"]["malformed_source_rows"] == {
+        "adversarial_benign:invalid_lineage": 1
+    }
+    assert metadata["exclusions"]["conflicting_label_groups"] == 0
+    assert metadata["exclusions"]["rows_in_conflicting_label_groups"] == 0
     assert metadata["exclusions"]["source_fields_unavailable"] == {
         "tactics": (
             "not present in the pinned train/train.tsv source schema; "
@@ -69,31 +82,58 @@ def test_manifest_is_deterministic_and_preserves_lineage(
 def test_source_schema_preflight_matches_pinned_dataset_shape() -> None:
     actual_features = Features(
         {
-            "vanilla": Value("string"),
-            "adversarial": Value("string"),
-            "completion": Value("string"),
-            "data_type": Value("string"),
+            "vanilla": Value("large_string"),
+            "adversarial": Value("large_string"),
+            "completion": Value("large_string"),
+            "data_type": Value("large_string"),
         }
     )
     validate_source_schema(actual_features)
 
 
-def test_source_schema_preflight_rejects_metadata_only() -> None:
-    mismatched_features = Features(
-        {
-            "vanilla": Value("string"),
-            "adversarial": Value("string"),
-            "tactics": Value("string"),
-            "completion": Value("string"),
-            "data_type": Value("string"),
-        }
+def test_source_schema_preflight_accepts_equivalent_text_storage() -> None:
+    validate_source_schema(
+        Features(
+            {
+                "vanilla": Value("string"),
+                "adversarial": Value("string"),
+                "completion": Value("string"),
+                "data_type": Value("string"),
+            }
+        )
     )
+
+
+@pytest.mark.parametrize(
+    "mismatched_features",
+    [
+        Features(
+            {
+                "vanilla": Value("large_string"),
+                "adversarial": Value("large_string"),
+                "tactics": Value("large_string"),
+                "completion": Value("large_string"),
+                "data_type": Value("large_string"),
+            }
+        ),
+        Features(
+            {
+                "vanilla": Value("large_string"),
+                "adversarial": Value("large_string"),
+                "completion": Value("large_string"),
+                "data_type": Value("int64"),
+            }
+        ),
+    ],
+)
+def test_source_schema_preflight_rejects_incompatible_shape(
+    mismatched_features: Features,
+) -> None:
     with pytest.raises(ManifestValidationError) as exc_info:
         validate_source_schema(mismatched_features)
 
     message = str(exc_info.value)
     assert "source schema mismatch" in message
-    assert "tactics" in message
     assert "base request" not in message
     assert "source completion" not in message
 
@@ -120,6 +160,26 @@ def test_schema_validation_rejects_group_overlap(
     unexpected_field[0]["tactics"] = ["must not be accepted"]
     with pytest.raises(ManifestValidationError, match="unexpected fields"):
         validate_manifest(unexpected_field)
+
+
+def test_conflicting_source_label_group_is_excluded(
+    pinned_source_rows: list[dict[str, str]],
+) -> None:
+    conflict_prompt = pinned_source_rows[0]["vanilla"]
+    pinned_source_rows.append(
+        {
+            "vanilla": conflict_prompt,
+            "adversarial": "",
+            "completion": "omitted",
+            "data_type": "vanilla_benign",
+        }
+    )
+
+    rows, metadata = build_manifest(pinned_source_rows, seed=17)
+
+    assert all(row["vanilla_prompt"] != conflict_prompt for row in rows)
+    assert metadata["exclusions"]["conflicting_label_groups"] == 1
+    assert metadata["exclusions"]["rows_in_conflicting_label_groups"] == 4
 
 
 @pytest.fixture
