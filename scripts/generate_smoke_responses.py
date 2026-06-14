@@ -18,6 +18,8 @@ from agguardrails.response_generation import (
     generate_responses,
     inspect_resume,
     load_manifest,
+    preflight_generation,
+    progress_log,
 )
 
 DEFAULT_MODEL_PATH = "/home/s2296274/models/gemma-3-4b-it-heretic"
@@ -59,7 +61,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         return 0
 
-    backend = TransformersGemmaBackend(args.model_path, tokenizer_path)
+    progress_log("backend_initialization_start")
+    backend = TransformersGemmaBackend(
+        args.model_path,
+        tokenizer_path,
+        log=progress_log,
+    )
+    preflight_generation(backend, log=progress_log)
     summary = generate_responses(
         rows,
         output_path=args.output,
@@ -69,6 +77,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         model_path=args.model_path,
         tokenizer_path=tokenizer_path,
         backend=backend,
+        log=progress_log,
     )
     print(json.dumps(summary, sort_keys=True))
     return int(summary["remaining_after_run"] != 0)

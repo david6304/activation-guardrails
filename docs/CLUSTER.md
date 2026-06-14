@@ -195,6 +195,8 @@ A cluster job should:
   (completed/total, failures, elapsed time, and rate or ETA where useful), with
   output buffering disabled when necessary; never log prompts, responses, or
   other sensitive example content;
+- log before and after long blocking stages such as model loading and first
+  generation, with a simple periodic heartbeat when a stage may stay silent;
 - fail early if required caches or inputs are absent.
 
 Minimal shape:

@@ -5,6 +5,17 @@ source of truth: reproduce activation-based guardrails, test whether activation
 signals separate harmfulness from refusal, then study SAE features where they
 add interpretable evidence.
 
+## Project Character
+
+This is a solo research project, not a production software system. Optimize for
+getting a clear, scientifically useful experiment working with code the user
+can understand and modify. Do not optimize for hypothetical scale, reuse,
+extensibility, completeness, or operational perfection.
+
+The default implementation should be the smallest direct version that can be
+run and inspected. A single straightforward script is often better than a
+reusable framework. Add structure only after a concrete need appears.
+
 ## Start Here
 
 1. Read `README.md` and `docs/CURRENT_STATE.md`.
@@ -42,12 +53,23 @@ add interpretable evidence.
 
 - Treat the repository as actively edited by the user. Never overwrite or
   revert unrelated work.
-- Keep changes small, explicit, and research-oriented.
+- Prefer working, readable research code over production-style engineering.
 - Work on one bounded milestone at a time. Do not build infrastructure for
   future stages.
-- Inspect relevant code, tests, configs, and folder guidance before proposing
-  new files, helpers, schemas, or abstractions. Reuse an existing boundary when
-  it fits.
+- Start with the shortest real end-to-end path. For external integrations,
+  prove one real example works before adding surrounding machinery.
+- Do not add abstractions, schemas, configuration systems, generalized helpers,
+  retries, resumability, extensive provenance, or scalability work unless the
+  current milestone demonstrably needs them.
+- Exploratory code may be a small script with minimal tests. Manual inspection
+  of a tiny real run is valid acceptance evidence.
+- Add tests when they protect scientific contracts, subtle reusable logic, or
+  a demonstrated regression. Do not create broad mocked test suites for thin
+  orchestration code or use mocks as evidence that a real model, dataset,
+  package, or cluster integration works.
+- Let unexpected exceptions fail with their traceback during exploration.
+  Catch errors only when the code can recover meaningfully or add useful
+  context without hiding the cause.
 - Before encoding an assumption about an external dataset, model, package, or
   artifact, verify the relevant contract against the exact pinned or installed
   version when practical. Do not silently drop, rename, derive, or substitute
@@ -74,4 +96,4 @@ as the sole record. Do not log routine commands or minor fixes.
 
 - Use `rg` and `rg --files` for search.
 - Use `ruff` for linting and formatting.
-- Use `pytest` for tests.
+- Use `pytest` when tests are warranted by the rules above.

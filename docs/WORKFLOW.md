@@ -3,38 +3,29 @@
 Lightweight Codex, Claude Code, and experiment workflow for a solo dissertation
 repository. `AGENTS.md` is the canonical instruction entrypoint for both tools.
 
-## Interaction Cycle
+## Default Approach
 
-Use this cycle for one milestone at a time:
+This is a solo dissertation repository. The default goal is a small experiment
+that works and can be understood, not production-quality software.
 
-1. **Understand:** inspect the routed documentation and relevant existing code,
-   then restate the objective, current behaviour, assumptions, and unknowns.
-2. **Plan:** define scope, exclusions, expected files, acceptance evidence,
-   scientific risks, and stop conditions.
-3. **Approve:** obtain explicit user approval before implementing a planned
-   milestone. Scientific choices always require user approval.
-4. **Implement:** make the smallest coherent approved change without adding
-   future-stage infrastructure.
-5. **Verify:** run mechanical checks and state separately what they do not
-   establish scientifically.
-6. **Explain:** walk through the diff, data flow, assumptions, and failure
-   modes.
-7. **Review:** inspect the complete diff against the approved milestone.
-8. **Commit:** commit only after the user understands and accepts the change.
+For one milestone:
 
-Explanation and planning requests are read-only unless the user explicitly
-authorizes edits. Approval of a plan authorizes only its stated scope.
+1. Inspect only the relevant context.
+2. Implement the simplest direct path.
+3. Run the smallest real example available.
+4. Inspect the output or failure.
+5. Add only the hardening justified by that evidence.
+
+Obtain explicit approval for scientific choices. Routine engineering details do
+not need a separate planning ceremony when the request already authorizes the
+work.
 
 ## One Milestone At A Time
 
 Before editing, define one bounded milestone:
 
 - objective and claim, if scientific;
-- files or components in scope;
-- explicit exclusions;
-- expected files and approximate diff size;
-- observable acceptance criteria;
-- verification commands;
+- the smallest observable result that would show progress;
 - whether the work is exploratory or reportable.
 
 Finish or deliberately stop that milestone before starting another. Do not add
@@ -43,31 +34,17 @@ frameworks, or unrelated cleanup.
 
 ## Default Scope Limits
 
-For a normal implementation milestone, expect:
-
-- one to three implementation files plus directly associated tests or config;
-- no more than about five changed files in total;
-- roughly 50 to 250 substantive changed lines.
-
-These are reviewability guidelines, not quality measures. A cohesive mechanical
-rename, generated metadata, or an inseparable schema migration may be larger.
-Identify and justify such an exception before continuing.
-
-Stop and replan before exceeding about six files or 300 to 400 substantive
-lines, or when the work would introduce a dependency, add a new abstraction,
-cross a pipeline stage, or change an empirical contract. Separate generated or
-purely mechanical churn from substantive diff size.
+For exploratory work, prefer one direct script and tens or low hundreds of
+lines. This is a direction, not a quota. If the implementation grows because of
+abstractions, generalized validation, metadata machinery, or tests rather than
+the experiment itself, simplify it.
 
 Within the approved scope:
 
 - change only files required by the milestone;
-- preserve existing interfaces and artifact formats;
 - use the repository's current patterns;
 - avoid new dependencies;
-- search for existing helpers, schemas, and boundaries before adding new ones;
-- where code depends on an external contract, include a representative
-  real-shape fixture or focused preflight when practical rather than relying
-  only on idealized synthetic inputs;
+- use real small inputs and the exact external dependency when practical;
 - avoid abstractions used by only one concrete path;
 - do not implement later research phases;
 - do not change scientific choices while fixing engineering defects;
@@ -81,26 +58,24 @@ Acceptance criteria must describe inspectable outcomes, not intentions.
 Depending on the milestone, include:
 
 - exact command and expected exit status;
-- created artifact, schema, or metadata fields;
-- deterministic fixture or invariant;
-- metric calculation on a known example;
-- cache/resume behaviour;
-- absence of changes outside the declared scope.
+- one real example completing successfully;
+- a small output that can be inspected directly;
+- a metric calculation on a known example when relevant.
 
-Tests support acceptance but do not replace scientific validation.
+For model, dataset, package, or cluster integration, mocked tests do not count
+as acceptance. The exact real path must run at least once. For exploratory work,
+that real micro-run may be sufficient without automated tests.
 
 ## Understanding Gate
 
-Before accepting a milestone, the user should be able to:
+For consequential scientific work, the user should be able to:
 
 - state the input and output contract;
 - trace one representative example through the changed path;
-- identify each scientific choice and where it is encoded;
-- explain what the tests and checks do not prove;
-- name the commit or clean state to which the work can be restored.
+- identify each scientific choice and where it is encoded.
 
-If any item is unclear, explain a smaller unit or revise the implementation
-before acceptance. Passing tests alone is not enough.
+Exploratory engineering does not require a formal acceptance ceremony. Explain
+the important behavior and limitations briefly.
 
 ## Exploratory And Reportable Experiments
 
@@ -112,6 +87,10 @@ Use exploratory runs to debug feasibility, schemas, memory, runtime, or obvious
 confounds.
 
 - Small samples and provisional choices are allowed.
+- Prefer direct scripts and visible failures over infrastructure.
+- Start with one synthetic example, then one real example, then a handful.
+- Do not add resume, retry, generalized provenance, or broad test coverage until
+  the basic path works and there is an observed need.
 - Outputs must be labelled non-reportable.
 - Test or final-evaluation data must not influence model or threshold choices.
 - Exploratory success does not authorize a scientific claim.
@@ -163,11 +142,8 @@ milestone, check failure paths, and run targeted verification.
 
 ### Independent Engineering Review
 
-Use for broad changes, shared contracts, cache/provenance logic, cluster-facing
-jobs, or code whose failure could waste a substantial run. It is one read-only
-review of a frozen diff and acceptance evidence in a fresh agent chat or by a
-non-author human. It is not required for routine, low-risk work covered by
-self-review.
+Reserve this for broad shared changes or expensive reportable runs. It is not a
+default requirement for exploratory scripts or ordinary cluster jobs.
 
 ### Scientific-Risk Review
 
@@ -187,21 +163,16 @@ validate the scientific choice itself.
 
 ## Implementation And Verification
 
-1. Inspect the relevant code, config, tests, and nearest folder README.
-2. State the bounded milestone and acceptance criteria.
-3. Obtain approval for the stated milestone.
-4. Implement the smallest coherent change.
-5. Run targeted tests during development.
-6. Review the final diff for scope and scientific-contract drift.
-7. Run the milestone's acceptance commands.
-8. Run broader pytest and Ruff checks when shared behaviour or reportable code
-   changes.
-9. Explain the diff and apply the understanding gate.
-10. Record limitations, blocked checks, and dated verification results.
+1. Inspect the directly relevant code and guidance.
+2. Implement the smallest coherent change.
+3. Run the exact acceptance command on the smallest useful input.
+4. Inspect the result before extending the implementation.
+5. Run focused tests only where they add useful confidence.
+6. Use broader tests and provenance checks for shared or reportable work.
 
-For GPU work, validate imports, argument parsing, config loading, output paths,
-dry-run behaviour, external input shapes, and CPU-safe tests locally or on the
-cluster head node before cluster submission.
+For GPU work, prioritize the real integration sequence: load the exact model,
+generate one token, process one real example, then process a handful. Only then
+submit the intended smoke run or add operational hardening.
 Remote access and job submission require explicit authorization for the target
 host, resources, and action.
 
@@ -238,17 +209,18 @@ anything you cannot infer.
 ### Plan One Issue
 
 ```text
-Plan one issue without editing. State the objective, exclusions, expected
-files, estimated diff size, acceptance evidence, scientific decisions requiring
-my approval, and conditions that would make you stop and replan.
+Plan the smallest useful milestone without editing. State the real command or
+output that would show it works and identify any scientific choice requiring my
+approval. Avoid proposing infrastructure or tests without a concrete need.
 ```
 
 ### Implement An Approved Issue
 
 ```text
-Implement only the approved milestone below. Inspect relevant code and the
-nearest folder README first. Do not broaden scope or change scientific choices.
-Stop if the approved limits or assumptions are exceeded.
+Implement the smallest direct version of the milestone below. Prefer a simple
+script and a real micro-run. Do not add abstractions, broad tests, retries,
+resumability, or generalized metadata unless this milestone already needs them.
+Do not change scientific choices.
 
 [approved milestone]
 ```
@@ -257,8 +229,8 @@ Stop if the approved limits or assumptions are exceeded.
 
 ```text
 Review this frozen diff without editing. Check correctness, scope drift,
-scientific-contract drift, leakage, failure handling, and missing tests.
-Distinguish mechanical verification from scientific validation.
+scientific-contract drift, leakage, and whether the implementation is more
+complex than the task requires. Request tests only for a concrete risk.
 ```
 
 ### Diagnose A Surprising Result

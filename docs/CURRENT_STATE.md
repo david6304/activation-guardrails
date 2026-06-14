@@ -22,14 +22,21 @@ Short project snapshot. Replace stale facts rather than appending history.
 - The generation backend and cluster preflight now load the checkpoint's text
   tokenizer directly while retaining the Gemma 3 image-text model class, whose
   image inputs are optional for text-only generation.
+- A replacement Wintermute run loaded the tokenizer and both model shards, but
+  all 400 examples failed during generation with a caught `ValueError`; no
+  successful responses were produced. The old failure handling discarded the
+  exception message and allowed the systemic error to repeat.
+- Generation now runs one benign one-token probe through the exact production
+  path before processing the manifest. A failed probe exits with its full
+  traceback, while later per-example failures retain a prompt-redacted message.
 - A replacement end-to-end protocol is approved only for a non-reportable
   smoke test. Its labels, metrics, and results are provisional and cannot
   support dissertation claims.
 
 ## Next Bounded Milestone
 
-Review the corrected cache preflight and authorize a replacement Wintermute job
-for the approved non-reportable response-generation smoke run.
+Run the benign one-token generation probe on Wintermute and diagnose its exact
+exception before authorizing another full response-generation smoke run.
 
 Scope:
 

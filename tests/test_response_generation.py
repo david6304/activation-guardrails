@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import time
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,6 +21,7 @@ from agguardrails.response_generation import (
     derive_example_seed,
     generate_responses,
     inspect_resume,
+    preflight_generation,
 )
 from agguardrails.wildjailbreak_manifest import build_manifest
 
@@ -92,6 +94,7 @@ def test_generation_records_metadata_and_safely_resumes_failures(
     assert first_records[1]["failure"] == {
         "stage": "generation",
         "error_type": "RuntimeError",
+        "error_message": "failure involving hidden prompt: <prompt>",
     }
     assert first_records[1]["prompt_token_count"] is None
     assert first_records[1]["response_token_count"] is None
@@ -99,6 +102,12 @@ def test_generation_records_metadata_and_safely_resumes_failures(
     assert "response" not in first_records[1]
     assert all("sensitive prompt" not in line for line in logs)
     assert "sensitive prompt two" not in output_path.read_text(encoding="utf-8")
+    assert any(line.startswith("generation_run_start") for line in logs)
+    assert any(
+        line.startswith("generation_example_start index=1 total=2") for line in logs
+    )
+    assert any(line.startswith("generation_progress") for line in logs)
+    assert any(line.startswith("generation_run_complete") for line in logs)
 
     second_backend = FakeBackend()
     second_summary = generate_responses(
@@ -235,6 +244,7 @@ def test_transformers_backend_loads_text_tokenizer_without_image_processor(
     tokenizer.chat_template = "test chat template"
     tokenizer.name_or_path = MODEL_PATH
     model = FakeLoadedModel()
+    logs: list[str] = []
     tokenizer_calls: list[tuple[str, dict[str, object]]] = []
     model_calls: list[tuple[str, dict[str, object]]] = []
 
@@ -251,7 +261,7 @@ def test_transformers_backend_loads_text_tokenizer_without_image_processor(
         "transformers.AutoModelForImageTextToText.from_pretrained", load_model
     )
 
-    backend = TransformersGemmaBackend(MODEL_PATH, MODEL_PATH)
+    backend = TransformersGemmaBackend(MODEL_PATH, MODEL_PATH, log=logs.append)
 
     assert tokenizer_calls == [(MODEL_PATH, {"local_files_only": True})]
     assert model_calls == [
@@ -267,6 +277,71 @@ def test_transformers_backend_loads_text_tokenizer_without_image_processor(
     assert model.eval_called is True
     assert backend.tokenizer_identity["tokenizer_class"] == "FakeTokenizer"
     assert "processor_class" not in backend.tokenizer_identity
+    assert logs[0] == "tokenizer_load_start"
+    assert logs[1].startswith("tokenizer_load_complete elapsed_seconds=")
+    assert logs[2] == "model_load_start"
+    assert logs[3].startswith("model_load_complete elapsed_seconds=")
+    assert logs[4] == (
+        "backend_ready model_class=FakeLoadedModel tokenizer_class=FakeTokenizer"
+    )
+
+
+def test_generation_emits_heartbeats_without_sensitive_text(tmp_path: Path) -> None:
+    logs: list[str] = []
+    output_path = tmp_path / "responses.jsonl"
+    backend = SlowFakeBackend()
+
+    generate_responses(
+        _small_rows()[:1],
+        output_path=output_path,
+        manifest_sha256="manifest-hash",
+        base_seed=31,
+        settings=DecodingSettings(),
+        model_path=MODEL_PATH,
+        tokenizer_path=MODEL_PATH,
+        backend=backend,
+        log=logs.append,
+        heartbeat_seconds=0.01,
+    )
+
+    assert any(
+        line.startswith("generation_example_heartbeat index=1 total=1") for line in logs
+    )
+    assert all("sensitive prompt" not in line for line in logs)
+
+
+def test_generation_preflight_uses_benign_prompt_and_surfaces_error() -> None:
+    backend = FakeBackend()
+    logs: list[str] = []
+
+    result = preflight_generation(
+        backend,
+        log=logs.append,
+        heartbeat_seconds=0.01,
+    )
+
+    prompt, seed, settings = backend.calls[0]
+    assert prompt == "Reply with the single word OK."
+    assert seed == 0
+    assert settings.max_new_tokens == 1
+    assert result.response_token_count == 4
+    assert logs[0] == "generation_preflight_start"
+    assert logs[-1].startswith("generation_preflight_result")
+
+    failing_backend = FakeBackend(failures={"Reply with the single word OK."})
+    failure_logs: list[str] = []
+    with pytest.raises(RuntimeError, match="hidden prompt"):
+        preflight_generation(
+            failing_backend,
+            log=failure_logs.append,
+            heartbeat_seconds=0.01,
+        )
+    assert any(
+        line.startswith(
+            "generation_preflight_diagnostic error_type=RuntimeError error_message="
+        )
+        for line in failure_logs
+    )
 
 
 def test_cli_argument_parsing_and_dry_run_do_not_load_model(
@@ -366,6 +441,14 @@ class FakeLoadedModel:
 
     def eval(self) -> None:
         self.eval_called = True
+
+
+class SlowFakeBackend(FakeBackend):
+    def generate(
+        self, prompt: str, *, seed: int, settings: DecodingSettings
+    ) -> GeneratedResponse:
+        time.sleep(0.03)
+        return super().generate(prompt, seed=seed, settings=settings)
 
 
 def _small_rows() -> list[dict[str, object]]:

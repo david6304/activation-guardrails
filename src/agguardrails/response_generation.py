@@ -5,10 +5,11 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Mapping, Protocol, Sequence
+from typing import Any, Callable, Mapping, Protocol, Sequence, TypeVar
 
 from agguardrails.wildjailbreak_manifest import validate_manifest
 
@@ -18,7 +19,11 @@ DEFAULT_BASE_SEED = 20260612
 DEFAULT_TEMPERATURE = 0.7
 DEFAULT_TOP_P = 0.9
 DEFAULT_MAX_NEW_TOKENS = 4096
+DEFAULT_HEARTBEAT_SECONDS = 60.0
+PREFLIGHT_PROMPT = "Reply with the single word OK."
+PREFLIGHT_SEED = 0
 SEED_ALGORITHM = "sha256(base_seed + NUL + example_id), first 63 bits"
+T = TypeVar("T")
 
 
 class ResponseGenerationError(ValueError):
@@ -56,6 +61,45 @@ class GenerationBackend(Protocol):
     def generate(
         self, prompt: str, *, seed: int, settings: DecodingSettings
     ) -> GeneratedResponse: ...
+
+
+def progress_log(message: str) -> None:
+    print(message, flush=True)
+
+
+def preflight_generation(
+    backend: GenerationBackend,
+    *,
+    log: Callable[[str], None] = progress_log,
+    heartbeat_seconds: float = DEFAULT_HEARTBEAT_SECONDS,
+) -> GeneratedResponse:
+    """Run one benign token through the exact production generation path."""
+
+    try:
+        result = _run_with_heartbeat(
+            stage="generation_preflight",
+            action=lambda: backend.generate(
+                PREFLIGHT_PROMPT,
+                seed=PREFLIGHT_SEED,
+                settings=DecodingSettings(max_new_tokens=1),
+            ),
+            log=log,
+            heartbeat_seconds=heartbeat_seconds,
+        )
+    except Exception as exc:
+        log(
+            "generation_preflight_diagnostic "
+            f"error_type={type(exc).__name__} "
+            f"error_message={json.dumps(str(exc), ensure_ascii=True)}"
+        )
+        raise
+    log(
+        "generation_preflight_result "
+        f"prompt_tokens={result.prompt_token_count} "
+        f"response_tokens={result.response_token_count} "
+        f"termination={result.termination_reason}"
+    )
+    return result
 
 
 def load_manifest(path: Path) -> tuple[list[dict[str, Any]], str]:
@@ -172,10 +216,12 @@ def generate_responses(
     model_path: str,
     tokenizer_path: str,
     backend: GenerationBackend,
-    log: Callable[[str], None] = print,
+    log: Callable[[str], None] = progress_log,
+    heartbeat_seconds: float = DEFAULT_HEARTBEAT_SECONDS,
 ) -> dict[str, int]:
     """Generate one current record per example, preserving completed successes."""
 
+    run_started = time.perf_counter()
     records, before = inspect_resume(
         rows,
         output_path=output_path,
@@ -195,8 +241,14 @@ def generate_responses(
             raise ResponseGenerationError(
                 f"output record for {example_id} has a different backend identity"
             )
+    log(
+        "generation_run_start "
+        f"total={len(rows)} completed={before['completed']} "
+        f"retryable_failures={before['retryable_failures']} "
+        f"pending={before['pending']}"
+    )
     generated = failed = skipped = 0
-    for row in rows:
+    for index, row in enumerate(rows, 1):
         example_id = row["example_id"]
         previous = records.get(example_id)
         if previous and previous["status"] == "success":
@@ -206,7 +258,15 @@ def generate_responses(
         seed = derive_example_seed(base_seed, example_id)
         started = time.perf_counter()
         try:
-            result = backend.generate(row["prompt"], seed=seed, settings=settings)
+            result = _run_with_heartbeat(
+                stage="generation_example",
+                context=f"index={index} total={len(rows)}",
+                action=lambda: backend.generate(
+                    row["prompt"], seed=seed, settings=settings
+                ),
+                log=log,
+                heartbeat_seconds=heartbeat_seconds,
+            )
             record = _base_record(
                 row,
                 manifest_sha256=manifest_sha256,
@@ -229,6 +289,7 @@ def generate_responses(
             )
             generated += 1
         except Exception as exc:
+            error_message = _sanitized_error_message(exc, row["prompt"])
             record = _base_record(
                 row,
                 manifest_sha256=manifest_sha256,
@@ -246,6 +307,7 @@ def generate_responses(
                     "failure": {
                         "stage": "generation",
                         "error_type": type(exc).__name__,
+                        "error_message": error_message,
                     },
                     "prompt_token_count": None,
                     "response_token_count": None,
@@ -260,9 +322,30 @@ def generate_responses(
             records[example_id] = record
             _write_records_atomic(output_path, rows, records)
         records[example_id] = record
-        log(f"{example_id} {record['status']}")
+        completed_now = sum(
+            current["status"] == "success" for current in records.values()
+        )
+        log(
+            "generation_progress "
+            f"processed={generated + failed + skipped} total={len(rows)} "
+            f"completed={completed_now} failures={failed} skipped={skipped} "
+            f"last_status={record['status']} "
+            f"last_runtime_seconds={record['runtime_seconds']:.1f}"
+        )
+        if record["status"] == "failure":
+            log(
+                "generation_failure_diagnostic "
+                f"error_type={record['failure']['error_type']} "
+                f"error_message={json.dumps(record['failure']['error_message'])}"
+            )
 
     completed = sum(record["status"] == "success" for record in records.values())
+    log(
+        "generation_run_complete "
+        f"completed={completed} remaining={len(rows) - completed} "
+        f"generated={generated} failures={failed} skipped={skipped} "
+        f"elapsed_seconds={time.perf_counter() - run_started:.1f}"
+    )
     return {
         **before,
         "generated": generated,
@@ -276,19 +359,36 @@ def generate_responses(
 class TransformersGemmaBackend:
     """Lazy local-only text-generation backend for the protected Gemma 3 model."""
 
-    def __init__(self, model_path: str, tokenizer_path: str) -> None:
+    def __init__(
+        self,
+        model_path: str,
+        tokenizer_path: str,
+        *,
+        log: Callable[[str], None] = progress_log,
+        heartbeat_seconds: float = DEFAULT_HEARTBEAT_SECONDS,
+    ) -> None:
         import torch
         from transformers import AutoModelForImageTextToText, AutoTokenizer
 
         self._torch = torch
-        self._tokenizer = AutoTokenizer.from_pretrained(
-            tokenizer_path, local_files_only=True
+        self._tokenizer = _run_with_heartbeat(
+            stage="tokenizer_load",
+            action=lambda: AutoTokenizer.from_pretrained(
+                tokenizer_path, local_files_only=True
+            ),
+            log=log,
+            heartbeat_seconds=heartbeat_seconds,
         )
-        self._model = AutoModelForImageTextToText.from_pretrained(
-            model_path,
-            device_map="auto",
-            dtype="auto",
-            local_files_only=True,
+        self._model = _run_with_heartbeat(
+            stage="model_load",
+            action=lambda: AutoModelForImageTextToText.from_pretrained(
+                model_path,
+                device_map="auto",
+                dtype="auto",
+                local_files_only=True,
+            ),
+            log=log,
+            heartbeat_seconds=heartbeat_seconds,
         )
         self._model.eval()
         chat_template = self._tokenizer.chat_template
@@ -313,6 +413,11 @@ class TransformersGemmaBackend:
             "commit_hash": getattr(self._tokenizer, "_commit_hash", None),
             "chat_template_sha256": hashlib.sha256(chat_template.encode()).hexdigest(),
         }
+        log(
+            "backend_ready "
+            f"model_class={self.model_identity['class']} "
+            f"tokenizer_class={self.tokenizer_identity['tokenizer_class']}"
+        )
 
     def generate(
         self, prompt: str, *, seed: int, settings: DecodingSettings
@@ -373,6 +478,53 @@ class TransformersGemmaBackend:
             elif value is not None:
                 eos_ids.update(value)
         return eos_ids
+
+
+def _run_with_heartbeat(
+    *,
+    stage: str,
+    action: Callable[[], T],
+    log: Callable[[str], None],
+    heartbeat_seconds: float,
+    context: str = "",
+) -> T:
+    if heartbeat_seconds <= 0:
+        raise ValueError("heartbeat_seconds must be positive")
+
+    started = time.perf_counter()
+    stopped = threading.Event()
+    suffix = f" {context}" if context else ""
+
+    def emit_heartbeats() -> None:
+        while not stopped.wait(heartbeat_seconds):
+            log(
+                f"{stage}_heartbeat{suffix} "
+                f"elapsed_seconds={time.perf_counter() - started:.1f}"
+            )
+
+    log(f"{stage}_start{suffix}")
+    heartbeat = threading.Thread(target=emit_heartbeats, daemon=True)
+    heartbeat.start()
+    try:
+        result = action()
+    except Exception as exc:
+        log(
+            f"{stage}_failed{suffix} error_type={type(exc).__name__} "
+            f"elapsed_seconds={time.perf_counter() - started:.1f}"
+        )
+        raise
+    finally:
+        stopped.set()
+        heartbeat.join()
+    log(f"{stage}_complete{suffix} elapsed_seconds={time.perf_counter() - started:.1f}")
+    return result
+
+
+def _sanitized_error_message(exc: Exception, prompt: str) -> str:
+    message = " ".join(str(exc).split())
+    if prompt:
+        message = message.replace(prompt, "<prompt>")
+    return message[:500]
 
 
 def _base_record(
