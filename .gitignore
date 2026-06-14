@@ -1,50 +1,37 @@
-# Python
+# Python environments and caches
 __pycache__/
 *.py[cod]
 .venv/
 .env
-
-# Jupyter
+.pytest_cache/
+.ruff_cache/
 .ipynb_checkpoints/
 
-# OS/editor
+# OS and editor state
 .DS_Store
 .vscode/
 
-# Experiment artifacts (large / local caches)
+# Generated experiment material
 /artifacts/*
-!/artifacts/README.md
-
-# Local datasets
-data/raw/
-data/interim/
-# Processed data can be committed selectively if small; ignore by default
-data/processed/
-!data/README.md
-
-# Results are generated outputs; keep only placeholders unless explicitly
-# unignored for a final report artifact later.
+!/artifacts/.gitkeep
+/data/*
+!/data/.gitkeep
 /results/*
-!/results/README.md
 !/results/.gitkeep
 
-# Logs
+# Local logs
 *.log
 
-# Local research notes and large/private documentation sources
-docs/research_log.md
-docs/meetings/
-docs/references/
-course-docs/
+# Local/private research resources
+/archive/
+/course-docs/
+/docs/references/
+/msc-writeup/
+/papers/
 
-# Local agent state and tool-specific settings
+# Local tool state
 .claude/
 .codex/
 
 # Packaging metadata
 *.egg-info/
-
-# Write up subrepo
-msc-writeup/
-
-papers/
