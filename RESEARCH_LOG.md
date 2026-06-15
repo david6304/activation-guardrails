@@ -69,3 +69,28 @@ conservative threshold for v1.
 **Cluster assets:** HF cache is the default `~/.cache/huggingface` (do not set HF_HOME).
 Abliterated response generators (Heretic, loaded by path, not on the Hub):
 `~/models/gemma-3-12b-it-heretic`, `~/models/gemma-3-4b-it-heretic`.
+
+## 2026-06-15 - Labelling: LLM-rubric judge on response harm, not WildJailbreak labels
+
+Pilot eyeballing showed WildJailbreak's `vanilla_harmful` prompt label is noisy
+(~15-25% benign mislabels: factual/historical Qs, "find my own SSN") and its harm
+notion is very broad. Training positives on `data_type` would contaminate the
+positive class. Also the abliterated model front-loads preamble, so harm (where
+present) often lands past 256 tokens.
+
+Decisions:
+- **Label by the response, not the prompt.** An independent LLM-rubric judge labels
+  each (prompt, response) as harmful/benign; that defines positives/negatives.
+- **Judge = `Qwen/Qwen3.6-27B`** (different family from Gemma -> independent of both
+  the probed model and the generator; one A100 bf16; no-think mode, JSON verdict).
+  Not a guard model: WildGuard/LlamaGuard stay as text *baselines* we compare
+  against, so using the judge as oracle is not circular (cf. CC++ rubric grading).
+- **Harm definition: moderate, taxonomy-anchored** (MLCommons/WildGuard categories);
+  harmful = response gives material assistance toward a hazard; excludes
+  benign-factual, refusals, trivial advice. Same rubric for train and eval.
+- **Validate the judge** against ~100 hand-labels (target >=~85% agreement) before
+  trusting it; this also tunes the rubric.
+- **Generation bumped to 512 new tokens** so harm appears before truncation.
+
+Pipeline is now: generate (abliterated, 512) -> judge (Qwen3.6-27B) -> extract
+(protected 12B) using judge labels.
