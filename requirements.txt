@@ -1,0 +1,19 @@
+# Core stack for the activation-probe experiments.
+# Pinned for reproducibility; bump deliberately, not casually.
+# Install on the cluster head node (compute nodes have no internet).
+
+transformers==5.12.0
+datasets==5.0.0
+accelerate==1.14.0          # needed for device_map="auto" on the 12B load
+huggingface-hub==1.19.0     # transformers 5.x requires hub>=1.0
+scikit-learn==1.9.0         # ROC/AUC, threshold selection, LR baselines
+pandas==3.0.3               # WildJailbreak is TSV
+tqdm>=4.66
+
+# dev
+ruff>=0.6
+
+# --- provided by the cluster toolchain; do NOT reinstall over the CUDA-built
+#     wheels. torch 2.8 already satisfies transformers' torch>=2.4 floor. ---
+# torch==2.8.0a0   (cuda 12.8)
+# numpy==2.4.6

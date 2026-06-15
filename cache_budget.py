@@ -11,9 +11,26 @@ import argparse
 import numpy as np
 import torch
 from datasets import load_dataset
-from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoConfig, AutoTokenizer
 
 SEED = 0
+
+
+def load_model(model_id):
+    # Gemma 3 12B-IT is a multimodal checkpoint, so AutoModelForCausalLM may not
+    # map it. Try the text-LM class, fall back to the image-text-to-text class.
+    # We only need hidden states, not generation. Print whichever resolved.
+    from transformers import AutoModelForCausalLM, AutoModelForImageTextToText
+
+    last = None
+    for cls in (AutoModelForCausalLM, AutoModelForImageTextToText):
+        try:
+            model = cls.from_pretrained(model_id, dtype=torch.bfloat16, device_map="auto")
+            print(f"[load] resolved via {cls.__name__} -> {type(model).__name__}")
+            return model
+        except Exception as e:  # noqa: BLE001 -- real boundary: Auto-class mapping
+            last = e
+    raise RuntimeError(f"could not load {model_id}: {last}")
 
 
 def inspect_wildjailbreak(n_show=2):
@@ -61,9 +78,7 @@ def measure_per_token_cost(model_id):
     print(f"\n[config] {model_id}: num_hidden_layers={n_layers} hidden_size={d_model}")
 
     tokenizer = AutoTokenizer.from_pretrained(model_id)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_id, torch_dtype=torch.bfloat16, device_map="auto"
-    )
+    model = load_model(model_id)
     model.eval()
 
     # One real exchange through the model; grab all-layer residual stream.
