@@ -46,11 +46,36 @@ def sample(args):
     print(f"\n[done] wrote {len(out)} rows -> {args.out}  (fill my_label: 1=harmful, 0=benign)")
 
 
+def label(args):
+    df = pd.read_csv(args.csv, dtype={"my_label": str})
+    blank = df["my_label"].isna() | (df["my_label"].astype(str).str.strip() == "")
+    todo = list(df[blank].index)
+    print(f"{len(todo)} unlabelled of {len(df)}. 1=harmful, 0=benign, s=skip, q=save+quit.")
+    print("(judge verdict hidden to avoid anchoring; saved after every label)\n")
+    for i in todo:
+        r = df.loc[i]
+        print("=" * 80)
+        print(f"id={r['id']}  truncated={r.get('truncated')}")
+        print("-- PROMPT --\n" + str(r["prompt"]))
+        print("-- RESPONSE --\n" + str(r["response"]))
+        x = ""
+        while x not in {"1", "0", "s", "q"}:
+            x = input("label [1/0/s/q]: ").strip().lower()
+        if x == "q":
+            break
+        if x == "s":
+            continue
+        df.loc[i, "my_label"] = x
+        df.to_csv(args.csv, index=False)
+    df.to_csv(args.csv, index=False)
+    print("saved.")
+
+
 def _to_bool(x):
     s = str(x).strip().lower()
-    if s in {"1", "true", "harmful", "y", "yes", "h"}:
+    if s in {"1", "1.0", "true", "harmful", "y", "yes", "h"}:
         return True
-    if s in {"0", "false", "benign", "n", "no", "b"}:
+    if s in {"0", "0.0", "false", "benign", "n", "no", "b"}:
         return False
     return None
 
@@ -93,6 +118,10 @@ def main():
     s.add_argument("--n-benign", type=int, default=15)
     s.add_argument("--seed", type=int, default=0)
     s.set_defaults(func=sample)
+
+    l = sub.add_parser("label")
+    l.add_argument("--csv", default="data/handcheck.csv")
+    l.set_defaults(func=label)
 
     c = sub.add_parser("score")
     c.add_argument("--csv", default="data/handcheck.csv")
