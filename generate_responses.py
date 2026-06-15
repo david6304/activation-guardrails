@@ -80,9 +80,13 @@ def generate(rows, model_id, max_new_tokens, temperature, top_p, batch_size, see
         raise RuntimeError(f"could not load {model_id}: {last}")
     model.eval()
 
+    # Length-sort prompts so each batch pads to a similar length (cuts wasted
+    # padding compute). Dicts are mutated in place; `rows` keeps its id order.
+    order = sorted(rows, key=lambda r: len(r["prompt"]))
+
     t0 = time.time()
-    for start in range(0, len(rows), batch_size):
-        batch = rows[start:start + batch_size]
+    for start in range(0, len(order), batch_size):
+        batch = order[start:start + batch_size]
         msgs = [[{"role": "user", "content": r["prompt"]}] for r in batch]
         inputs = tok.apply_chat_template(
             msgs, tokenize=True, add_generation_prompt=True,

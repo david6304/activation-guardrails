@@ -116,9 +116,14 @@ def judge(rows, model_id, batch_size, max_new_tokens, no_think):
         raise RuntimeError(f"could not load {model_id}: {last}")
     model.eval()
 
+    # Length-sort so each batch pads to a similar length (left-padding to the batch
+    # max otherwise wastes compute when short and long responses mix). Dicts are
+    # mutated in place, so `rows` keeps its original id order for writing.
+    order = sorted(rows, key=lambda r: len(r["prompt"]) + len(r["response"]))
+
     t0 = time.time()
-    for start in range(0, len(rows), batch_size):
-        batch = rows[start:start + batch_size]
+    for start in range(0, len(order), batch_size):
+        batch = order[start:start + batch_size]
         texts = [apply_template(tok, build_messages(r), no_think) for r in batch]
         inputs = tok(texts, return_tensors="pt", padding=True,
                      add_special_tokens=False).to(model.device)
