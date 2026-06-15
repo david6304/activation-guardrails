@@ -63,6 +63,7 @@ def prompt_token_lengths(df, tokenizer, prompt_field, n_sample=512):
             [{"role": "user", "content": text}],
             tokenize=True,
             add_generation_prompt=True,
+            return_dict=False,
         )
         lengths.append(len(ids))
     lengths = np.array(lengths)
@@ -91,12 +92,14 @@ def measure_per_token_cost(model_id):
         {"role": "user", "content": "Explain how a refrigerator works."},
         {"role": "assistant", "content": "A refrigerator moves heat from inside to outside using a refrigerant cycle."},
     ]
-    ids = tokenizer.apply_chat_template(msgs, tokenize=True, return_tensors="pt").to(model.device)
+    inputs = tokenizer.apply_chat_template(
+        msgs, tokenize=True, return_tensors="pt", return_dict=True
+    ).to(model.device)
     with torch.no_grad():
-        out = model(ids, output_hidden_states=True, use_cache=False)
+        out = model(**inputs, output_hidden_states=True, use_cache=False)
 
     hs = out.hidden_states  # tuple len (n_layers + 1): embeddings + each layer
-    seq = hs[0].shape[1]
+    seq = inputs["input_ids"].shape[1]
     concat_dim = len(hs) * hs[0].shape[-1]
     dtype_bytes = hs[0].element_size()
     bytes_per_token = concat_dim * dtype_bytes
