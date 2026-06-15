@@ -119,7 +119,7 @@ def main():
     ap.add_argument("--prompt-col", default="vanilla", choices=["vanilla", "adversarial"])
     ap.add_argument("--n-per-type", type=int, default=500)
     ap.add_argument("--model", default="/home/s2296274/models/gemma-3-12b-it-heretic")
-    ap.add_argument("--max-new-tokens", type=int, default=256)
+    ap.add_argument("--max-new-tokens", type=int, default=512)
     ap.add_argument("--temperature", type=float, default=0.7)
     ap.add_argument("--top-p", type=float, default=0.9)
     ap.add_argument("--batch-size", type=int, default=16)
