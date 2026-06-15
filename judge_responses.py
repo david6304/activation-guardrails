@@ -145,14 +145,19 @@ def summarise(rows):
     cats = Counter(r["category"] for r in rows if r.get("harmful"))
     if cats:
         print("  harmful categories:", dict(cats))
-    # Truncation x label: if truncated responses are *less* harmful, the 512 cap is
-    # cutting payloads off before they appear -> false negatives in the negative class.
-    print("  harmful rate by truncation (parsed only):")
-    for trunc in (False, True):
-        lab = [r["harmful"] for r in rows
-               if r["harmful"] is not None and r.get("truncated") == trunc]
-        rate = sum(lab) / len(lab) if lab else float("nan")
-        print(f"    truncated={trunc}: n={len(lab)} harmful={rate:.1%}")
+    # Truncation x label, *per prompt type* (pooling confounds: harmful prompts both
+    # truncate more and are more harmful). The clean suppression test is within
+    # *_harmful: if truncated responses there are less harmful, the cap is cutting
+    # payloads off before they appear -> false negatives in the negative class.
+    print("  harmful rate by truncation, per prompt type (parsed only):")
+    for dt, g in by_type.items():
+        trunc_rate = sum(bool(r.get("truncated")) for r in g) / len(g)
+        print(f"    {dt}: truncated={trunc_rate:.1%}")
+        for trunc in (False, True):
+            lab = [r["harmful"] for r in g
+                   if r["harmful"] is not None and bool(r.get("truncated")) == trunc]
+            rate = sum(lab) / len(lab) if lab else float("nan")
+            print(f"      truncated={trunc}: n={len(lab)} harmful={rate:.1%}")
 
 
 def main():
