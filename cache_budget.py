@@ -9,8 +9,8 @@ the dataset schema inspection runs anywhere.
 import argparse
 
 import numpy as np
+import pandas as pd
 import torch
-from datasets import load_dataset
 from transformers import AutoConfig, AutoTokenizer
 
 SEED = 0
@@ -33,25 +33,30 @@ def load_model(model_id):
     raise RuntimeError(f"could not load {model_id}: {last}")
 
 
-def inspect_wildjailbreak(n_show=2):
-    # VERIFY: dataset id / config name / column names against the installed dataset.
-    # We print the schema rather than assume it, so the real field names are visible.
-    ds = load_dataset("allenai/wildjailbreak", "train")["train"]
-    print(f"\n[WildJailbreak] {len(ds)} rows; columns: {ds.column_names}")
-    if "data_type" in ds.column_names:
-        vals, counts = np.unique(ds["data_type"], return_counts=True)
-        print("  data_type counts:", dict(zip(vals.tolist(), counts.tolist())))
-    for row in ds.select(range(n_show)):
+def load_wildjailbreak():
+    # WildJailbreak ships as TSV; the datasets Arrow builder mis-infers a column
+    # as double and fails on long prompt strings. Read the raw TSV as all-strings.
+    from huggingface_hub import hf_hub_download, list_repo_files
+
+    files = [f for f in list_repo_files("allenai/wildjailbreak", repo_type="dataset")
+             if f.endswith(".tsv") and "train" in f]
+    path = hf_hub_download("allenai/wildjailbreak", files[0], repo_type="dataset")
+    df = pd.read_csv(path, sep="\t", dtype=str, na_filter=False)
+    print(f"\n[WildJailbreak] {len(df)} rows; columns: {df.columns.tolist()}")
+    if "data_type" in df.columns:
+        print("  data_type counts:", df["data_type"].value_counts().to_dict())
+    for _, row in df.head(2).iterrows():
         print("  sample row:", {k: (str(v)[:120] + "...") for k, v in row.items()})
-    return ds
+    return df
 
 
-def prompt_token_lengths(ds, tokenizer, prompt_field, n_sample=512):
+def prompt_token_lengths(df, tokenizer, prompt_field, n_sample=512):
     # Templated length of just the user turn, to ground the mean-tokens estimate.
-    idx = np.random.default_rng(SEED).choice(len(ds), size=min(n_sample, len(ds)), replace=False)
+    idx = np.random.default_rng(SEED).choice(len(df), size=min(n_sample, len(df)), replace=False)
+    col = df[prompt_field].to_numpy()
     lengths = []
     for i in idx:
-        text = ds[int(i)][prompt_field]
+        text = col[i]
         if not text:
             continue
         ids = tokenizer.apply_chat_template(
@@ -131,9 +136,9 @@ def main():
 
     mean_tokens = args.response_tokens + 64  # fallback prompt estimate if data skipped
     if not args.skip_data:
-        ds = inspect_wildjailbreak()
-        if args.prompt_field in ds.column_names:
-            plen = prompt_token_lengths(ds, tokenizer, args.prompt_field)
+        df = load_wildjailbreak()
+        if args.prompt_field in df.columns:
+            plen = prompt_token_lengths(df, tokenizer, args.prompt_field)
             mean_tokens = int(np.median(plen) + args.response_tokens)
         else:
             print(f"\n[warn] field {args.prompt_field!r} not in columns; using fallback prompt length")
