@@ -89,14 +89,30 @@ def apply_template(tok, messages, no_think):
 
 def judge(rows, model_id, batch_size, max_new_tokens, no_think):
     import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import (
+        AutoModelForCausalLM,
+        AutoModelForImageTextToText,
+        AutoModelForMultimodalLM,
+        AutoTokenizer,
+    )
 
     tok = AutoTokenizer.from_pretrained(model_id)
     tok.padding_side = "left"
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
-    model = AutoModelForCausalLM.from_pretrained(
-        model_id, dtype=torch.bfloat16, device_map="auto")
+
+    # Qwen3.6-27B is a multimodal (qwen3_5) checkpoint; small test models are plain
+    # causal LMs. Try in order so both load (text-only inference either way).
+    model, last = None, None
+    for cls in (AutoModelForCausalLM, AutoModelForImageTextToText, AutoModelForMultimodalLM):
+        try:
+            model = cls.from_pretrained(model_id, dtype=torch.bfloat16, device_map="auto")
+            print(f"[load] {cls.__name__} -> {type(model).__name__}")
+            break
+        except Exception as e:  # noqa: BLE001 -- real boundary: Auto-class mapping
+            last = e
+    if model is None:
+        raise RuntimeError(f"could not load {model_id}: {last}")
     model.eval()
 
     for start in range(0, len(rows), batch_size):
