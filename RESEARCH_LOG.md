@@ -5,6 +5,33 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-06-15 - Eval design: separate off-policy transfer from on-policy deployment
+
+Clarified a conflation in the eval plan. Three distinct activation distributions:
+(1) train = protected model reading teacher-forced **abliterated** responses
+(off-policy); (2) v1 eval = same, vanilla->adversarial (off-policy, generator held
+constant); (3) deployment = protected model generating its **own** harmful text
+(on-policy). v1 isolates jailbreak-tactic shift but, being off-policy on both sides,
+never tests the on/off-policy generalisation the method relies on — and shares any
+abliterated-text style artefact, which could inflate the transfer number.
+
+- Abliterated (train) and prefill-and-continue are **not** competing options for one
+  slot. Abliterated stays the training source (volume + balance + WJ-tactic diversity;
+  aligned with how He et al. and CC++ source synthetic/curated harmful data). Prefill /
+  on-policy is the *deployment-eval* layer.
+- The on-policy eval does double duty: supports any deployment claim **and** acts as the
+  control that v1 isn't an abliterated-fingerprint artefact. Pull a minimal version
+  forward rather than fully deferring to v2.
+- Prefer **true on-policy** for the deployment eval (no prefix shortcut a la JEDI); fall
+  back to prefill-and-continue only if positives are too sparse.
+- **Added: residual-ASR pilot** to decide. Generate from the protected Gemma 3 12B on a
+  few hundred WJ-adversarial prompts, judge with the same rubric, report its on-policy
+  jailbreak rate. >=~10-20% -> true on-policy viable; lower -> prefill-and-continue.
+
+Reference: CC++ evaluates on real on-policy jailbreaks (red-team + shadow deployment) +
+synthetic CBRN; no abliterated generator anywhere — that trick is our substitute for
+lacking their red-team pipeline.
+
 What was decided or learned, why it matters, and the next consequence.
 
 ## 2026-06-14 - Phase 1 plan: CC++ linear probe reproduction
