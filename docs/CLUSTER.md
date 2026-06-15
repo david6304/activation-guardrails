@@ -149,7 +149,8 @@ for that target and action.
 | Location | Use |
 | --- | --- |
 | `~/` | persistent checkout, environment, small metadata |
-| `~/models` | persistent Hugging Face cache |
+| `~/.cache/huggingface` | Hugging Face cache (default; do NOT set `HF_HOME`) |
+| `~/models` | abliterated Heretic models: `gemma-3-{4b,12b}-it-heretic` |
 | `/disk/scratch/$USER/` | fast, ephemeral data and intermediates |
 
 - Keep irreplaceable metadata on persistent storage.
@@ -162,7 +163,7 @@ Prefetch every required model and dataset on a networked node before submitting
 an offline job. Set offline flags in compute jobs:
 
 ```bash
-export HF_HOME=~/models
+# HF cache is the default ~/.cache/huggingface; do not set HF_HOME.
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
@@ -209,7 +210,6 @@ source /home/htang2/toolchain-20251006/toolchain.rc
 source ~/venvs/ml/bin/activate
 cd ~/activation-guardrails
 
-export HF_HOME=~/models
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
