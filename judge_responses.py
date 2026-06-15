@@ -145,6 +145,14 @@ def summarise(rows):
     cats = Counter(r["category"] for r in rows if r.get("harmful"))
     if cats:
         print("  harmful categories:", dict(cats))
+    # Truncation x label: if truncated responses are *less* harmful, the 512 cap is
+    # cutting payloads off before they appear -> false negatives in the negative class.
+    print("  harmful rate by truncation (parsed only):")
+    for trunc in (False, True):
+        lab = [r["harmful"] for r in rows
+               if r["harmful"] is not None and r.get("truncated") == trunc]
+        rate = sum(lab) / len(lab) if lab else float("nan")
+        print(f"    truncated={trunc}: n={len(lab)} harmful={rate:.1%}")
 
 
 def main():
