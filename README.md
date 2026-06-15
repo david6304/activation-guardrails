@@ -25,11 +25,27 @@ methods. The project studies three broad questions:
 README.md          project overview and setup
 RESEARCH_LOG.md    important research decisions and findings
 docs/CLUSTER.md    cluster guidance
-papers/            local papers and literature notes
-course-docs/       local course guidance
-archive/           historical project material
+papers/            local papers and literature notes (not tracked)
+course-docs/       local course guidance (not tracked)
+docs/references/   supplementary reference material (not tracked)
+archive/           historical project material (not tracked)
 msc-writeup/       separate dissertation write-up repository
 ```
+
+### papers/
+
+- `raw/` — PDFs named `NN_author_year_shortname.pdf` (numbered entries) or
+  `arxivid-author-shortname.pdf` (later additions).
+- `notes/` — Markdown notes mirroring `raw/` naming. `lit-review-index.md` is
+  the master index. `sae-safety.md` and
+  `sae4safety-zhao-cross-representational-safety-mechanisms.md` are standalone
+  deep-dive notes on key references. Notes contain strategic summaries (claims,
+  results, dissertation relevance); read the PDF when you need exact formulas or
+  hyperparameters.
+
+### course-docs/
+
+- `diss/` and `ipp/` — university guidance for the dissertation and IPP.
 
 Code directories and dependencies will be added only when the current research
 task requires them.
