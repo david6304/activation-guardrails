@@ -65,3 +65,7 @@ score calibration/eval on-the-fly and keep scalars. ~10k exchanges Ã— ~300 tok â
 **To verify:** abliterated responses to harmful prompts are actually harmful (response
 grader, needed for eval regardless); WildChat benign contamination left as a slightly
 conservative threshold for v1.
+
+**Cluster assets:** HF cache is the default `~/.cache/huggingface` (do not set HF_HOME).
+Abliterated response generators (Heretic, loaded by path, not on the Hub):
+`~/models/gemma-3-12b-it-heretic`, `~/models/gemma-3-4b-it-heretic`.
