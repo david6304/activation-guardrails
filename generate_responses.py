@@ -11,6 +11,7 @@ Same script serves train (vanilla_* / `vanilla` column) and eval
 
 import argparse
 import json
+import time
 from pathlib import Path
 
 import numpy as np
@@ -79,6 +80,7 @@ def generate(rows, model_id, max_new_tokens, temperature, top_p, batch_size, see
         raise RuntimeError(f"could not load {model_id}: {last}")
     model.eval()
 
+    t0 = time.time()
     for start in range(0, len(rows), batch_size):
         batch = rows[start:start + batch_size]
         msgs = [[{"role": "user", "content": r["prompt"]}] for r in batch]
@@ -97,7 +99,11 @@ def generate(rows, model_id, max_new_tokens, temperature, top_p, batch_size, see
             r["response"] = tok.decode(ids, skip_special_tokens=True)
             r["n_response_tokens"] = n_tok
             r["truncated"] = n_tok >= max_new_tokens
-        print(f"  generated {min(start + batch_size, len(rows))}/{len(rows)}", flush=True)
+        done = min(start + batch_size, len(rows))
+        rate = done / (time.time() - t0)
+        eta = (len(rows) - done) / rate / 60
+        print(f"  generated {done}/{len(rows)}  {rate:.2f} rows/s  eta {eta:.1f} min",
+              flush=True)
     return rows
 
 

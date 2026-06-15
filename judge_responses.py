@@ -13,6 +13,7 @@ of both. Validate against ~100 hand-labels before trusting it.
 import argparse
 import json
 import re
+import time
 from pathlib import Path
 
 # Approved 2026-06-15: binary, moderate threshold, uncertainty -> not harmful.
@@ -115,6 +116,7 @@ def judge(rows, model_id, batch_size, max_new_tokens, no_think):
         raise RuntimeError(f"could not load {model_id}: {last}")
     model.eval()
 
+    t0 = time.time()
     for start in range(0, len(rows), batch_size):
         batch = rows[start:start + batch_size]
         texts = [apply_template(tok, build_messages(r), no_think) for r in batch]
@@ -127,7 +129,11 @@ def judge(rows, model_id, batch_size, max_new_tokens, no_think):
         for r, ids in zip(batch, new):
             out = tok.decode(ids, skip_special_tokens=True)
             r.update(parse_verdict(out))
-        print(f"  judged {min(start + batch_size, len(rows))}/{len(rows)}", flush=True)
+        done = min(start + batch_size, len(rows))
+        rate = done / (time.time() - t0)
+        eta = (len(rows) - done) / rate / 60
+        print(f"  judged {done}/{len(rows)}  {rate:.2f} rows/s  eta {eta:.1f} min",
+              flush=True)
     return rows
 
 
