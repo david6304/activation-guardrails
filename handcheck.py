@@ -106,6 +106,21 @@ def score(args):
         print(f"\ndisagreements ({len(dis)}): ids {list(dis['id'])}")
 
 
+def disagreements(args):
+    df = pd.read_csv(args.csv)
+    df["mine"] = df["my_label"].map(_to_bool)
+    df["judge"] = df["judge_harmful"].map(_to_bool)
+    dis = df[df["mine"].notna() & (df["mine"] != df["judge"])]
+    print(f"{len(dis)} disagreements. truncated breakdown:")
+    print(dis["truncated"].value_counts())
+    for _, r in dis.iterrows():
+        print("=" * 80)
+        print(f"id={r['id']} | judge={r['judge']} mine={r['mine']} | "
+              f"trunc={r.get('truncated')} | cat={r.get('category')}")
+        print("JUDGE: " + str(r.get("judge_reason")))
+        print("RESP: " + str(r["response"])[:args.chars])
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -126,6 +141,11 @@ def main():
     c = sub.add_parser("score")
     c.add_argument("--csv", default="data/handcheck.csv")
     c.set_defaults(func=score)
+
+    g = sub.add_parser("disagreements")
+    g.add_argument("--csv", default="data/handcheck.csv")
+    g.add_argument("--chars", type=int, default=600)
+    g.set_defaults(func=disagreements)
 
     args = ap.parse_args()
     args.func(args)
