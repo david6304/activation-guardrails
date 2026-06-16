@@ -5,6 +5,14 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-06-16 - Claim framing: detector capability (core) vs deployment ASR (extension)
+
+Core claim (teacher-forced eval supports it): harmfulness is decodable from Gemma
+activations at low FPR even under refusal-suppressing tactics — extends Zhao 2507.11878
+(refusal and harmfulness are separate; the jailbreak beats refusal, the probe reads
+harmfulness). Holds even though Gemma refuses most prompts. Deployment ASR-recovery is
+an extension needing the residual-ASR pilot + on-policy/prefill eval.
+
 ## 2026-06-15 - Eval design: separate off-policy transfer from on-policy deployment
 
 Clarified a conflation in the eval plan. Three distinct activation distributions:
