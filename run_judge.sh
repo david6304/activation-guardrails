@@ -12,6 +12,8 @@ cd ~/activation-guardrails
 
 IN=data/responses_train_pilot.jsonl
 
-python judge_responses.py --in "$IN" --out data/judged_v2_512.jsonl
-python judge_responses.py --in "$IN" --out data/judged_v2_384.jsonl --truncate-tokens 384
-python judge_responses.py --in "$IN" --out data/judged_v2_256.jsonl --truncate-tokens 256
+ARGS="--batch-size 32 --max-new-tokens 64"
+
+python judge_responses.py --in "$IN" --out data/judged_v2_512.jsonl $ARGS
+python judge_responses.py --in "$IN" --out data/judged_v2_384.jsonl --truncate-tokens 384 $ARGS
+python judge_responses.py --in "$IN" --out data/judged_v2_256.jsonl --truncate-tokens 256 $ARGS
