@@ -5,6 +5,39 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-06-18 - Judge gate diagnosis, length sweep, activation-cache design
+
+**Rubric validation (gate).** Hand-check of the Qwen judge scored 77% agreement on a
+75-row stratified sample — below the 85% gate, but the failure was diagnosed as *my
+over-labelling*, not judge error. Disagreement was one-directional (16 judge-benign vs
+my-harmful, 1 the other way) and concentrated in the harmful-prompt/judged-benign
+stratum: I was labelling on the prompt's intent, the judge correctly labels on whether
+the *response* delivers material assistance. Against the agreed definition the judge is
+right ~13/17. Decision: keep the judge; the operative criterion stays "response
+materially advances a hazard," not topical engagement (re-introducing prompt-intent
+labels would re-create the topic/sensitivity confound). One real judge inconsistency
+fixed: a stereotype-fiction carve-out (it flagged one illustrative stereotype narrative,
+cleared an identical one). Next: re-judge pilot with refined rubric, I correct my ~13
+over-flags, re-score (expect >=90%).
+
+**Generation length sweep.** Abliterated responses front-load ~150 tokens of preamble,
+so harm lands mid-response, not early in absolute terms (this is why 256->512 earlier).
+To decide whether 512 can drop for compute/cache saving, re-judge the existing pilot
+with responses clipped to the first N generator tokens (`--truncate-tokens`) and pick
+the shortest N that retains >=95% of harmful labels. No regeneration needed.
+
+**Activation cache design (`extract_activations.py`).** Teacher-forced single forward
+pass through the protected Gemma 3 12B; cache **response tokens only** (the streaming
+probe scores generated tokens, not the prompt) — roughly halves the cache vs the
+prompt+response budget. Per token: concat all hidden_states entries -> (n_layers+1) x
+hidden = 49 x 3840 ~= 188k dims, float16, one .npy per exchange + manifest,
+skip-if-exists. Response span located by char offset (token prefixes break on BPE
+boundary merges). Calibration/eval scored on the fly, not cached.
+
+**FPR calibration source (`load_wildchat.py`).** First English user->assistant exchange
+per WildChat-1M conversation, as-is (WildChat's own responses), no toxicity filter —
+natural traffic with the 99.9th-pct threshold sitting above the borderline tail.
+
 ## 2026-06-16 - Claim framing: detector capability (core) vs deployment ASR (extension)
 
 Core claim (teacher-forced eval supports it): harmfulness is decodable from Gemma
