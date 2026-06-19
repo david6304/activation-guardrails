@@ -8,7 +8,7 @@ direction. Do not record routine coding work.
 ## 2026-06-19 - Rubric gate cleared (90.7%) via blind triangulation
 
 Re-judged the 512 pilot with the refined rubric (stereotype-fiction carve-out) and
-ran a three-way **blind triangulation** to validate it: David and Claude independently
+ran a three-way **blind triangulation** to validate it: David and Claude (Opus 4.8 medium effort) independently
 labelled the same 75-row stratified sample (30/30/15, seed 0, `handcheck.py
 sample/label/blind-prep`); Claude labelled from response text only, judge verdict and
 David's labels stripped. Initial agreement: David-judge **76%**, Claude-judge **84%**,

@@ -4,8 +4,8 @@
 # Usage: sbatch -p Wintermute --gres=gpu:1 --time=12:00:00 run_generate.sh [N_PER_TYPE] [OUT] [BATCH]
 #SBATCH --job-name=gen_train
 #SBATCH --cpus-per-task=4
-#SBATCH --mem=64G
-#SBATCH --time=12:00:00
+#SBATCH --mem=32G
+#SBATCH --time=03:00:00
 #SBATCH --output=gen_train_%j.out
 set -euo pipefail
 
