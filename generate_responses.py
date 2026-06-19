@@ -27,12 +27,17 @@ REFUSAL_PREFIXES = (
 
 
 def load_wildjailbreak():
-    from huggingface_hub import hf_hub_download, list_repo_files
+    # Glob the cached snapshot directly: list_repo_files() is a live API call that
+    # fails under HF_HUB_OFFLINE=1 (the cluster setting). hf_hub_download reads the
+    # cache, but we never reached it. Prefetch the dataset on a networked node.
+    from huggingface_hub import constants
 
-    files = [f for f in list_repo_files("allenai/wildjailbreak", repo_type="dataset")
-             if f.endswith(".tsv") and "train" in f]
-    path = hf_hub_download("allenai/wildjailbreak", files[0], repo_type="dataset")
-    return pd.read_csv(path, sep="\t", dtype=str, na_filter=False)
+    snaps = Path(constants.HF_HUB_CACHE) / "datasets--allenai--wildjailbreak" / "snapshots"
+    cands = sorted(p for p in snaps.glob("*/**/*.tsv") if "train" in p.name)
+    if not cands:
+        raise RuntimeError(f"no cached wildjailbreak train tsv under {snaps}; "
+                           "prefetch the dataset on a networked node first")
+    return pd.read_csv(cands[0], sep="\t", dtype=str, na_filter=False)
 
 
 def sample_prompts(df, data_types, prompt_col, n_per_type, seed):
