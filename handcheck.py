@@ -18,7 +18,8 @@ import pandas as pd
 
 def sample(args):
     rows = pd.read_json(args.inp, lines=True)
-    rows = rows[rows["harmful"].notna()]
+    rows = rows[rows["harmful"].notna()].copy()
+    rows["harmful"] = rows["harmful"].astype(bool)
 
     harmful_dt = rows[rows["data_type"].str.endswith("harmful")]
     benign_dt = rows[rows["data_type"].str.endswith("benign")]
@@ -121,6 +122,36 @@ def disagreements(args):
         print("RESP: " + str(r["response"])[:args.chars])
 
 
+def blind_prep(args):
+    """Strip the judge verdict and David's labels so Claude can label blind."""
+    df = pd.read_csv(args.csv)
+    out = df[["id", "prompt", "response"]].copy()
+    out["claude_label"] = ""
+    out.to_csv(args.out, index=False)
+    print(f"[done] wrote {len(out)} rows -> {args.out}  (id/prompt/response only)")
+
+
+def triangulate(args):
+    """Merge David, Claude, and judge labels by id; report pairwise + 3-way agreement."""
+    david = pd.read_csv(args.csv)
+    claude = pd.read_csv(args.claude)
+    m = david[["id", "my_label", "judge_harmful"]].merge(
+        claude[["id", "claude_label"]], on="id")
+    m["david"] = m["my_label"].map(_to_bool)
+    m["claude"] = m["claude_label"].map(_to_bool)
+    m["judge"] = m["judge_harmful"].map(_to_bool)
+    m = m.dropna(subset=["david", "claude", "judge"])
+    print(f"[triangulate] {len(m)} rows with all three labels\n")
+    for a, b in [("david", "judge"), ("claude", "judge"), ("david", "claude")]:
+        print(f"  {a} vs {b}: {(m[a] == m[b]).mean():.1%}")
+    unan = (m["david"] == m["claude"]) & (m["claude"] == m["judge"])
+    print(f"\n  all three agree: {unan.mean():.1%} ({unan.sum()}/{len(m)})")
+    dis = m[~unan]
+    if len(dis):
+        print(f"\n  splits ({len(dis)}): ids {list(dis['id'])}")
+        print(dis[["id", "david", "claude", "judge"]].to_string(index=False))
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -146,6 +177,16 @@ def main():
     g.add_argument("--csv", default="data/handcheck.csv")
     g.add_argument("--chars", type=int, default=600)
     g.set_defaults(func=disagreements)
+
+    bp = sub.add_parser("blind-prep")
+    bp.add_argument("--csv", default="data/handcheck_v2.csv")
+    bp.add_argument("--out", default="data/handcheck_blind.csv")
+    bp.set_defaults(func=blind_prep)
+
+    t = sub.add_parser("triangulate")
+    t.add_argument("--csv", default="data/handcheck_v2.csv")
+    t.add_argument("--claude", default="data/handcheck_blind.csv")
+    t.set_defaults(func=triangulate)
 
     args = ap.parse_args()
     args.func(args)
