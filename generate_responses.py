@@ -53,7 +53,7 @@ def looks_like_refusal(text):
     return any(t.startswith(p) for p in REFUSAL_PREFIXES)
 
 
-def generate(rows, model_id, max_new_tokens, temperature, top_p, batch_size, seed):
+def generate(rows, out_path, model_id, max_new_tokens, temperature, top_p, batch_size, seed):
     import torch
     from transformers import (
         AutoModelForCausalLM,
@@ -80,35 +80,52 @@ def generate(rows, model_id, max_new_tokens, temperature, top_p, batch_size, see
         raise RuntimeError(f"could not load {model_id}: {last}")
     model.eval()
 
+    # Resume: skip ids already in the output (append-as-we-go below survives a
+    # timeout / preempt on the long run).
+    done_ids = set()
+    if out_path.exists():
+        with out_path.open() as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    done_ids.add(json.loads(line)["id"])
+                except json.JSONDecodeError:
+                    pass  # tolerate a truncated trailing line from an interrupted append
+    todo = [r for r in rows if r["id"] not in done_ids]
+    print(f"[generate] {len(done_ids)} already done, {len(todo)} to go", flush=True)
+
     # Length-sort prompts so each batch pads to a similar length (cuts wasted
-    # padding compute). Dicts are mutated in place; `rows` keeps its id order.
-    order = sorted(rows, key=lambda r: len(r["prompt"]))
+    # padding compute).
+    order = sorted(todo, key=lambda r: len(r["prompt"]))
 
     t0 = time.time()
-    for start in range(0, len(order), batch_size):
-        batch = order[start:start + batch_size]
-        msgs = [[{"role": "user", "content": r["prompt"]}] for r in batch]
-        inputs = tok.apply_chat_template(
-            msgs, tokenize=True, add_generation_prompt=True,
-            return_dict=True, padding=True, return_tensors="pt",
-        ).to(model.device)
-        with torch.no_grad():
-            gen = model.generate(
-                **inputs, max_new_tokens=max_new_tokens, do_sample=True,
-                temperature=temperature, top_p=top_p, pad_token_id=tok.pad_token_id,
-            )
-        new = gen[:, inputs["input_ids"].shape[1]:]
-        for r, ids in zip(batch, new):
-            n_tok = int((ids != tok.pad_token_id).sum())
-            r["response"] = tok.decode(ids, skip_special_tokens=True)
-            r["n_response_tokens"] = n_tok
-            r["truncated"] = n_tok >= max_new_tokens
-        done = min(start + batch_size, len(rows))
-        rate = done / (time.time() - t0)
-        eta = (len(rows) - done) / rate / 60
-        print(f"  generated {done}/{len(rows)}  {rate:.2f} rows/s  eta {eta:.1f} min",
-              flush=True)
-    return rows
+    with out_path.open("a") as out:
+        for start in range(0, len(order), batch_size):
+            batch = order[start:start + batch_size]
+            msgs = [[{"role": "user", "content": r["prompt"]}] for r in batch]
+            inputs = tok.apply_chat_template(
+                msgs, tokenize=True, add_generation_prompt=True,
+                return_dict=True, padding=True, return_tensors="pt",
+            ).to(model.device)
+            with torch.no_grad():
+                gen = model.generate(
+                    **inputs, max_new_tokens=max_new_tokens, do_sample=True,
+                    temperature=temperature, top_p=top_p, pad_token_id=tok.pad_token_id,
+                )
+            new = gen[:, inputs["input_ids"].shape[1]:]
+            for r, ids in zip(batch, new):
+                n_tok = int((ids != tok.pad_token_id).sum())
+                r["response"] = tok.decode(ids, skip_special_tokens=True)
+                r["n_response_tokens"] = n_tok
+                r["truncated"] = n_tok >= max_new_tokens
+                out.write(json.dumps(r) + "\n")
+            out.flush()
+            done = min(start + batch_size, len(order))
+            rate = done / (time.time() - t0)
+            eta = (len(order) - done) / rate / 60
+            print(f"  generated {done}/{len(order)}  {rate:.2f} rows/s  eta {eta:.1f} min",
+                  flush=True)
 
 
 def summarise(rows):
@@ -143,21 +160,24 @@ def main():
     print(f"[sample] data_types={data_types} prompt_col={args.prompt_col!r} n_per_type={args.n_per_type}")
     df = load_wildjailbreak()
     rows = sample_prompts(df, data_types, args.prompt_col, args.n_per_type, args.seed)
-
-    if args.dry_run:
-        for r in rows:
-            r.update(response="[DRY RUN]", n_response_tokens=0, truncated=False)
-    else:
-        rows = generate(rows, args.model, args.max_new_tokens, args.temperature,
-                        args.top_p, args.batch_size, args.seed)
-        summarise(rows)
+    # id = position in the deterministic sampled order, so resume maps prompts
+    # back to the same id across restarts (same seed / n-per-type / data-types).
+    for i, r in enumerate(rows):
+        r["id"] = i
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open("w") as f:
-        for i, r in enumerate(rows):
-            f.write(json.dumps({"id": i, **r}) + "\n")
-    print(f"\n[done] wrote {len(rows)} rows -> {out}")
+
+    if args.dry_run:
+        with out.open("w") as f:
+            for r in rows:
+                f.write(json.dumps({**r, "response": "[DRY RUN]",
+                                    "n_response_tokens": 0, "truncated": False}) + "\n")
+    else:
+        generate(rows, out, args.model, args.max_new_tokens, args.temperature,
+                 args.top_p, args.batch_size, args.seed)
+        summarise([json.loads(line) for line in out.open() if line.strip()])
+    print(f"\n[done] {out}")
 
 
 if __name__ == "__main__":
