@@ -68,10 +68,15 @@ def generate(rows, out_path, model_id, max_new_tokens, temperature, top_p, batch
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
 
+    # Turing (2080 Ti) has no bf16; fall back to fp16 there. Ampere+ (A100/A6000/H200)
+    # keep bf16, matching the pilot.
+    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    print(f"[dtype] {dtype}", flush=True)
+
     model, last = None, None
     for cls in (AutoModelForCausalLM, AutoModelForImageTextToText):
         try:
-            model = cls.from_pretrained(model_id, dtype=torch.bfloat16, device_map="auto")
+            model = cls.from_pretrained(model_id, dtype=dtype, device_map="auto")
             print(f"[load] {cls.__name__} -> {type(model).__name__}")
             break
         except Exception as e:  # noqa: BLE001 -- real boundary: Auto-class mapping
