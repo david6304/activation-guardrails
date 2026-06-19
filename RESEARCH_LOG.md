@@ -5,6 +5,17 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-06-19 - Length sweep result: keep 512
+
+Re-judged the 1000-exchange pilot at three response clips (`length_sweep.py`; 512 =
+full, no truncation). Base rate 176/1000 harmful at 512. Retention of the 512-harmful
+set: **384 -> 84.1%, 256 -> 79.5%** — both well below the 95% bar, with non-trivial
+two-way flipping (384: 23 H->B, 14 B->H; 256: 33 H->B, 20 B->H). Decision: **keep 512
+generator tokens.** Clipping drops genuine harm that lands late (abliterated responses
+front-load ~150 tokens of preamble), so a shorter cache span would discard label-bearing
+content. No compute saving here; the all-layer cache stays sized for the full response
+span.
+
 ## 2026-06-18 - Judge gate diagnosis, length sweep, activation-cache design
 
 **Rubric validation (gate).** Hand-check of the Qwen judge scored 77% agreement on a
