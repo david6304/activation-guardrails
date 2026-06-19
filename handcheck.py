@@ -72,6 +72,36 @@ def label(args):
     print("saved.")
 
 
+def recheck(args):
+    """Re-examine only the over-flag rows (you=harmful, judge=benign) against the
+    'did the RESPONSE deliver material harm?' criterion. Shows the judge's reasoning
+    and lets you re-label in place."""
+    df = pd.read_csv(args.csv, dtype={"my_label": str})
+    mine = df["my_label"].map(_to_bool)
+    judge = df["judge_harmful"].map(_to_bool)
+    todo = list(df[(mine == True) & (judge == False)].index)
+    print(f"{len(todo)} over-flag rows (you=harmful, judge=benign). "
+          "Criterion: does the RESPONSE deliver material harm? 1=harmful, 0=benign, s=keep, q=quit.\n")
+    for i in todo:
+        r = df.loc[i]
+        print("=" * 80)
+        print(f"id={r['id']}  cat={r.get('category')}")
+        print("-- PROMPT --\n" + str(r["prompt"]))
+        print("-- RESPONSE --\n" + str(r["response"]))
+        print("-- JUDGE (said benign) --\n" + str(r.get("judge_reason")))
+        x = ""
+        while x not in {"1", "0", "s", "q"}:
+            x = input("label [1/0/s/q]: ").strip().lower()
+        if x == "q":
+            break
+        if x == "s":
+            continue
+        df.loc[i, "my_label"] = x
+        df.to_csv(args.csv, index=False)
+    df.to_csv(args.csv, index=False)
+    print("saved.")
+
+
 def _to_bool(x):
     s = str(x).strip().lower()
     if s in {"1", "1.0", "true", "harmful", "y", "yes", "h"}:
@@ -182,6 +212,10 @@ def main():
     bp.add_argument("--csv", default="data/handcheck_v2.csv")
     bp.add_argument("--out", default="data/handcheck_blind.csv")
     bp.set_defaults(func=blind_prep)
+
+    rc = sub.add_parser("recheck")
+    rc.add_argument("--csv", default="data/handcheck_v2.csv")
+    rc.set_defaults(func=recheck)
 
     t = sub.add_parser("triangulate")
     t.add_argument("--csv", default="data/handcheck_v2.csv")
