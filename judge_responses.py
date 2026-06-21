@@ -113,7 +113,7 @@ def apply_template(tok, messages, no_think):
     return tok.apply_chat_template(messages, **kwargs)
 
 
-def judge(rows, model_id, batch_size, max_new_tokens, no_think):
+def judge(rows, out_path, model_id, batch_size, max_new_tokens, no_think):
     import torch
     from transformers import (
         AutoModelForCausalLM,
@@ -141,30 +141,45 @@ def judge(rows, model_id, batch_size, max_new_tokens, no_think):
         raise RuntimeError(f"could not load {model_id}: {last}")
     model.eval()
 
+    # Resume: skip ids already judged in the output, appending as we go, so a timeout
+    # on a backfill slice loses no work (mirrors generate_responses.py).
+    done_ids = set()
+    if out_path.exists():
+        with out_path.open() as f:
+            for line in f:
+                if not line.strip():
+                    continue
+                try:
+                    done_ids.add(json.loads(line)["id"])
+                except json.JSONDecodeError:
+                    pass
+    todo = [r for r in rows if r["id"] not in done_ids]
+    print(f"[judge] {len(done_ids)} already done, {len(todo)} to go", flush=True)
+
     # Length-sort so each batch pads to a similar length (left-padding to the batch
-    # max otherwise wastes compute when short and long responses mix). Dicts are
-    # mutated in place, so `rows` keeps its original id order for writing.
-    order = sorted(rows, key=lambda r: len(r["prompt"]) + len(r["response"]))
+    # max otherwise wastes compute when short and long responses mix).
+    order = sorted(todo, key=lambda r: len(r["prompt"]) + len(r["response"]))
 
     t0 = time.time()
-    for start in range(0, len(order), batch_size):
-        batch = order[start:start + batch_size]
-        texts = [apply_template(tok, build_messages(r), no_think) for r in batch]
-        inputs = tok(texts, return_tensors="pt", padding=True,
-                     add_special_tokens=False).to(model.device)
-        with torch.no_grad():
-            gen = model.generate(**inputs, max_new_tokens=max_new_tokens,
-                                  do_sample=False, pad_token_id=tok.pad_token_id)
-        new = gen[:, inputs["input_ids"].shape[1]:]
-        for r, ids in zip(batch, new):
-            out = tok.decode(ids, skip_special_tokens=True)
-            r.update(parse_verdict(out))
-        done = min(start + batch_size, len(rows))
-        rate = done / (time.time() - t0)
-        eta = (len(rows) - done) / rate / 60
-        print(f"  judged {done}/{len(rows)}  {rate:.2f} rows/s  eta {eta:.1f} min",
-              flush=True)
-    return rows
+    with out_path.open("a") as out:
+        for start in range(0, len(order), batch_size):
+            batch = order[start:start + batch_size]
+            texts = [apply_template(tok, build_messages(r), no_think) for r in batch]
+            inputs = tok(texts, return_tensors="pt", padding=True,
+                         add_special_tokens=False).to(model.device)
+            with torch.no_grad():
+                gen = model.generate(**inputs, max_new_tokens=max_new_tokens,
+                                      do_sample=False, pad_token_id=tok.pad_token_id)
+            new = gen[:, inputs["input_ids"].shape[1]:]
+            for r, ids in zip(batch, new):
+                r.update(parse_verdict(tok.decode(ids, skip_special_tokens=True)))
+                out.write(json.dumps(r) + "\n")
+            out.flush()
+            done = min(start + batch_size, len(order))
+            rate = done / (time.time() - t0)
+            eta = (len(order) - done) / rate / 60
+            print(f"  judged {done}/{len(order)}  {rate:.2f} rows/s  eta {eta:.1f} min",
+                  flush=True)
 
 
 def summarise(rows):
@@ -215,15 +230,14 @@ def main():
     if args.truncate_tokens:
         rows = truncate_responses(rows, args.gen_tokenizer, args.truncate_tokens)
     print(f"[judge] {len(rows)} rows, model={args.model}")
-    rows = judge(rows, args.model, args.batch_size, args.max_new_tokens, args.no_think)
-    summarise(rows)
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open("w") as f:
-        for r in rows:
-            f.write(json.dumps(r) + "\n")
-    print(f"\n[done] wrote {len(rows)} rows -> {out}")
+    judge(rows, out, args.model, args.batch_size, args.max_new_tokens, args.no_think)
+
+    judged = [json.loads(line) for line in out.open() if line.strip()]
+    summarise(judged)
+    print(f"\n[done] wrote {len(judged)} rows -> {out}")
 
 
 if __name__ == "__main__":
