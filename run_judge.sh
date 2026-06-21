@@ -1,8 +1,10 @@
 #!/bin/bash
 # Judge generated responses for harm (Qwen3.6-27B rubric). Resumable: re-running the
 # same command skips ids already in $OUT, so a timeout/preempt loses no work.
-# Usage: sbatch -p Teaching --gres=gpu:h200_3g.71gb:1 --time=03:00:00 run_judge.sh [IN] [OUT] [BATCH]
+# Usage: sbatch run_judge.sh   (override target with e.g. -p/--gres/--time on the CLI)
 #SBATCH --job-name=judge_train
+#SBATCH --partition=Teaching
+#SBATCH --gres=gpu:h200_3g.71gb:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=64G
 #SBATCH --time=03:00:00
@@ -19,7 +21,7 @@ export HF_DATASETS_OFFLINE=1
 
 IN=${1:-data/responses_train.jsonl}
 OUT=${2:-data/judged_train.jsonl}
-BATCH=${3:-16}
+BATCH=${3:-32}
 
 date --iso-8601=seconds
 hostname
