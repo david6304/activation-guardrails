@@ -5,7 +5,23 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
-## 2026-06-22 - Cache only training activations; score eval/calibration forward-only
+## 2026-06-22 - Probe training: fp16 cache overflow on massive-activation channel
+
+First probe run gave `nan` loss from step 0. Cause: the activation cache is stored
+fp16 (`vec.to(torch.float16)`) but the model runs bf16; Gemma 3 12B's massive
+activation channel (**residual dim 2339**, present in every layer, ~1e4-1e5 and
+growing with depth) exceeds fp16's 65504 ceiling and saturates to `inf` in layers
+20-47. Exactly **one channel** — 28 of 188160 dims overflow; finite absmax 65024.
+
+**Fix (no re-extraction):** drop dim 2339 from all 49 layer blocks (49 dims) and
+per-dim standardise the rest (stats on a 2000-exchange train sample, seeded), applied
+at load in `train_probe.py`. Standardisation is folded into a full-D effective weight
+at save time (`W/std`, zeroed on dropped dims; bias absorbs `-ΣW·mean/std`), so
+`score_probe.py` is unchanged and its live bf16 forward multiplies the (finite) dim
+2339 by zero. Dropping the channel everywhere also handles its ill-conditioning, not
+just the overflow. Avoids re-running the 1.83 TB protected-12B extraction.
+
+
 
 Decided the storage boundary after measuring the finished train cache: **9987
 exchanges, 1.83 TB, ~183 MB/exchange** (fp16, all ~512 response tokens × 49 hidden

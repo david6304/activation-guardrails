@@ -66,17 +66,51 @@ def ema_max(logits, lengths, alpha):
     return best
 
 
+# Residual-stream dim 2339 is Gemma 3 12B's massive-activation channel (~1e4-1e5);
+# in the float16 cache it overflows to inf in the deep layers (RESEARCH_LOG 2026-06-22).
+# Drop it from every layer block and standardise the rest before the probe.
+HIDDEN = 3840
+DROP_CHANNEL = 2339
+
+
+def keep_dims(D):
+    drop = np.arange(DROP_CHANNEL, D, HIDDEN)   # dim 2339 in every (L+1) block
+    return np.setdiff1d(np.arange(D), drop)
+
+
 class ActsDataset(Dataset):
-    def __init__(self, rows):
+    def __init__(self, rows, keep, mean=None, std=None):
         self.rows = rows
+        self.keep = keep
+        self.mean = mean
+        self.std = std
 
     def __len__(self):
         return len(self.rows)
 
     def __getitem__(self, i):
         r = self.rows[i]
-        a = np.load(r["path"])               # [n_resp, D] float16
-        return torch.from_numpy(a), float(r["label"])
+        a = np.load(r["path"])[:, self.keep].astype(np.float32)   # [n_resp, Dk]
+        a = torch.from_numpy(a)
+        assert torch.isfinite(a).all(), f"non-finite activation in {r['path']}"
+        if self.mean is not None:
+            a = (a - self.mean) / self.std
+        return a, float(r["label"])
+
+
+def compute_stats(rows, keep, num_workers):
+    """Per-dim mean/std over response tokens of a sample of train exchanges."""
+    loader = DataLoader(ActsDataset(rows, keep), batch_size=1,
+                        num_workers=num_workers, collate_fn=lambda b: b[0])
+    n, s, ss = 0, None, None
+    for a, _ in loader:
+        a = a.double()
+        s = a.sum(0) if s is None else s + a.sum(0)
+        ss = (a * a).sum(0) if ss is None else ss + (a * a).sum(0)
+        n += a.shape[0]
+    mean = s / n
+    std = (ss / n - mean**2).clamp_min(1e-12).sqrt()
+    return mean.float(), std.float()
 
 
 def collate(batch):
@@ -136,6 +170,8 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--num-workers", type=int, default=4)
+    ap.add_argument("--stats-rows", type=int, default=2000,
+                    help="train exchanges sampled to estimate standardisation stats")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--limit", type=int, default=0, help="use first N manifest rows (smoke test)")
     ap.add_argument("--out", default="data/probe.pt")
@@ -152,17 +188,22 @@ def main():
         rows = rows[: args.limit]
     train_rows, val_rows = split_rows(rows, args.val_frac, args.seed)
     D = int(np.load(train_rows[0]["path"]).shape[1])
+    keep = keep_dims(D)
     n_pos = sum(int(r["label"]) for r in train_rows)
     print(f"[data] train={len(train_rows)} (pos={n_pos}) val={len(val_rows)} D={D} "
-          f"M={args.M} tau={args.tau} alpha={alpha:.4f}", flush=True)
+          f"keep={len(keep)} M={args.M} tau={args.tau} alpha={alpha:.4f}", flush=True)
+
+    stats_rows = train_rows[: args.stats_rows] if args.stats_rows else train_rows
+    mean, std = compute_stats(stats_rows, keep, args.num_workers)
+    print(f"[stats] from {len(stats_rows)} exchanges", flush=True)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = torch.nn.Linear(D, 1).to(device)
+    model = torch.nn.Linear(len(keep), 1).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-    train_loader = DataLoader(ActsDataset(train_rows), batch_size=args.batch_size,
+    train_loader = DataLoader(ActsDataset(train_rows, keep, mean, std), batch_size=args.batch_size,
                               shuffle=True, num_workers=args.num_workers, collate_fn=collate)
-    val_loader = DataLoader(ActsDataset(val_rows), batch_size=args.batch_size,
+    val_loader = DataLoader(ActsDataset(val_rows, keep, mean, std), batch_size=args.batch_size,
                             shuffle=False, num_workers=args.num_workers, collate_fn=collate)
 
     for epoch in range(args.epochs):
@@ -181,10 +222,17 @@ def main():
         auroc = evaluate(model, val_loader, device, alpha)
         print(f"[epoch {epoch}] train_loss {running / seen:.4f} val_auroc {auroc:.4f}", flush=True)
 
+    # Fold drop+standardise into a full-D weight so score_probe needs no change:
+    # W.(x-mean)/std + b == (W/std).x + (b - sum(W*mean/std)), zero on dropped dims.
+    W_kept = model.weight.detach().cpu().squeeze(0).float() / std
+    b_eff = float(model.bias.detach().cpu()) - float((W_kept * mean).sum())
+    W_full = torch.zeros(D)
+    W_full[torch.from_numpy(keep)] = W_kept
+
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"W": model.weight.detach().cpu().squeeze(0), "b": float(model.bias.detach()),
-                "D": D, "M": args.M, "tau": args.tau, "alpha": alpha,
+    torch.save({"W": W_full, "b": b_eff, "D": D, "M": args.M, "tau": args.tau,
+                "alpha": alpha, "drop_channel": DROP_CHANNEL, "hidden": HIDDEN,
                 "val_auroc": auroc, "seed": args.seed}, out)
     print(f"[done] saved probe -> {out}")
 
