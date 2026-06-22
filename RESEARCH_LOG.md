@@ -5,6 +5,33 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-06-22 - Cache only training activations; score eval/calibration forward-only
+
+Decided the storage boundary after measuring the finished train cache: **9987
+exchanges, 1.83 TB, ~183 MB/exchange** (fp16, all ~512 response tokens × 49 hidden
+states × 3840 — token count and all-layer concat are the multipliers; ~0.38 MB/token).
+Replicating this for eval and a 100k calibration set would be ~10 TB on shared Lustre.
+
+**Decision: do not cache eval or calibration activations.** The train-cache rationale
+(read every epoch × loss/EMA/layer config × seed) does not transfer: eval/calibration
+are only *scored* — a single forward-only pass per probe config, no generation, no
+backward. Generation (the slow autoregressive part) already happened upstream, so
+scoring is cheap (~min for eval, ~10 GPU-min for a 20k dev-calib, <~1 hr for 100k).
+~10-15 ablations = a few GPU-hours total, vs 5-10 TB of storage. Persist **per-exchange
+scalar scores** so any FPR is read off the ASR-vs-FPR curve for free. This vindicates
+the original 2026-06-15 storage instinct.
+
+**Operating points:** report the full ASR-vs-FPR curve. **ASR@1%FPR is the primary
+ablation metric** (stable: ~10% relative SE at 10k calib), **ASR@0.1%FPR the headline**
+matched to CC++ (needs ~100k calib for comparable precision — run once on-the-fly for
+the final probe only). Calibration set size is orthogonal to probe training (it only
+sets a scalar threshold) so it cannot "dominate" the 10k training set.
+
+**Eval must be WJ adversarial, not a held-out vanilla split** — the v1 claim is the
+vanilla->adversarial tactic-transfer number. Storage levers if ever needed, biggest
+first: fewer layers (run layer ablation off the train cache first, then fix the set),
+token cap/stride (risky: late harm + benign-max for FPR), int8 (avoid for a repro).
+
 ## 2026-06-19 - Rubric gate cleared (90.7%) via blind triangulation
 
 Re-judged the 512 pilot with the refined rubric (stereotype-fiction carve-out) and
