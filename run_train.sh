@@ -5,7 +5,7 @@
 # Usage: sbatch -p Teaching --gres=gpu:<TYPE>:1 --time=06:00:00 run_train.sh [EPOCHS] [BATCH] [OUT]
 #SBATCH --job-name=train_probe
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=32G
+#SBATCH --mem=64G
 #SBATCH --time=06:00:00
 #SBATCH --output=train_probe_%j.out
 set -euo pipefail
@@ -26,4 +26,4 @@ git status --short
 echo "EPOCHS=$EPOCHS BATCH=$BATCH OUT=$OUT"
 
 python train_probe.py --manifest data/acts_manifest.jsonl \
-  --epochs "$EPOCHS" --batch-size "$BATCH" --num-workers 8 --out "$OUT"
+  --epochs "$EPOCHS" --batch-size "$BATCH" --num-workers 4 --out "$OUT"
