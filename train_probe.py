@@ -17,6 +17,7 @@ substitute for SWiM), scored per exchange as max EMA over response tokens.
 import argparse
 import json
 import random
+import time
 from pathlib import Path
 
 import numpy as np
@@ -103,11 +104,16 @@ def compute_stats(rows, keep, num_workers):
     loader = DataLoader(ActsDataset(rows, keep), batch_size=1,
                         num_workers=num_workers, collate_fn=lambda b: b[0])
     n, s, ss = 0, None, None
-    for a, _ in loader:
+    t0 = time.time()
+    for i, (a, _) in enumerate(loader, 1):
         a = a.double()
         s = a.sum(0) if s is None else s + a.sum(0)
         ss = (a * a).sum(0) if ss is None else ss + (a * a).sum(0)
         n += a.shape[0]
+        if i % 200 == 0:
+            dt = time.time() - t0
+            print(f"  [stats] {i}/{len(rows)} exchanges, {n} tokens, "
+                  f"{dt:.0f}s ({i / dt:.1f} exch/s)", flush=True)
     mean = s / n
     std = (ss / n - mean**2).clamp_min(1e-12).sqrt()
     return mean.float(), std.float()
@@ -206,9 +212,11 @@ def main():
     val_loader = DataLoader(ActsDataset(val_rows, keep, mean, std), batch_size=args.batch_size,
                             shuffle=False, num_workers=args.num_workers, collate_fn=collate)
 
+    n_steps = len(train_loader)
     for epoch in range(args.epochs):
         model.train()
         running, seen = 0.0, 0
+        t0 = time.time()
         for step, (X, lengths, labels) in enumerate(train_loader):
             logits = model(X.to(device).float()).squeeze(-1)
             loss = swim_loss(logits, lengths.to(device), labels.to(device), args.M, args.tau)
@@ -217,10 +225,14 @@ def main():
             opt.step()
             running += loss.item() * len(labels)
             seen += len(labels)
-            if step % 50 == 0:
-                print(f"  epoch {epoch} step {step} loss {running / seen:.4f}", flush=True)
+            if step % 20 == 0:
+                dt = time.time() - t0
+                print(f"  epoch {epoch} step {step}/{n_steps} loss {running / seen:.4f} "
+                      f"{dt:.0f}s ({seen / dt:.1f} exch/s)", flush=True)
+        print(f"  epoch {epoch} evaluating on {len(val_rows)} val exchanges...", flush=True)
         auroc = evaluate(model, val_loader, device, alpha)
-        print(f"[epoch {epoch}] train_loss {running / seen:.4f} val_auroc {auroc:.4f}", flush=True)
+        print(f"[epoch {epoch}] train_loss {running / seen:.4f} val_auroc {auroc:.4f} "
+              f"({time.time() - t0:.0f}s)", flush=True)
 
     # Fold drop+standardise into a full-D weight so score_probe needs no change:
     # W.(x-mean)/std + b == (W/std).x + (b - sum(W*mean/std)), zero on dropped dims.
