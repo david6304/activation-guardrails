@@ -199,7 +199,8 @@ def main():
         out.parent.mkdir(parents=True, exist_ok=True)
         torch.save({"W": W_eff.reshape(-1).cpu(), "b": b_eff, "D": D, "hidden": hidden,
                     "M": args.M, "tau": args.tau, "alpha": alpha, "online": True,
-                    "epoch": epoch, "val_auroc": auroc, "seed": args.seed}, out)
+                    "epoch": epoch, "val_auroc": auroc, "seed": args.seed,
+                    "model_id": args.model_id, "config": vars(args)}, out)
         print(f"[saved] probe -> {out} (epoch {epoch})", flush=True)
 
 
