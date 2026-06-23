@@ -21,7 +21,7 @@ export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
 
 IN=${1:-data/judged_train.jsonl}
-EPOCHS=${2:-3}
+EPOCHS=${2:-10}    # ceiling; train_probe_online early-stops on val
 BATCH=${3:-8}
 OUT=${4:-data/probe.pt}
 

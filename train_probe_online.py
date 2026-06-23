@@ -45,12 +45,18 @@ def make_batch(tok, spans, idx, device):
 
 
 def token_logits(model, ids, attn, W, b, mean, std):
-    """Per-token harmfulness logit [B, seq], grad flowing only to W, b (model frozen)."""
+    """Per-token harmfulness logit [B, seq], grad flowing only to W, b (model frozen).
+
+    Accumulate over layers instead of stacking all L+1 hidden states: peak memory is
+    one [B, seq, H] tensor, not [L+1, B, seq, H], so larger batches fit and each step
+    moves far less memory."""
     with torch.no_grad():
-        hs = torch.stack(model(input_ids=ids, attention_mask=attn,
-                               output_hidden_states=True, use_cache=False).hidden_states)
-    hs = (hs.float() - mean[:, None, None, :]) / std[:, None, None, :]   # [L+1, B, seq, H]
-    return (hs * W[:, None, None, :]).sum(-1).sum(0) + b
+        hs = model(input_ids=ids, attention_mask=attn,
+                   output_hidden_states=True, use_cache=False).hidden_states
+    logit = b
+    for li, h in enumerate(hs):
+        logit = logit + (((h.float() - mean[li]) / std[li]) * W[li]).sum(-1)
+    return logit
 
 
 def gather_resp(logits, spans, idx, device):
@@ -117,8 +123,11 @@ def main():
     ap.add_argument("--tau", type=float, default=1.0)
     ap.add_argument("--alpha", type=float, default=0.0)
     ap.add_argument("--val-frac", type=float, default=0.1)
-    ap.add_argument("--epochs", type=int, default=3)
+    ap.add_argument("--epochs", type=int, default=10, help="max epochs; early-stops on val")
+    ap.add_argument("--patience", type=int, default=3, help="stop after this many epochs w/o val gain")
     ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--weight-decay", type=float, default=1e-2,
+                    help="L2 on W (probe is 188k-dim over ~9k exchanges, so regularise)")
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--stats-rows", type=int, default=500)
     ap.add_argument("--seed", type=int, default=0)
@@ -161,9 +170,11 @@ def main():
 
     W = torch.zeros(n_layerp1, hidden, device=device, requires_grad=True)
     b = torch.zeros(1, device=device, requires_grad=True)
-    opt = torch.optim.Adam([W, b], lr=args.lr)
+    opt = torch.optim.AdamW([{"params": [W], "weight_decay": args.weight_decay},
+                             {"params": [b], "weight_decay": 0.0}], lr=args.lr)
 
     n_steps = (len(tr_idx) + args.batch_size - 1) // args.batch_size
+    best_auroc, no_improve = float("-inf"), 0
     for epoch in range(args.epochs):
         order = tr_idx[:]
         random.shuffle(order)
@@ -191,17 +202,24 @@ def main():
         print(f"[epoch {epoch}] train_loss {running / seen:.4f} val_auroc {auroc:.4f} "
               f"({time.time() - t0:.0f}s)", flush=True)
 
-        # Fold standardise into a full-D weight (score_probe-compatible); checkpoint each
-        # epoch so a walltime kill keeps the latest probe.
-        W_eff = (W.detach() / std)
-        b_eff = float(b.detach()) - float((W_eff * mean).sum())
-        out = Path(args.out)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        torch.save({"W": W_eff.reshape(-1).cpu(), "b": b_eff, "D": D, "hidden": hidden,
-                    "M": args.M, "tau": args.tau, "alpha": alpha, "online": True,
-                    "epoch": epoch, "val_auroc": auroc, "seed": args.seed,
-                    "model_id": args.model_id, "config": vars(args)}, out)
-        print(f"[saved] probe -> {out} (epoch {epoch})", flush=True)
+        # Keep the best-val probe (model selection), and stop once val stops improving.
+        if auroc > best_auroc:
+            best_auroc, no_improve = auroc, 0
+            W_eff = (W.detach() / std)   # fold standardise into a score_probe-compatible weight
+            b_eff = float(b.detach()) - float((W_eff * mean).sum())
+            out = Path(args.out)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            torch.save({"W": W_eff.reshape(-1).cpu(), "b": b_eff, "D": D, "hidden": hidden,
+                        "M": args.M, "tau": args.tau, "alpha": alpha, "online": True,
+                        "epoch": epoch, "val_auroc": auroc, "seed": args.seed,
+                        "model_id": args.model_id, "config": vars(args)}, out)
+            print(f"[saved] best probe -> {out} (epoch {epoch}, val_auroc {auroc:.4f})", flush=True)
+        else:
+            no_improve += 1
+            if no_improve >= args.patience:
+                print(f"[early stop] no val gain for {args.patience} epochs; "
+                      f"best val_auroc {best_auroc:.4f}", flush=True)
+                break
 
 
 if __name__ == "__main__":
