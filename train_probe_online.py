@@ -140,7 +140,9 @@ def main():
     ap.add_argument("--alpha", type=float, default=0.0)
     ap.add_argument("--val-frac", type=float, default=0.1)
     ap.add_argument("--epochs", type=int, default=10, help="max epochs; early-stops on val")
-    ap.add_argument("--patience", type=int, default=3, help="stop after this many epochs w/o val gain")
+    ap.add_argument("--patience", type=int, default=3, help="stop after this many evals w/o val gain")
+    ap.add_argument("--eval-every", type=int, default=0,
+                    help="eval/checkpoint every N steps; 0 = once per epoch")
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--weight-decay", type=float, default=1e-2,
                     help="L2 on W (probe is 188k-dim over ~9k exchanges, so regularise)")
@@ -190,7 +192,34 @@ def main():
     opt = torch.optim.AdamW([{"params": [W], "weight_decay": args.weight_decay},
                              {"params": [b], "weight_decay": 0.0}], lr=args.lr)
 
-    best_auroc, no_improve = float("-inf"), 0
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    best_auroc, no_improve, gstep = float("-inf"), 0, 0
+
+    def checkpoint(tag):
+        """Eval on val; save the probe if it's the best so far; True if patience hit."""
+        nonlocal best_auroc, no_improve
+        auroc = evaluate(model, tok, rows, spans, va_idx,
+                         W, b, mean, std, args.batch_size, device, alpha)
+        print(f"[{tag}] val_auroc {auroc:.4f}", flush=True)
+        if auroc > best_auroc:
+            best_auroc, no_improve = auroc, 0
+            W_eff = (W.detach() / std)   # fold standardise into a score_probe-compatible weight
+            b_eff = float(b.detach()) - float((W_eff * mean).sum())
+            torch.save({"W": W_eff.reshape(-1).cpu(), "b": b_eff, "D": D, "hidden": hidden,
+                        "M": args.M, "tau": args.tau, "alpha": alpha, "online": True,
+                        "epoch": epoch, "step": gstep, "val_auroc": auroc, "seed": args.seed,
+                        "model_id": args.model_id, "config": vars(args)}, out)
+            print(f"[saved] best probe -> {out} ({tag}, val_auroc {auroc:.4f})", flush=True)
+            return False
+        no_improve += 1
+        if no_improve >= args.patience:
+            print(f"[early stop] no val gain in {args.patience} evals; "
+                  f"best val_auroc {best_auroc:.4f}", flush=True)
+            return True
+        return False
+
+    stop = False
     for epoch in range(args.epochs):
         batches = length_bucketed_batches(tr_idx, spans, args.batch_size)
         n_steps = len(batches)
@@ -207,34 +236,20 @@ def main():
             opt.step()
             running += loss.item() * len(idx)
             seen += len(idx)
+            gstep += 1
             if step % 20 == 0:
                 dt = time.time() - t0
                 print(f"  epoch {epoch} step {step}/{n_steps} loss {running / seen:.4f} "
                       f"{dt:.0f}s ({seen / dt:.1f} exch/s)", flush=True)
-        print(f"  epoch {epoch} evaluating on {len(va_idx)} val exchanges...", flush=True)
-        auroc = evaluate(model, tok, rows, spans, va_idx,
-                         W, b, mean, std, args.batch_size, device, alpha)
-        print(f"[epoch {epoch}] train_loss {running / seen:.4f} val_auroc {auroc:.4f} "
-              f"({time.time() - t0:.0f}s)", flush=True)
-
-        # Keep the best-val probe (model selection), and stop once val stops improving.
-        if auroc > best_auroc:
-            best_auroc, no_improve = auroc, 0
-            W_eff = (W.detach() / std)   # fold standardise into a score_probe-compatible weight
-            b_eff = float(b.detach()) - float((W_eff * mean).sum())
-            out = Path(args.out)
-            out.parent.mkdir(parents=True, exist_ok=True)
-            torch.save({"W": W_eff.reshape(-1).cpu(), "b": b_eff, "D": D, "hidden": hidden,
-                        "M": args.M, "tau": args.tau, "alpha": alpha, "online": True,
-                        "epoch": epoch, "val_auroc": auroc, "seed": args.seed,
-                        "model_id": args.model_id, "config": vars(args)}, out)
-            print(f"[saved] best probe -> {out} (epoch {epoch}, val_auroc {auroc:.4f})", flush=True)
-        else:
-            no_improve += 1
-            if no_improve >= args.patience:
-                print(f"[early stop] no val gain for {args.patience} epochs; "
-                      f"best val_auroc {best_auroc:.4f}", flush=True)
-                break
+            if args.eval_every and gstep % args.eval_every == 0:
+                stop = checkpoint(f"epoch {epoch} step {gstep}")
+                if stop:
+                    break
+        print(f"[epoch {epoch}] train_loss {running / seen:.4f} ({time.time() - t0:.0f}s)", flush=True)
+        if not args.eval_every:
+            stop = checkpoint(f"epoch {epoch}")
+        if stop:
+            break
 
 
 if __name__ == "__main__":
