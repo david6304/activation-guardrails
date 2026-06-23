@@ -30,6 +30,7 @@ hostname
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 git rev-parse HEAD
 git status --short
-echo "IN=$IN EPOCHS=$EPOCHS BATCH=$BATCH OUT=$OUT"
+echo "IN=$IN EPOCHS=$EPOCHS BATCH=$BATCH OUT=$OUT EXTRA=${*:5}"
 
-python train_probe_online.py --in "$IN" --epochs "$EPOCHS" --batch-size "$BATCH" --out "$OUT"
+# Extra args from position 5 on pass through (e.g. --lr 1e-4 --weight-decay 0.1).
+python train_probe_online.py --in "$IN" --epochs "$EPOCHS" --batch-size "$BATCH" --out "$OUT" "${@:5}"
