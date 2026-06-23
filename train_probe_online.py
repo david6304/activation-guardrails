@@ -165,8 +165,9 @@ def main():
     for p in model.parameters():
         p.requires_grad_(False)
     device = model.device
-    n_layerp1 = model.config.num_hidden_layers + 1
-    hidden = model.config.hidden_size
+    text_cfg = getattr(model.config, "text_config", model.config)   # Gemma 3 is multimodal
+    n_layerp1 = text_cfg.num_hidden_layers + 1
+    hidden = text_cfg.hidden_size
     D = n_layerp1 * hidden
 
     rows = load_rows(args.inp, args.limit)

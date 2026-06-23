@@ -44,8 +44,9 @@ def main():
     model.eval()
     device = model.device
 
-    n_layerp1 = model.config.num_hidden_layers + 1
-    hidden = model.config.hidden_size
+    text_cfg = getattr(model.config, "text_config", model.config)   # Gemma 3 is multimodal
+    n_layerp1 = text_cfg.num_hidden_layers + 1
+    hidden = text_cfg.hidden_size
     assert n_layerp1 * hidden == D, f"probe D={D} != (L+1)*hidden={n_layerp1}*{hidden}"
     W2 = probe["W"].view(n_layerp1, hidden).to(device).float()   # [L+1, hidden]
     b = float(probe["b"])
