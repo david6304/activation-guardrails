@@ -44,6 +44,22 @@ def make_batch(tok, spans, idx, device):
     return enc["input_ids"], enc["attention_mask"]
 
 
+def length_bucketed_batches(idx_list, spans, batch_size, bucket_mult=50):
+    """Batches of similar-length sequences (less padding -> less wasted forward compute).
+
+    Shuffle, split into megabatches, sort each by length into batches, then shuffle the
+    batch order. Re-randomised each call, so batch contents and order vary across epochs
+    while padding stays low. Uses the seeded global RNG."""
+    order = idx_list[:]
+    random.shuffle(order)
+    batches, mb = [], batch_size * bucket_mult
+    for s in range(0, len(order), mb):
+        chunk = sorted(order[s : s + mb], key=lambda j: len(spans[j][0]))
+        batches += [chunk[k : k + batch_size] for k in range(0, len(chunk), batch_size)]
+    random.shuffle(batches)
+    return batches
+
+
 def token_logits(model, ids, attn, W, b, mean, std):
     """Per-token harmfulness logit [B, seq], grad flowing only to W, b (model frozen).
 
@@ -173,14 +189,12 @@ def main():
     opt = torch.optim.AdamW([{"params": [W], "weight_decay": args.weight_decay},
                              {"params": [b], "weight_decay": 0.0}], lr=args.lr)
 
-    n_steps = (len(tr_idx) + args.batch_size - 1) // args.batch_size
     best_auroc, no_improve = float("-inf"), 0
     for epoch in range(args.epochs):
-        order = tr_idx[:]
-        random.shuffle(order)
+        batches = length_bucketed_batches(tr_idx, spans, args.batch_size)
+        n_steps = len(batches)
         running, seen, t0 = 0.0, 0, time.time()
-        for step, start in enumerate(range(0, len(order), args.batch_size)):
-            idx = order[start : start + args.batch_size]
+        for step, idx in enumerate(batches):
             ids, attn = make_batch(tok, spans, idx, device)
             logits = token_logits(model, ids, attn, W, b, mean, std)
             padded, lengths = gather_resp(logits, spans, idx, device)
