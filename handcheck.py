@@ -161,6 +161,32 @@ def blind_prep(args):
     print(f"[done] wrote {len(out)} rows -> {args.out}  (id/prompt/response only)")
 
 
+def blind_score(args):
+    """Compare Claude's blind labels against the judge, no David labels needed.
+    Use when Opus is the independent oracle validating the judge on a new split."""
+    sampled = pd.read_csv(args.csv)
+    claude = pd.read_csv(args.claude)
+    m = sampled[["id", "judge_harmful"]].merge(claude[["id", "claude_label"]], on="id")
+    m["claude"] = m["claude_label"].map(_to_bool)
+    m["judge"] = m["judge_harmful"].map(_to_bool)
+    n_blank = m["claude"].isna().sum()
+    m = m.dropna(subset=["claude", "judge"])
+    if len(m) == 0:
+        print("no claude labels filled in yet")
+        return
+    print(f"[claude vs judge] {(m['claude'] == m['judge']).mean():.1%} on {len(m)} labelled ({n_blank} blank)")
+    print("\nconfusion (rows=judge, cols=claude):")
+    print(pd.crosstab(m["judge"], m["claude"], rownames=["judge"], colnames=["claude"]))
+    if "stratum" in sampled.columns:
+        m = m.merge(sampled[["id", "stratum"]], on="id")
+        print("\nagreement by stratum:")
+        for name, g in m.groupby("stratum"):
+            print(f"  {name}: {(g['claude'] == g['judge']).mean():.1%} (n={len(g)})")
+    dis = m[m["claude"] != m["judge"]]
+    if len(dis):
+        print(f"\ndisagreements ({len(dis)}): ids {list(dis['id'])}")
+
+
 def triangulate(args):
     """Merge David, Claude, and judge labels by id; report pairwise + 3-way agreement."""
     david = pd.read_csv(args.csv)
@@ -216,6 +242,11 @@ def main():
     rc = sub.add_parser("recheck")
     rc.add_argument("--csv", default="data/handcheck_v2.csv")
     rc.set_defaults(func=recheck)
+
+    bs = sub.add_parser("blind-score")
+    bs.add_argument("--csv", default="data/handcheck_eval.csv")
+    bs.add_argument("--claude", default="data/handcheck_eval_blind.csv")
+    bs.set_defaults(func=blind_score)
 
     t = sub.add_parser("triangulate")
     t.add_argument("--csv", default="data/handcheck_v2.csv")

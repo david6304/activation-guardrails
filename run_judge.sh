@@ -22,11 +22,12 @@ export HF_DATASETS_OFFLINE=1
 IN=${1:-data/responses_train.jsonl}
 OUT=${2:-data/judged_train.jsonl}
 BATCH=${3:-16}
+MAXTOK=${4:-64}
 
 date --iso-8601=seconds
 hostname
 git rev-parse HEAD
 git status --short
-echo "IN=$IN OUT=$OUT BATCH=$BATCH"
+echo "IN=$IN OUT=$OUT BATCH=$BATCH MAXTOK=$MAXTOK"
 
-python judge_responses.py --in "$IN" --out "$OUT" --batch-size "$BATCH" --max-new-tokens 64
+python judge_responses.py --in "$IN" --out "$OUT" --batch-size "$BATCH" --max-new-tokens "$MAXTOK"
