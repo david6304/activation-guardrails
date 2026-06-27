@@ -25,11 +25,12 @@ IN=${1:?need IN}
 OUT=${2:?need OUT}
 PROBE=${3:-data/probe_v1.pt}
 BATCH=${4:-8}
+LIMIT=${5:-0}
 
 date --iso-8601=seconds
 hostname
 git rev-parse HEAD
 git status --short
-echo "IN=$IN OUT=$OUT PROBE=$PROBE BATCH=$BATCH"
+echo "IN=$IN OUT=$OUT PROBE=$PROBE BATCH=$BATCH LIMIT=$LIMIT"
 
-python score_probe.py --in "$IN" --out "$OUT" --probe "$PROBE" --batch-size "$BATCH"
+python score_probe.py --in "$IN" --out "$OUT" --probe "$PROBE" --batch-size "$BATCH" --limit "$LIMIT"
