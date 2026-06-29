@@ -1,7 +1,8 @@
 #!/bin/bash
 # Forward-only probe scoring (protected Gemma 3 12B, teacher-forced, no cache). Resumable:
 # re-running the same command skips ids already in $OUT, so a timeout/preempt loses no work.
-# Usage: sbatch run_score.sh <IN> <OUT> [PROBE] [BATCH]   (override target with -p/--gres/--time)
+# Usage: sbatch run_score.sh <IN> <OUT> [PROBE] [BATCH] [LIMIT] [EXTRA...]   (override target with -p/--gres/--time)
+#   extra args from position 6 pass through, e.g. --model-id /home/s2296274/models/gemma-3-12b-it-heretic
 #   calibration: ... run_score.sh data/wildchat_calib.jsonl data/wildchat_scores.jsonl data/probe_v1.pt 8
 #   eval:        ... run_score.sh data/judged_adv_eval.jsonl data/adv_eval_scores.jsonl  data/probe_v1.pt 8
 #SBATCH --job-name=score
@@ -33,4 +34,4 @@ git rev-parse HEAD
 git status --short
 echo "IN=$IN OUT=$OUT PROBE=$PROBE BATCH=$BATCH LIMIT=$LIMIT"
 
-python score_probe.py --in "$IN" --out "$OUT" --probe "$PROBE" --batch-size "$BATCH" --limit "$LIMIT"
+python score_probe.py --in "$IN" --out "$OUT" --probe "$PROBE" --batch-size "$BATCH" --limit "$LIMIT" "${@:6}"

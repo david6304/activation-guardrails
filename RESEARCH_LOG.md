@@ -5,6 +5,71 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-06-29 - Text baseline beats probe; CC++ complementarity weak even in-dist
+
+TF-IDF logistic on response text (train vanilla, judge labels) vs frozen `probe_v1`, on
+the already-scored sets. Probe loses everywhere: in-dist vanilla AUROC **0.81 vs text
+0.955**; vanilla->adversarial transfer **0.684 vs 0.839** (harm-isolated). WJ keeps
+harmful semantics legible on the surface (TF-IDF transfers at 0.81 on the prompt, 0.84 on
+the response), so bag-of-words suffices and the probe has no room — WJ is the wrong venue
+to separate an activation from a text advantage.
+
+CC++ reframed from the PDF: their probe does **not** beat text (Fig 2a/3a, probe-only is
+the *worst* system); the result is ~zero probe compute + **decorrelated-error ensemble**
+(Fig 3). So reproduction success = ensemble>text, not probe>text. De-risk on existing
+data: even in-distribution the AUROC-optimal probe+text ensemble sets a~1 (discards the
+probe); only a marginal low-FPR lift (equal-weight ensemble TPR@0.1%FPR 0.108 vs text
+0.098). Probe too weak / too correlated (Spearman 0.55 in-dist) to complement.
+
+Leading hypothesis: **activation-source mismatch** — probe reads PROTECTED Gemma
+activations teacher-forced on ABLITERATED-generated responses (off-policy text the
+protected model would never emit). Next diagnostic: extract activations from the
+abliterated model itself (on-policy for the generator) on a train/eval subset, retrain a
+probe, compare in-dist AUROC; if it jumps, the mismatch was the cause. Hold the
+adversarial extraction until settled. `text_baseline.py` has the baseline + ensemble
+analysis.
+
+## 2026-06-28 - Adversarial scoring: weak vanilla->adversarial transfer; probe score is distribution-entangled
+
+Scored frozen `probe_v1` (online probe, lr 3e-5, in-train val AUROC 0.92) forward-only
+on the adversarial eval set and ~96k WildChat calibration exchanges. Positives =
+judge-harmful responses (n=1285).
+
+Results:
+- In-dist fresh vanilla (`judged_eval`, run as a pipeline sanity check): AUROC **0.81** —
+  confirms the scorer is correct; the 0.92 was within-generation-batch optimism (val on
+  responses from the same generation run as train).
+- Vanilla->adversarial, harmful vs matched adversarial-benign: AUROC **0.684**.
+- ASR@1%FPR / @0.1%FPR: **45% / 70%** (WildChat-calibrated), **81% / 89%** (matched
+  adversarial-benign, harm-isolating).
+
+Key diagnostic: the max-EMA score scale is strongly distribution-dependent. Benign mean
+score vanilla **11.7** > adversarial **5.0** > WildChat **1.3** — a benign vanilla
+response outscores a harmful adversarial one. Within a distribution, harm adds only ~+2;
+across distributions the offset dominates. Standardisation is fit on the vanilla train
+distribution (correct for deployment), so OOD inputs sit off-centre and the
+WildChat-calibrated FPR is not comparable across distributions (36% of adversarial-benign
+exceeds the WildChat-1%FPR threshold).
+
+Interpretation: **not yet evidence the dense recipe fails.** CC++'s positive dense-probe
+result trained on red-team/adversarial data; our Phase-1 probe trains on vanilla only, so
+it likely under-covers the adversarial region rather than the recipe being broken (CC++
+also report benign-science over-flagging, which we reproduce). Next: train on mixed
+vanilla+adversarial with a *disjoint* adversarial test to get the in-distribution
+adversarial detection ceiling (the apples-to-apples CC++ reproduction); only then is
+vanilla->adversarial transfer a separable contribution.
+
+## 2026-06-27 - Adversarial eval set built + judge validated
+
+WildJailbreak *adversarial* eval generated (abliterated 12B, 512 tok) and judged.
+Re-judged 676 rows truncated by the 64-tok judge cap (raised to 256); recovered 303
+harmful labels. Final: adversarial_harmful 25.0% harmful (1252), adversarial_benign
+0.7% (35) — 1285 ASR positives. Judge handcheck (Claude blind, 75 rows): ~94%
+population-weighted agreement; disagreement is one-directional (judge broader than
+strict material-harm, e.g. counts verbal compliance/creative-disparagement),
+concentrated in the positive class. Accepted judge as v1 oracle — a guardrail
+erring toward blocking is the safe direction.
+
 ## 2026-06-22 - Probe training: fp16 cache overflow on massive-activation channel
 
 First probe run gave `nan` loss from step 0. Cause: the activation cache is stored
