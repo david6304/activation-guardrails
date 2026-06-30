@@ -29,6 +29,27 @@ probe, compare in-dist AUROC; if it jumps, the mismatch was the cause. Hold the
 adversarial extraction until settled. `text_baseline.py` has the baseline + ensemble
 analysis.
 
+**Result (same day):** abliterated on-policy in-dist AUROC **0.772** (TPR@0.1% 0.019) — not
+better than protected teacher-forced 0.810. Mismatch ruled out as the bottleneck;
+abliteration if anything degrades the harm representation, so protected (teacher-forced) is
+the better source. Probe weakness is intrinsic (legible WJ text + linear-probe-on-Gemma);
+CC++ complementarity does not reproduce here. Decision: pivot to an obfuscation venue.
+
+**Next steps - obfuscation venue.** Validate the project premise (activations carry a harm
+signal that survives surface attacks which break text) since legible WJ doesn't show it.
+- Capability gating first: apply translations (low-resource langs) and ciphers
+  (base64/leetspeak/substitution) to WJ harmful prompts, generate + judge, keep only
+  obfuscations where the model still complies (harm preserved) - those are the interesting ones.
+- Input-guardrail framing: harmfulness probe on PLAIN prompt activations (short -> cheap),
+  tested on obfuscated prompts; text (TF-IDF + a production guard) collapses on the obfuscated
+  surface, probe should hold if the model decodes intent. Report the gap.
+- Free look: join existing adversarial prompts -> WJ `tactics` column (WJ TSV is cluster-side)
+  for a per-tactic probe-vs-text breakdown; may already show the gap reversing on obfuscation-
+  like tactics.
+- Also worth trying: production guard baselines (WildGuard/ShieldGemma/LlamaGuard) as the strong
+  text comparator; frame harm-signal survival across languages as a language-agnostic internal
+  representation (feeds Phase 3 SAE interp).
+
 ## 2026-06-28 - Adversarial scoring: weak vanilla->adversarial transfer; probe score is distribution-entangled
 
 Scored frozen `probe_v1` (online probe, lr 3e-5, in-train val AUROC 0.92) forward-only
