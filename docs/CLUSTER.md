@@ -86,6 +86,15 @@ shows advertised hardware and node state, while `squeue` shows current demand;
 neither reliably predicts a job's start time. Compare eligible requests with
 `sbatch --test-only`, which asks the scheduler for its current estimated start.
 
+`--test-only` reports the priority-ordered estimate and **ignores backfill**, so
+for a low-priority account it is a pessimistic upper bound, often days out even
+when capable GPUs sit idle. Do not read it as "no GPUs". Find physically-free
+devices from `sinfo` (advertised `gres` minus `gresused`); a short, small,
+resumable job submitted against idle capacity usually backfills in within
+minutes. Prefer less-contested capable hardware (e.g. large MIG slices) over the
+A100 everyone queues for, keep wall-time short, and watch the `squeue` REASON
+column rather than waiting on the estimate.
+
 1. Define the job contract before checking availability:
 
    - minimum safe VRAM and acceptable GPU models;
@@ -170,7 +179,10 @@ export HF_DATASETS_OFFLINE=1
 ```
 
 An offline smoke test should load the exact pinned model/tokenizer/data from
-cache before a long run is submitted.
+cache before a long run is submitted. Export the same offline flags the batch job
+uses (`HF_HUB_OFFLINE=1` etc.) when running it: a pilot on a networked node
+without them silently passes on live API calls (e.g. `list_repo_files`) that the
+offline batch job then fails on.
 
 For model-backed jobs, the preflight must exercise the same loading and input
 preparation path as the production command. In a short allocation, load the
