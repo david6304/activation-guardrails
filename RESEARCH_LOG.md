@@ -5,6 +5,25 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-03 - Cipher venue fixed to input-only; abliterated 27B built
+
+Refined the 2026-06-29 obfuscation venue after SAE4Safety Table 1 (cipher capability) +
+own tests: base64 read+write is infeasible below ~280B (35B struggles; only DeepSeek-V4
+280B succeeds), and exact cipher decoding collapses even at 27B (Table 1: gemma-3-27b
+ROT13 decrypt-EM 2.9%). But MMLU-ACC under cipher stays well above chance, so the model
+keeps the *gist* without exact decode. Decisions:
+- **Input-only** cipher (cipher in, plain out), input-side guardrail: a text classifier on
+  the ciphered prompt is blind, the probe reads the model's internal gist. Drop the
+  read+write obfuscated-output venue. Ciphers = **reverse + rot13** (gist retained per
+  Table 1 ACC); base64/leetspeak dropped. `capability_check.py --conds in` is the gist check.
+- Labels: judge WJ-vanilla by **prompt intent** (not response), response labels archived.
+  Datasets: WJ-vanilla (train) + XSTest-safe (register-matched confound negative) +
+  StrongREJECT (held-out clean harmful). Eval on mixed plain+cipher so probe/text/probe+text
+  complementarity stays legible on the plain slice.
+- Model: gemma-3-27b-it (SAE via `gemma-scope-2-27b-it`, -it variant exists) or 12b.
+- **Abliterated generator** (capability check only): `~/models/gemma-3-27b-it-heretic` via
+  Heretic, Trial 186 — refusals 50/100, KL divergence 0.0801.
+
 ## 2026-06-29 - Text baseline beats probe; CC++ complementarity weak even in-dist
 
 TF-IDF logistic on response text (train vanilla, judge labels) vs frozen `probe_v1`, on
