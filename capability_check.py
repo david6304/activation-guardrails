@@ -80,6 +80,65 @@ def dec_b64(text):
     return best, bool(best)
 
 
+NATO = {"a": "Alpha", "b": "Bravo", "c": "Charlie", "d": "Delta", "e": "Echo",
+        "f": "Foxtrot", "g": "Golf", "h": "Hotel", "i": "India", "j": "Juliett",
+        "k": "Kilo", "l": "Lima", "m": "Mike", "n": "November", "o": "Oscar",
+        "p": "Papa", "q": "Quebec", "r": "Romeo", "s": "Sierra", "t": "Tango",
+        "u": "Uniform", "v": "Victor", "w": "Whiskey", "x": "Xray", "y": "Yankee",
+        "z": "Zulu"}
+NATO_REV = {v.lower(): k for k, v in NATO.items()}
+
+
+def enc_nato(text):
+    out = []
+    for ch in text:
+        if ch.lower() in NATO:
+            out.append(NATO[ch.lower()])
+        elif ch == " ":
+            out.append("/")
+        else:
+            out.append(ch)
+    return " ".join(out)
+
+
+def dec_nato(text):
+    out = []
+    for tok in text.split():
+        if tok == "/":
+            out.append(" ")
+        else:
+            out.append(NATO_REV.get(tok.lower(), tok))
+    return "".join(out), True
+
+
+MORSE = {"a": ".-", "b": "-...", "c": "-.-.", "d": "-..", "e": ".", "f": "..-.",
+         "g": "--.", "h": "....", "i": "..", "j": ".---", "k": "-.-", "l": ".-..",
+         "m": "--", "n": "-.", "o": "---", "p": ".--.", "q": "--.-", "r": ".-.",
+         "s": "...", "t": "-", "u": "..-", "v": "...-", "w": ".--", "x": "-..-",
+         "y": "-.--", "z": "--..", "0": "-----", "1": ".----", "2": "..---",
+         "3": "...--", "4": "....-", "5": ".....", "6": "-....", "7": "--...",
+         "8": "---..", "9": "----.", ".": ".-.-.-", ",": "--..--", "?": "..--..",
+         "'": ".----.", "!": "-.-.--", "/": "-..-.", "(": "-.--.", ")": "-.--.-",
+         "&": ".-...", ":": "---...", ";": "-.-.-.", "=": "-...-", "+": ".-.-.",
+         "-": "-....-", '"': ".-..-.", "@": ".--.-."}
+MORSE_REV = {v: k for k, v in MORSE.items()}
+
+
+def enc_morse(text):
+    words = []
+    for word in text.split(" "):
+        codes = [MORSE.get(ch.lower(), "") for ch in word]
+        words.append(" ".join(c for c in codes if c))
+    return " / ".join(words)
+
+
+def dec_morse(text):
+    words = []
+    for word in text.split(" / "):
+        words.append("".join(MORSE_REV.get(c, "") for c in word.split()))
+    return " ".join(words), True
+
+
 CIPHERS = {
     "reverse": {
         "enc": enc_reverse, "dec": dec_reverse,
@@ -102,6 +161,21 @@ CIPHERS = {
         "enc": enc_b64, "dec": dec_b64,
         "in_desc": "standard Base64",
         "out_desc": "standard Base64, as a single Base64 string",
+    },
+    "nato": {
+        "enc": enc_nato, "dec": dec_nato,
+        "in_desc": ("the NATO phonetic alphabet (each letter spelled as its code word: "
+                    "A=Alpha B=Bravo C=Charlie ... Z=Zulu; '/' separates words; "
+                    "digits and punctuation unchanged)"),
+        "out_desc": ("the NATO phonetic alphabet: spell each letter as its code word "
+                     "(A=Alpha ... Z=Zulu), '/' between words"),
+    },
+    "morse": {
+        "enc": enc_morse, "dec": dec_morse,
+        "in_desc": ("Morse code (each letter as dots and dashes, letters separated by "
+                    "spaces and words separated by ' / ')"),
+        "out_desc": ("Morse code: dots and dashes, spaces between letters, ' / ' between "
+                     "words"),
     },
 }
 # condition name -> (input_obfuscated, output_obfuscated)
