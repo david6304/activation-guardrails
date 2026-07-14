@@ -37,6 +37,4 @@ __pycache__/
 *.egg-info/
 
 # Slurm job logs
-gen_train_*.out
-judge_sweep_*.out
-slurm-*.out
+*.out

@@ -5,6 +5,54 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-14 - Capability on protected model: portfolio = reverse + zulu, probe 27B
+
+Decode capability of the PROTECTED gemma-3-27b/12b on WebQuestions (n=150/cipher,
+retention = acc / plain):
+
+| cipher | 27b acc / ret | 12b acc / ret |
+|--------|---------------|---------------|
+| plain  | 54.0% / 100%  | 50.7% / 100%  |
+| zulu   | 48.0% / 89%   | 36.7% / 72%   |
+| reverse| 27.3% / 51%   | 18.0% / 36%   |
+| nato   |  0.7% / 1%    |  0.0% / 0%    |
+| morse  |  0.0% / 0%    |  0.0% / 0%    |
+
+- **nato/morse 0% is a truncation artefact, not incapacity:** outputs show correct
+  letter-by-letter decode (`.-- = W, .... = H, ...`) cut off by the 64-token cap before
+  the answer. But the decode is *serial CoT* — intent is constructed during generation,
+  not present at the prompt-final position an input-side probe reads. So they are dropped
+  as probe venues (guard-blind but wrong mechanism), not rerun.
+- **Portfolio = reverse + zulu:** both guard-blind AND decoded in-context (zulu with no
+  visible scaffold, strongest at 89% retention). reverse decode is real but lossy (small
+  slips, e.g. "Snipes"→"Spines").
+- **Probed model = 27B:** uniformly higher retention (zulu 89 vs 72, reverse 51 vs 36) →
+  more decoded intent for the probe to read. Code: `capability_qa.py`, `run_capqa.sh`.
+
+## 2026-07-13 - Guard-blindness screen positive; capability on protected model
+
+Two results firming up the input-only cipher venue.
+
+- **Capability (eyeball, abliterated 27B):** `reverse` decode ≈100% (30/30 responses
+  verbalise the correct reversed request); the 16.7% harmful-response rate is residual
+  *safety*, not decode — do not gate on it. `rot13` dead (0/30). The low plain ceiling
+  (26.7%) is irrelevant to input-moderation (labels = prompt intent, no harmful
+  generations needed), so the abliterated generator is dropped; decode capability is now
+  measured on the PROTECTED gemma-3-27b/12b via benign-verifiable QA (WebQuestions,
+  gist-accuracy à la SAE4Safety Table 1).
+
+- **Guard-blindness screen (n=50 WJ-harmful vs XSTest-safe):** WildGuard + ShieldGemma-9B
+  flag plain harmful (recall 100% / 58%) but collapse to **0%** on reverse/nato/morse;
+  zulu WildGuard 0%, ShieldGemma 18%. Ciphered-benign FPR 0% → genuine content-blindness,
+  not scaffold-detection (the XSTest-safe control rules that out). Validates the venue
+  premise: deployed guards are blind to the ciphered prompt the 27B decodes, so the probe
+  has room. LlamaGuard-3 pending Meta license.
+
+- **Cipher portfolio** = model-decodable AND guard-blind. `reverse` confirmed both; `zulu`
+  usable; `nato`/`morse` guard-blind, model-decode being measured now (same run also
+  decides 27b-vs-12b as the probed model). Code: `guard_screen.py`, `capability_qa.py`
+  (screen commit 9278fbf).
+
 ## 2026-07-03 - Cipher venue fixed to input-only; abliterated 27B built
 
 Refined the 2026-06-29 obfuscation venue after SAE4Safety Table 1 (cipher capability) +
