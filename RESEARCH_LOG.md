@@ -5,6 +5,45 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-17 - Dissertation plan: three claims on the input-only cipher venue
+
+SAE coverage checked: `google/gemma-scope-2-27b-it` has `resid_post` SAEs at layers
+16/31/40/53 (widths 16k-1M, L0 small/med/big) AND `resid_post_all` (every layer, fewer
+widths) + Neuronpedia. 27B stays the probed model. Plan (experiments freeze ~end July;
+one shared prompt-side extraction feeds everything):
+
+1. **Phase-1 anchor - plain→cipher transfer.** Probe on protected-27B prompt activations
+   (last-token, all layers), trained on PLAIN WJ-vanilla only (prompt-intent labels),
+   tested on plain/reverse/zulu; negatives = WJ-benign + XSTest-safe, StrongREJECT
+   held-out, FPR measured on ciphered benigns. Headline = transfer, not mixed-train
+   (kills the normalise-then-guard objection and the cipher-surface-statistics confound;
+   mixed-train reported as the know-the-attack upper bound with a char-ngram TF-IDF
+   control). Guards are 0% on ciphers, so ensemble>guard is baked in - the substantive
+   results are absolute low-FPR performance and transfer, guards as context.
+2. **Novel claim - capability-detectability coupling.** Probe transfer recall vs decode
+   retention per transform (zulu 89%, reverse 51%, nato/morse ≈0 at prompt-final as the
+   predicted-failure mechanistic control: serial-CoT decode ⇒ input probe must fail).
+   Add 2-3 NLLB languages at graded resource levels to turn the ordering into a curve.
+   Claim: the guardrail's robustness boundary is the model's comprehension boundary.
+3. **Phase-3 core - SAE feature invariance (priority if time squeezes).** On matched
+   plain/cipher prompt pairs: sparse-vs-dense probe on transfer; top-feature overlap
+   across surface forms; layer-wise transfer curves (where invariant intent emerges;
+   never for nato/morse); auto-interp shared top features (semantic harm concepts vs
+   surface shortcuts).
+4. **Phase-2 minimal - harm vs refusal.** (a) protected-27B refusal rate on ciphered
+   harmful: refusal drops while the probe holds (Zhao payoff). (b) score the
+   plain-trained probe on abliterated-27B prompt activations: survives ⇒ probes read
+   intent, not refusal precursors. Drop (b) first if time runs out.
+
+Prereqs: prompt-intent judge over WJ-vanilla (~5k harmful + 5k benign) + NLLB
+translations. First cluster job = reverse-mechanism pilot: small last-token probe on
+plain+reverse to check reverse intent exists at prompt-final at all (evidence so far is
+verbalised in-generation decode); if not, reverse drops and zulu carries. Reverse and
+zulu analysed separately throughout (in-context decode vs multilinguality).
+Engineering: no per-exchange activation cache (Lustre small-file IO); extract+train in
+one job, last-token all-layer features in memory, persist one consolidated array
+(~20 GB for ~30k prompt×condition).
+
 ## 2026-07-14 - Capability on protected model: portfolio = reverse + zulu, probe 27B
 
 Decode capability of the PROTECTED gemma-3-27b/12b on WebQuestions (n=150/cipher,
