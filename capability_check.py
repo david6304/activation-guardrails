@@ -139,6 +139,34 @@ def dec_morse(text):
     return " ".join(words), True
 
 
+_VOWELS = set("aeiouAEIOU")
+
+
+def enc_vowel(text):
+    return "".join(c for c in text if c not in _VOWELS)
+
+
+def _piglatin_word(word):
+    m = re.match(r"([A-Za-z]+)", word)
+    if not m:
+        return word
+    core, rest = m.group(1), word[m.end():]
+    if core[0] in _VOWELS:
+        return core + "way" + rest
+    i = next((j for j, c in enumerate(core) if c in _VOWELS), len(core))
+    return core[i:] + core[:i].lower() + "ay" + rest
+
+
+def enc_piglatin(text):
+    return " ".join(_piglatin_word(w) for w in text.split(" "))
+
+
+def dec_identity(text):
+    # piglatin/vowel are input-only fallback ciphers: dec is only exercised by the
+    # out_obf conditions, which never run for them.
+    return text, True
+
+
 CIPHERS = {
     "reverse": {
         "enc": enc_reverse, "dec": dec_reverse,
@@ -169,6 +197,18 @@ CIPHERS = {
                     "digits and punctuation unchanged)"),
         "out_desc": ("the NATO phonetic alphabet: spell each letter as its code word "
                      "(A=Alpha ... Z=Zulu), '/' between words"),
+    },
+    "piglatin": {
+        "enc": enc_piglatin, "dec": dec_identity,
+        "in_desc": ("Pig Latin (per word: the leading consonant cluster is moved to the "
+                    "end followed by 'ay'; words starting with a vowel get 'way' appended)"),
+        "out_desc": "Pig Latin",
+    },
+    "vowel": {
+        "enc": enc_vowel, "dec": dec_identity,
+        "in_desc": ("disemvoweled English (every vowel a/e/i/o/u has been deleted; "
+                    "consonants, spacing and punctuation are unchanged)"),
+        "out_desc": "disemvoweled English",
     },
     "morse": {
         "enc": enc_morse, "dec": dec_morse,
