@@ -13,17 +13,24 @@ widths) + Neuronpedia. 27B stays the probed model. Plan (experiments freeze ~end
 one shared prompt-side extraction feeds everything):
 
 1. **Phase-1 anchor - plain→cipher transfer.** Probe on protected-27B prompt activations
-   (last-token, all layers), trained on PLAIN WJ-vanilla only (prompt-intent labels),
-   tested on plain/reverse/zulu; negatives = WJ-benign + XSTest-safe, StrongREJECT
-   held-out, FPR measured on ciphered benigns. Headline = transfer, not mixed-train
-   (kills the normalise-then-guard objection and the cipher-surface-statistics confound;
-   mixed-train reported as the know-the-attack upper bound with a char-ngram TF-IDF
-   control). Guards are 0% on ciphers, so ensemble>guard is baked in - the substantive
+   (last-token AND mean-pooled, all layers; pick by ablation), trained on PLAIN
+   WJ-vanilla only (prompt-intent labels), tested on plain/reverse/zulu; negatives =
+   WJ-benign + XSTest-safe, StrongREJECT held-out. Operating threshold calibrated on
+   WildChat first-user-turn PROMPTS (deployment traffic is plain); ciphered-benign FPR
+   reported at that threshold as the robustness check. Headline = transfer, not
+   mixed-train (kills the normalise-then-guard objection and the
+   cipher-surface-statistics confound; mixed-train reported as the know-the-attack upper
+   bound with a char-ngram TF-IDF control). Guards (full-n on the final eval sets, not
+   the n=50 screen) are 0% on ciphers, so ensemble>guard is baked in - the substantive
    results are absolute low-FPR performance and transfer, guards as context.
 2. **Novel claim - capability-detectability coupling.** Probe transfer recall vs decode
    retention per transform (zulu 89%, reverse 51%, nato/morse ≈0 at prompt-final as the
    predicted-failure mechanistic control: serial-CoT decode ⇒ input probe must fail).
-   Add 2-3 NLLB languages at graded resource levels to turn the ordering into a curve.
+   Languages fixed at French (high) / Hindi (mid-high) / Swahili (mid-low) / Zulu (low),
+   NLLB; capqa measures where each lands. Curve presented WITHIN the translation family
+   (clean graded axis, one mechanism); ciphers overlaid as separate marked points
+   (different mechanism + reverse carries a decode scaffold, zulu is bare). Stated
+   limitation: retention is a WebQuestions-trivia proxy, not harmful-domain vocabulary.
    Claim: the guardrail's robustness boundary is the model's comprehension boundary.
 3. **Phase-3 core - SAE feature invariance (priority if time squeezes).** On matched
    plain/cipher prompt pairs: sparse-vs-dense probe on transfer; top-feature overlap
@@ -35,14 +42,29 @@ one shared prompt-side extraction feeds everything):
    plain-trained probe on abliterated-27B prompt activations: survives ⇒ probes read
    intent, not refusal precursors. Drop (b) first if time runs out.
 
-Prereqs: prompt-intent judge over WJ-vanilla (~5k harmful + 5k benign) + NLLB
-translations. First cluster job = reverse-mechanism pilot: small last-token probe on
-plain+reverse to check reverse intent exists at prompt-final at all (evidence so far is
-verbalised in-generation decode); if not, reverse drops and zulu carries. Reverse and
-zulu analysed separately throughout (in-context decode vs multilinguality).
-Engineering: no per-exchange activation cache (Lustre small-file IO); extract+train in
-one job, last-token all-layer features in memory, persist one consolidated array
-(~20 GB for ~30k prompt×condition).
+Prereqs and gates (added 2026-07-17 after design review):
+- **Prompt-intent judge is UNVALIDATED** (the 90.7% triangulation was response-harm
+  labels). Gate before the main run: judge ~75 stratified WJ-vanilla prompts, blind
+  handcheck, ~85-90% bar. Then judge ~5k harmful + 5k benign.
+- **NLLB harmful-translation fidelity check** per language: back-translate ~50 harmful
+  prompts, judge intent preservation (mistranslation would silently mislabel the
+  translated slices and penalise the probe).
+- First cluster job = reverse-mechanism pilot: small last-token probe on plain+reverse
+  (raw WJ labels fine at pilot noise; StrongREJECT/XSTest untouched) to check reverse
+  intent exists at prompt-final at all (evidence so far is verbalised in-generation
+  decode); if not, reverse drops. Pilot also screens 1-2 fallback ciphers (pig latin,
+  vowel-removal: guard_screen + capqa) so the cipher class survives a reverse failure.
+  Reverse and zulu analysed separately throughout (decode-in-context vs multilinguality).
+- Engineering: no per-exchange activation cache (Lustre small-file IO); extract+train in
+  one job, features in memory, persist one consolidated array (~20 GB for ~30k
+  prompt×condition).
+
+Staging: run this scoped version first - NO extra models/languages/ciphers beyond the
+above. Plain-only training means later additions are eval-only (translate + capqa +
+score, no retrain), so breadth now buys nothing. Pre-registered extension order if time
+remains after SAE work: (1) 12B coupling replication - lower retention (zulu 72 vs 89,
+reverse 36 vs 51) predicts a left-shifted recall curve, the strongest test of claim 2;
+(2) more languages; (3) more ciphers.
 
 ## 2026-07-14 - Capability on protected model: portfolio = reverse + zulu, probe 27B
 
