@@ -86,15 +86,20 @@ def build_variants(prompts, ciphers, nllb_dir):
     return rows
 
 
-def translate_zulu(prompts, nllb_dir):
+def translate_nllb(prompts, nllb_dir, tgt_code, src_lang="eng_Latn"):
+    """NLLB translate `prompts` from src_lang to the FLORES-200 code tgt_code.
+    Returns {prompt: translation}. src_lang configurable so this also back-translates
+    (e.g. zul_Latn -> eng_Latn) for the fidelity check."""
     import torch
     from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
-    tok = AutoTokenizer.from_pretrained(nllb_dir, src_lang="eng_Latn")
+    tok = AutoTokenizer.from_pretrained(nllb_dir, src_lang=src_lang)
     model = AutoModelForSeq2SeqLM.from_pretrained(nllb_dir, dtype=torch.float32).to(
         "cuda" if torch.cuda.is_available() else "cpu")
     model.eval()
-    zul_id = tok.convert_tokens_to_ids("zul_Latn")
+    tgt_id = tok.convert_tokens_to_ids(tgt_code)
+    # real boundary: an unknown lang code silently maps to unk and mistranslates
+    assert tgt_id != tok.unk_token_id, f"unknown NLLB target code {tgt_code!r}"
     uniq = sorted(set(prompts))
     out = {}
     for start in range(0, len(uniq), 16):
@@ -102,12 +107,16 @@ def translate_zulu(prompts, nllb_dir):
         enc = tok(batch, return_tensors="pt", padding=True, truncation=True,
                   max_length=256).to(model.device)
         with torch.no_grad():
-            gen = model.generate(**enc, forced_bos_token_id=zul_id, max_new_tokens=256)
+            gen = model.generate(**enc, forced_bos_token_id=tgt_id, max_new_tokens=256)
         for p, ids in zip(batch, gen):
             out[p] = tok.decode(ids, skip_special_tokens=True)
     del model
     torch.cuda.empty_cache()
     return out
+
+
+def translate_zulu(prompts, nllb_dir):
+    return translate_nllb(prompts, nllb_dir, "zul_Latn")
 
 
 def load_lm(model_id):

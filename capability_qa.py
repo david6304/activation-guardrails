@@ -24,7 +24,10 @@ from pathlib import Path
 import numpy as np
 
 from capability_check import CIPHERS, build_sent
-from guard_screen import translate_zulu
+from guard_screen import translate_nllb
+
+# Fixed coupling-curve languages (RESEARCH_LOG 2026-07-17): high->low resource, FLORES codes.
+LANGS = {"french": "fra_Latn", "hindi": "hin_Deva", "swahili": "swh_Latn", "zulu": "zul_Latn"}
 
 _ARTICLES = re.compile(r"\b(a|an|the)\b")
 _PUNC = str.maketrans("", "", string.punctuation)
@@ -55,24 +58,28 @@ def load_qa(n, seed, max_q_chars):
     return rows
 
 
-def build_sent_qa(question, cipher, zulu_text):
+def build_sent_qa(question, cipher, translated):
     if cipher == "plain":
         return f"{question}\n\nAnswer concisely with just the fact."
-    if cipher == "zulu":
-        return f"{zulu_text}\n\nAnswer concisely in English with just the fact."
+    if cipher in LANGS:  # translation sent bare, answer forced back to English
+        return f"{translated}\n\nAnswer concisely in English with just the fact."
     return build_sent(question, cipher, in_obf=True, out_obf=False)
 
 
-def build_rows(qa, ciphers):
-    zulu = {}
-    if "zulu" in ciphers:
-        zulu = translate_zulu([q["question"] for q in qa], "facebook/nllb-200-distilled-600M")
+def build_rows(qa, ciphers, nllb_dir):
+    # One NLLB pass per requested language (french/hindi/swahili/zulu); {(lang,q): text}
+    trans = {}
+    for cipher in ciphers:
+        if cipher in LANGS:
+            t = translate_nllb([q["question"] for q in qa], nllb_dir, LANGS[cipher])
+            trans[cipher] = t
     rows = []
     for i, q in enumerate(qa):
         for cipher in ciphers:
+            tx = trans.get(cipher, {}).get(q["question"])
             rows.append({"id": f"{i}-{cipher}", "qidx": i, "cipher": cipher,
                          "question": q["question"], "golds": q["golds"],
-                         "sent": build_sent_qa(q["question"], cipher, zulu.get(q["question"]))})
+                         "sent": build_sent_qa(q["question"], cipher, tx)})
     return rows
 
 
@@ -152,12 +159,13 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="data/cap_qa_27b.jsonl")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--nllb", default="facebook/nllb-200-distilled-600M")
     args = ap.parse_args()
 
     ciphers = args.ciphers.split(",")
     n = args.limit or args.n
     qa = load_qa(n, args.seed, args.max_q_chars)
-    rows = build_rows(qa, ciphers)
+    rows = build_rows(qa, ciphers, args.nllb)
     print(f"[rows] {len(rows)} = {len(qa)} questions x {len(ciphers)} conditions", flush=True)
 
     out = Path(args.out)
