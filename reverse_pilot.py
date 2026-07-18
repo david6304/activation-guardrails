@@ -36,7 +36,11 @@ def build_prompts(n, seed):
 
 
 def extract_last_token(texts, model, tok, batch_size):
-    """Last-token all-layer hidden states -> array [n, L+1, hidden] (float16)."""
+    """Last-token all-layer hidden states -> array [n, L+1, hidden] (float32).
+
+    float32, not float16: Gemma-3's residual stream has massive-activation dimensions
+    whose magnitudes exceed float16's ~6.5e4 range, so a float16 cast stores inf and the
+    probe's StandardScaler rejects it. bf16->float32 is lossless and cannot overflow."""
     import torch
 
     order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
@@ -54,7 +58,7 @@ def extract_last_token(texts, model, tok, batch_size):
         # left padding -> the real last token is always column -1
         last = hs[:, :, -1, :].permute(1, 0, 2)  # [B, L+1, hidden]
         for b, i in enumerate(idx):
-            feats[i] = last[b].to(torch.float16).cpu().numpy()
+            feats[i] = last[b].float().cpu().numpy()
         done = min(start + batch_size, len(order))
         print(f"  extracted {done}/{len(order)}  {done/(time.time()-t0):.2f}/s", flush=True)
     return np.stack(feats)  # [n, L+1, hidden]
@@ -101,6 +105,8 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", default="data/reverse_pilot.json")
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--reprobe", action="store_true",
+                    help="load cached .feats.npz and re-run the probe only (no model, CPU)")
     args = ap.parse_args()
 
     n = args.limit or args.n
@@ -108,36 +114,44 @@ def main():
     y = np.array([r["label"] for r in rows])
     print(f"[prompts] {len(rows)} = {int(y.sum())} harmful + {int((1-y).sum())} benign", flush=True)
 
-    import torch
-    from transformers import (
-        AutoModelForCausalLM,
-        AutoModelForImageTextToText,
-        AutoTokenizer,
-        set_seed,
-    )
+    feat_path = Path(args.out).with_suffix(".feats.npz")
+    if args.reprobe and feat_path.exists():
+        print(f"[reprobe] loading cached features {feat_path} (no model load)", flush=True)
+        d = np.load(feat_path)
+        X_plain, X_rev, y = d["X_plain"], d["X_rev"], d["y"]
+    else:
+        import torch
+        from transformers import (
+            AutoModelForCausalLM,
+            AutoModelForImageTextToText,
+            AutoTokenizer,
+            set_seed,
+        )
 
-    set_seed(args.seed)
-    tok = AutoTokenizer.from_pretrained(args.model)
-    tok.padding_side = "left"
-    if tok.pad_token is None:
-        tok.pad_token = tok.eos_token
-    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
-    model, last = None, None
-    for cls in (AutoModelForCausalLM, AutoModelForImageTextToText):
-        try:
-            model = cls.from_pretrained(args.model, dtype=dtype, device_map="auto")
-            print(f"[load] {cls.__name__} -> {type(model).__name__}", flush=True)
-            break
-        except Exception as e:  # noqa: BLE001 -- real boundary: Auto-class mapping
-            last = e
-    if model is None:
-        raise RuntimeError(f"could not load {args.model}: {last}")
-    model.eval()
+        set_seed(args.seed)
+        tok = AutoTokenizer.from_pretrained(args.model)
+        tok.padding_side = "left"
+        if tok.pad_token is None:
+            tok.pad_token = tok.eos_token
+        dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+        model, last = None, None
+        for cls in (AutoModelForCausalLM, AutoModelForImageTextToText):
+            try:
+                model = cls.from_pretrained(args.model, dtype=dtype, device_map="auto")
+                print(f"[load] {cls.__name__} -> {type(model).__name__}", flush=True)
+                break
+            except Exception as e:  # noqa: BLE001 -- real boundary: Auto-class mapping
+                last = e
+        if model is None:
+            raise RuntimeError(f"could not load {args.model}: {last}")
+        model.eval()
 
-    print("[extract] plain", flush=True)
-    X_plain = extract_last_token([r["plain"] for r in rows], model, tok, args.batch_size)
-    print("[extract] reverse", flush=True)
-    X_rev = extract_last_token([r["reverse"] for r in rows], model, tok, args.batch_size)
+        print("[extract] plain", flush=True)
+        X_plain = extract_last_token([r["plain"] for r in rows], model, tok, args.batch_size)
+        print("[extract] reverse", flush=True)
+        X_rev = extract_last_token([r["reverse"] for r in rows], model, tok, args.batch_size)
+        np.savez(feat_path, X_plain=X_plain, X_rev=X_rev, y=y)
+        print(f"[extract] cached features -> {feat_path}", flush=True)
 
     print("[probe] per-layer plain-train", flush=True)
     results = probe_per_layer(X_plain, y, X_rev, args.seed)
