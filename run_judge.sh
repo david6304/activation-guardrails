@@ -11,6 +11,7 @@
 #SBATCH --output=judge_train_%j.out
 set -euo pipefail
 
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
 source /home/htang2/toolchain-20251006/toolchain.rc
 source ~/venvs/ml/bin/activate
 cd ~/activation-guardrails
