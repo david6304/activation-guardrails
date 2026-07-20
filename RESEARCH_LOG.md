@@ -5,6 +5,30 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-18 - Reverse validated at prompt-final; fallback ciphers; judge prompt-intent gate
+
+Phase-2 gates run on protected gemma-3-27b-it.
+
+- **Reverse mechanism confirmed** (`reverse_pilot.py`, n=300/class WJ-vanilla, raw data_type
+  labels). Per-layer last-token logistic probe, train-plain: plain in-dist AUROC ~0.997;
+  **plain->reverse transfer peaks 0.955 at layer 34/62**, emerging mid-network (~0.5-0.7 early,
+  0.89-0.955 plateau L31-41). The decode scaffold is class-invariant and reversed text shares no
+  surface features with plain, so transfer is decoded intent, not surface stats. => reverse's
+  harmful intent is linearly present at the prompt-final position *before* generation; it survives
+  as a probe venue, and the emergence curve feeds claims 2/3. Layer ~34 is a natural probe layer.
+  (gemma-3 has massive-activation dims that overflow float16->inf; store activations float32.)
+- **Fallback ciphers** (guard screen + capqa): pig-latin and vowel-removal are guard-blind
+  (WildGuard 100%->4%/4%, ShieldGemma 58%->10%/22%, FPR<=4%). Decode retention: **vowel 61%**
+  (usable spare, ~reverse's 51%), **piglatin 2%** (guard-blind but model-blind -> dropped as venue,
+  kept as a predicted-failure control with nato/morse). Portfolio stays reverse+zulu.
+- **Prompt-intent judge validated** (unblocking the main run; the prior 90.7% triangulation was
+  response-harm). 200 WJ-vanilla prompts judged prompt-intent: benign 2% flagged, harmful 72.4%
+  (WJ data_type is a noisy intent proxy). Blind Claude-vs-judge on 72 stratified: **87.5%** (bar
+  85-90% met), 100% on clean benign, zero disagreements on operational hazards; the 9 disagreements
+  are all on the demeaning-joke / protected-group / non-distributed-conspiracy boundary (judge noisy
+  there). David hand-labels the same 72 to complete the gate before the 5k+5k run.
+- StrongREJECT source fixed to `AlignmentResearch/StrongREJECT` (authors' 313-prompt release).
+
 ## 2026-07-17 - Dissertation plan: three claims on the input-only cipher venue
 
 SAE coverage checked: `google/gemma-scope-2-27b-it` has `resid_post` SAEs at layers
