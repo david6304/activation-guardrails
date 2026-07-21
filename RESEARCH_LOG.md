@@ -5,6 +5,28 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-21 - 10k judge landed; stratum/judge disagree on 14.4%; protected-group category OPEN
+
+Judge job 56985874 (Eddie, 2x L40S, ~100 min) -> data/judged_main_prompts.jsonl, 10000 rows,
+88 parse errors (0.9%). Code byte-identical to the validated judge (sha 6609c50f).
+
+| stratum | judge-benign | judge-harmful |
+|---|---|---|
+| vanilla_benign | 4875 | 125 |
+| vanilla_harmful | **1310** | 3690 |
+
+- WJ stratum and judge label **disagree on 14.4%** of rows. Vindicates the negatives redesign:
+  the 1310 judge-benign `vanilla_harmful` rows are hard negatives that a WJ-benign-only training
+  set would have discarded, while letting the probe learn the stratum instead of the construct.
+  Positives = 3815 (38%).
+- **OPEN QUESTION before the main run:** top positive category is `hate & harassment targeting
+  protected groups` at 960 = **25% of all positives**, but the locked harm definition is
+  operational/capability harm (violent crime, cyber, fraud, weapons, self-harm, PII) and
+  protected-group harassment is not on that list. It is also the category the judge validation
+  flagged as noisiest ("over-flags generic offensive jokes as protected group"). So a quarter of
+  the positive class may sit outside the locked construct in its noisiest region — decide whether
+  to exclude it, treat it as the broad-harm sensitivity slice, or keep it, before training.
+
 ## 2026-07-21 - Probe design fixed: all-layer concat, CC++ adaptation not reproduction
 
 Design settled after re-reading CC++ (2601.04603) implementation + two Codex review passes.
