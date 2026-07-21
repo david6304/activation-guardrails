@@ -20,6 +20,7 @@ module load cuda/12.1.1
 source /exports/eddie/scratch/s2296274/venv/bin/activate
 
 export HF_HOME=/exports/eddie/scratch/s2296274/hf
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1

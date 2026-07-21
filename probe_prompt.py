@@ -22,9 +22,21 @@ from reverse_pilot import build_prompts
 
 C_GRID = (0.001, 0.01, 0.1, 1.0, 10.0)
 # Cap model inputs so the long WildChat first-turn tail cannot OOM the all-layer
-# hidden-state extraction. Left truncation keeps the generation-prompt tail (and the
-# real last token); judged/reverse/zulu test prompts are far shorter than this.
+# hidden-state extraction (cost scales with sequence length). Truncate the content by
+# token here rather than via apply_chat_template, which does not forward truncation in
+# this transformers version. Left side: keep the tail nearest the generation prompt.
+# Judged/reverse/zulu test prompts are far shorter, so only long WildChat prompts change.
 MAX_INPUT_TOKENS = 2048
+
+
+def truncate_left_tokens(texts, tok, max_tokens):
+    out = []
+    for text in texts:
+        ids = tok(text, add_special_tokens=False)["input_ids"]
+        if len(ids) > max_tokens:
+            text = tok.decode(ids[-max_tokens:])
+        out.append(text)
+    return out
 
 
 def normalised_hash(text):
@@ -177,7 +189,6 @@ def load_model(model_id, seed):
     set_seed(seed)
     tok = AutoTokenizer.from_pretrained(model_id)
     tok.padding_side = "left"
-    tok.truncation_side = "left"
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
@@ -207,15 +218,14 @@ def extract_last_token(texts, model, tok, batch_size, feature_dim):
     t0 = time.time()
     for start in range(0, len(order), batch_size):
         idx = order[start : start + batch_size]
-        msgs = [[{"role": "user", "content": texts[i]}] for i in idx]
+        batch_texts = truncate_left_tokens([texts[i] for i in idx], tok, MAX_INPUT_TOKENS)
+        msgs = [[{"role": "user", "content": text}] for text in batch_texts]
         enc = tok.apply_chat_template(
             msgs,
             tokenize=True,
             add_generation_prompt=True,
             return_dict=True,
             padding=True,
-            truncation=True,
-            max_length=MAX_INPUT_TOKENS,
             return_tensors="pt",
         ).to(model.device)
         with torch.no_grad():
@@ -303,15 +313,14 @@ def score_forward(texts, model, tok, batch_size, weight, intercept):
     t0 = time.time()
     for start in range(0, len(order), batch_size):
         idx = order[start : start + batch_size]
-        msgs = [[{"role": "user", "content": texts[i]}] for i in idx]
+        batch_texts = truncate_left_tokens([texts[i] for i in idx], tok, MAX_INPUT_TOKENS)
+        msgs = [[{"role": "user", "content": text}] for text in batch_texts]
         enc = tok.apply_chat_template(
             msgs,
             tokenize=True,
             add_generation_prompt=True,
             return_dict=True,
             padding=True,
-            truncation=True,
-            max_length=MAX_INPUT_TOKENS,
             return_tensors="pt",
         ).to(model.device)
         with torch.no_grad():
