@@ -229,10 +229,12 @@ def extract_last_token(texts, model, tok, batch_size, feature_dim):
             return_tensors="pt",
         ).to(model.device)
         with torch.no_grad():
-            out = model(**enc, output_hidden_states=True, use_cache=False)
-        hs = torch.stack(out.hidden_states, dim=0)  # [L+1, B, seq, hidden]
-        # Left padding makes the real prompt-final token column -1 for every row.
-        last = hs[:, :, -1, :].permute(1, 0, 2)  # [B, L+1, hidden]
+            # logits_to_keep=1: run the 262k-vocab lm_head on the last position only,
+            # not all seq positions (that projection, not the hidden states, was the OOM).
+            out = model(**enc, output_hidden_states=True, use_cache=False, logits_to_keep=1)
+        # Left padding makes the real prompt-final token column -1 for every row. Stack
+        # only that slice per layer to avoid a full [L+1, B, seq, hidden] copy.
+        last = torch.stack([h[:, -1, :] for h in out.hidden_states], dim=1)  # [B, L+1, hidden]
         for batch_index, row_index in enumerate(idx):
             feats[row_index] = last[batch_index].float().reshape(-1).cpu().numpy()
         done = min(start + batch_size, len(order))
@@ -324,9 +326,8 @@ def score_forward(texts, model, tok, batch_size, weight, intercept):
             return_tensors="pt",
         ).to(model.device)
         with torch.no_grad():
-            out = model(**enc, output_hidden_states=True, use_cache=False)
-        hs = torch.stack(out.hidden_states, dim=0)
-        last = hs[:, :, -1, :].permute(1, 0, 2)
+            out = model(**enc, output_hidden_states=True, use_cache=False, logits_to_keep=1)
+        last = torch.stack([h[:, -1, :] for h in out.hidden_states], dim=1)
         for batch_index, row_index in enumerate(idx):
             feature = last[batch_index].float().reshape(-1).cpu().numpy()
             assert len(feature) == len(weight)
