@@ -31,8 +31,8 @@ MODEL=${1:-google/gemma-3-27b-it}
 date --iso-8601=seconds
 hostname
 nvidia-smi -L
-git rev-parse HEAD
-git status --short
+git rev-parse HEAD || true
+cat LOCAL_COMMIT.txt 2>/dev/null || true
 echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}"
 echo "MODEL=$MODEL EXTRA=${*:2}"
 
