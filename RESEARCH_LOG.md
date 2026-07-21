@@ -5,7 +5,61 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
-## 2026-07-18 - Reverse validated at prompt-final; fallback ciphers; judge prompt-intent gate
+## 2026-07-21 - Probe design fixed: all-layer concat, CC++ adaptation not reproduction
+
+Design settled after re-reading CC++ (2601.04603) implementation + two Codex review passes.
+Supersedes the layer/negatives/storage details of the 2026-07-17 entry.
+
+- **All-layer concatenated probe is the primary detector**, last-token position, no layer
+  selection. CC++ Fig 2c ablates layer count: all layers best, fewer monotonically worse.
+  This also removes a selection-on-outcome trap — in the reverse pilot plain-val AUROC is
+  saturated (0.9979-0.9984) while reverse transfer at those layers spans 0.759-0.955, so
+  plain-val layer selection is near-arbitrary in the quantity that matters. Per-layer probes
+  demoted to a descriptive emergence curve. Payload-mean pooling = sensitivity, not a
+  selected alternative. SWiM/softmax-weighting/EMA dropped: at M=1 they degenerate
+  algebraically to ordinary BCE on a raw logit.
+- **Framed as a CC++-inspired input-side adaptation, NOT a reproduction** (unit of
+  observation, temporal aggregation, effective n and operational event all differ; shared
+  ingredients are all-layer concat, linear readout, 0.1% WildChat operating point).
+- **Negatives redesigned**: train on judge labels irrespective of WJ stratum, including
+  judge-benign rows from `vanilla_harmful` as hard negatives. Training WJ-benign-only would
+  let the probe learn the WJ stratum rather than the operational construct — the register
+  confound one level in. Validity check = discrimination within the `vanilla_harmful`
+  stratum. StrongREJECT rejudged under the operational rubric, not assumed positive.
+- **Threshold = 0.1% WildChat alert rate** (CC++'s value and terminology; WildChat is
+  unlabelled so it is not an FPR). Per-model threshold, held-out WildChat audit split.
+- **Coupling metric** = retention ratio TPR_cipher/TPR_plain per model, raw TPR alongside,
+  paired bootstrap on shared prompt IDs. Our choice, not a borrowed convention. Guard against
+  the deeper-model artefact (ridge makes redundant cross-layer signal cheaper, ~beta^2/L) with
+  one low-capacity comparator: OOF per-layer logits -> stacked logistic.
+- **Storage**: score-forward-only. Hold plain train/tune features in RAM, fold scalers into
+  probe weights, persist scalar scores (~15 MB) not activations (~81 GB at 27B float32;
+  the 2026-07-17 "~20 GB" estimate was wrong, and float16 is unavailable on gemma-3).
+- **12B capability points already exist** (2026-07-14, same script/seed/grader): zulu 72% vs
+  27B 89%, reverse 36% vs 51% — uniformly left-shifted, as claim 2 predicts. Outstanding
+  capqa work = fra/hin/swh on BOTH models. capqa retention must be hand-validated on a
+  stratified sample with paired CIs before carrying a primary claim (`capability_qa.py:42`
+  substring-matches gold answers; short golds match spuriously; n=150).
+- NLLB fidelity gate from 2026-07-17 reaffirmed (pinned revision, one shared translation
+  manifest); train/tune/test split, not train/val.
+
+## 2026-07-21 - Harm definition = operational; judge validated (97.2% human, operational-anchored)
+
+- **Positive class = operational/capability harm** (violent crime, cyber, fraud, weapons,
+  self-harm, PII), NOT broad content harm. Decided with David after a Codex discussion pass
+  + literature (Zhao et al. 2025 harm≠refusal; WildGuard's broad 13-category taxonomy).
+  Rationale: invariance must be *tested*, not baked into labels — a broad grab-bag positive
+  class makes plain→cipher transfer and SAE-invariance uninterpretable (lexical shortcuts,
+  category mixture, prevalence). The broad instinct coincides with WJ `data_type`; kept as a
+  sensitivity analysis only. Misinfo/stereotypes/fiction become a held-out
+  construct-extension test (does the operational direction generalise?).
+- **Judge validated for this construct.** Blind Claude-vs-judge 87.5% (n=72). Human cold
+  hand-labels = 69.4% (David tracked the broader construct — itself a methods point);
+  re-anchored to the operational rubric = **97.2%** (only misses = 2 PII prompts mislabelled
+  benign). `judge_responses.py --mode prompt` byte-identical since validation (file unchanged
+  28b52df→08f8586). PAUSE 2 cleared.
+- **10k prompt-intent judge submitted** (5k+5k): job 3562339, commit 08f8586, h200_3g.71gb,
+  BATCH=32/MAXTOK=64, ~95 min expected, resumable.
 
 Phase-2 gates run on protected gemma-3-27b-it.
 
