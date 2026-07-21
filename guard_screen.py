@@ -25,7 +25,7 @@ from pathlib import Path
 
 import numpy as np
 
-from capability_check import CIPHERS, build_sent
+from capability_check import build_sent
 from generate_responses import load_wildjailbreak, sample_prompts
 
 # Composite guideline for ShieldGemma: WJ harm spans several categories, so one broad
@@ -66,18 +66,25 @@ def load_xstest_safe(n, seed):
     return [safe[int(i)] for i in idx]
 
 
+# FLORES-200 codes for the coupling-curve translation venues (mirrors capability_qa.LANGS;
+# kept local to avoid a circular import, since capability_qa imports translate_nllb here).
+LANGS = {"french": "fra_Latn", "hindi": "hin_Deva", "swahili": "swh_Latn", "zulu": "zul_Latn"}
+
+
 def build_variants(prompts, ciphers, nllb_dir):
     """prompts: list of {source,label,prompt}. Returns rows with a `text` per cipher."""
     rows = []
-    zulu = {}
-    if "zulu" in ciphers:
-        zulu = translate_zulu([p["prompt"] for p in prompts], nllb_dir)
+    translations = {}
+    for cipher in ciphers:
+        if cipher in LANGS:
+            translations[cipher] = translate_nllb(
+                [p["prompt"] for p in prompts], nllb_dir, LANGS[cipher])
     for i, p in enumerate(prompts):
         for cipher in ciphers:
             if cipher == "plain":
                 text = p["prompt"]
-            elif cipher == "zulu":
-                text = zulu[p["prompt"]]
+            elif cipher in LANGS:
+                text = translations[cipher][p["prompt"]]
             else:
                 text = build_sent(p["prompt"], cipher, in_obf=True, out_obf=False)
             rows.append({"id": f"{p['source']}-{i}-{cipher}", "source": p["source"],
@@ -113,10 +120,6 @@ def translate_nllb(prompts, nllb_dir, tgt_code, src_lang="eng_Latn"):
     del model
     torch.cuda.empty_cache()
     return out
-
-
-def translate_zulu(prompts, nllb_dir):
-    return translate_nllb(prompts, nllb_dir, "zul_Latn")
 
 
 def load_lm(model_id):
