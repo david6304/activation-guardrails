@@ -21,6 +21,10 @@ from reverse_pilot import build_prompts
 
 
 C_GRID = (0.001, 0.01, 0.1, 1.0, 10.0)
+# Cap model inputs so the long WildChat first-turn tail cannot OOM the all-layer
+# hidden-state extraction. Left truncation keeps the generation-prompt tail (and the
+# real last token); judged/reverse/zulu test prompts are far shorter than this.
+MAX_INPUT_TOKENS = 2048
 
 
 def normalised_hash(text):
@@ -173,6 +177,7 @@ def load_model(model_id, seed):
     set_seed(seed)
     tok = AutoTokenizer.from_pretrained(model_id)
     tok.padding_side = "left"
+    tok.truncation_side = "left"
     if tok.pad_token is None:
         tok.pad_token = tok.eos_token
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
@@ -209,6 +214,8 @@ def extract_last_token(texts, model, tok, batch_size, feature_dim):
             add_generation_prompt=True,
             return_dict=True,
             padding=True,
+            truncation=True,
+            max_length=MAX_INPUT_TOKENS,
             return_tensors="pt",
         ).to(model.device)
         with torch.no_grad():
@@ -303,6 +310,8 @@ def score_forward(texts, model, tok, batch_size, weight, intercept):
             add_generation_prompt=True,
             return_dict=True,
             padding=True,
+            truncation=True,
+            max_length=MAX_INPUT_TOKENS,
             return_tensors="pt",
         ).to(model.device)
         with torch.no_grad():
