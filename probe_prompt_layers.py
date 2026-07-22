@@ -178,12 +178,14 @@ def score_layer_probes(
     return scores
 
 
-def layer_aurocs(labels, condition_scores):
+def layer_aurocs(labels, condition_scores, trained_mask):
     from sklearn.metrics import roc_auc_score
 
     return {
         condition: [
             float(roc_auc_score(labels, scores[:, layer]))
+            if trained_mask[layer]
+            else None
             for layer in range(scores.shape[1])
         ]
         for condition, scores in condition_scores.items()
@@ -298,6 +300,7 @@ def main():
             selected_cs = saved["selected_cs"]
             selected_losses = saved["selected_losses"]
             selected_ses = saved["selected_ses"]
+            trained_mask = saved["trained_mask"]
             tuning_json = saved["tuning_json"]
             condition_scores = {
                 condition: saved[f"{condition}_scores"]
@@ -331,9 +334,20 @@ def main():
         selected_cs = np.empty(layer_count, dtype=np.float64)
         selected_losses = np.empty(layer_count, dtype=np.float64)
         selected_ses = np.empty(layer_count, dtype=np.float64)
+        trained_mask = np.ones(layer_count, dtype=bool)
         tuning = []
         for layer in range(layer_count):
             print(f"[probe] hidden-state index {layer}/{n_layers}", flush=True)
+            if not np.any(np.var(x_train[:, layer, :], axis=0) > 0):
+                print("  skipped: every dimension has zero train variance", flush=True)
+                weights[layer] = 0
+                intercepts[layer] = 0
+                selected_cs[layer] = np.nan
+                selected_losses[layer] = np.nan
+                selected_ses[layer] = np.nan
+                trained_mask[layer] = False
+                tuning.append([])
+                continue
             result = train_probe(
                 x_train[:, layer, :].copy(),
                 y_train,
@@ -379,6 +393,7 @@ def main():
             selected_cs=selected_cs,
             selected_losses=selected_losses,
             selected_ses=selected_ses,
+            trained_mask=trained_mask,
             tuning_json=tuning_json,
             **{
                 f"{condition}_scores": scores
@@ -387,7 +402,7 @@ def main():
         )
         print(f"[checkpoint] diagnostic -> {diagnostic_checkpoint}", flush=True)
 
-    aurocs = layer_aurocs(labels, condition_scores)
+    aurocs = layer_aurocs(labels, condition_scores, trained_mask)
     wildchat_n = min(100000, args.limit) if args.limit else 100000
     wildchat_ids, wildchat_prompts = load_wildchat_prompts(wildchat_n, args.seed)
     candidate_layers = np.asarray(CALIBRATION_LAYERS, dtype=np.int64)
@@ -447,6 +462,7 @@ def main():
         selected_cs=selected_cs,
         selected_losses=selected_losses,
         selected_ses=selected_ses,
+        trained_mask=trained_mask,
         wildchat_ids=np.asarray(wildchat_ids),
         wildchat_candidate_layers=candidate_layers,
         wildchat_scores=wildchat_scores,
@@ -483,9 +499,17 @@ def main():
             "training_condition": "plain train only; one independent probe per layer",
             "class_weight": "balanced",
             "selection": "C tuned on plain tune log-loss by the same one-SE rule as primary",
-            "selected_C": selected_cs.tolist(),
-            "selected_tune_log_loss": selected_losses.tolist(),
-            "selected_tune_log_loss_standard_error": selected_ses.tolist(),
+            "untrained_hidden_state_indices": np.flatnonzero(~trained_mask).tolist(),
+            "selected_C": [
+                float(value) if np.isfinite(value) else None for value in selected_cs
+            ],
+            "selected_tune_log_loss": [
+                float(value) if np.isfinite(value) else None
+                for value in selected_losses
+            ],
+            "selected_tune_log_loss_standard_error": [
+                float(value) if np.isfinite(value) else None for value in selected_ses
+            ],
         },
         "translations": translation_reports,
         "descriptive_aurocs": aurocs,
