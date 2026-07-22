@@ -1,6 +1,7 @@
 #!/bin/bash
 # Plain-trained input-only prompt probe on protected Gemma-3.
 # Usage: sbatch -p Teaching --gres=gpu:h200_3g.71gb:1 --time=1-00:00:00 run_probe.sh [MODEL] [EXTRA...]
+# Requires the frozen translation directory prepared once by probe_prompt.py and copied here.
 # Example smoke: ... run_probe.sh google/gemma-3-27b-it --limit 60 --batch-size 4
 #SBATCH --job-name=probe_prompt
 #SBATCH --cpus-per-task=4

@@ -2,6 +2,8 @@
 # Plain-trained input-only prompt probe on protected Gemma-3 (Eddie / Grid Engine).
 # Slurm twin: run_probe.sh. See docs/EDDIE.md.
 # Usage: qsub run_probe_eddie.sh [MODEL] [EXTRA...]
+# Prepare the shared frozen translations once before either definitive model run:
+#   qsub run_probe_eddie.sh google/gemma-3-12b-it --prepare-translations
 # Smoke:  qsub run_probe_eddie.sh google/gemma-3-12b-it --limit 60 --batch-size 4
 #$ -N probe_prompt
 #$ -cwd

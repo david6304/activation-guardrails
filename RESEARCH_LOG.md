@@ -11,6 +11,8 @@ All cipher + language results for models and guards now live in `RESULTS.md` (li
 
 - **capqa fra/hin/swh, both models** (N=150, Eddie): 12B french 96 / hindi 85 / swahili 87;
   27B french 100 / hindi 88 / swahili 99 (retention = acc/plain). 27B ≥ 12B everywhere.
+  Post-run audit: the two files' `(qidx, condition, sent)` inputs match exactly (0/600
+  differences); NLLB revision `f8d333a098d19b4fd9a8b18f94170487ad3f821d`.
 - **Guard language screen** (n=150, job 3562722): WildGuard graded blindness plain 96.7 → french 88
   → hindi 16 → swahili/zulu 0 (FPR ≤1.3%); ShieldGemma weaker/noisier (62 → 13, FPR 5-13%). Both
   ≈0% on all ciphers (n=50). Swahili = capability/detectability dissociation (99% decode, 0% WG).
@@ -66,10 +68,13 @@ Supersedes the layer/negatives/storage details of the 2026-07-17 entry.
   stratum. StrongREJECT rejudged under the operational rubric, not assumed positive.
 - **Threshold = 0.1% WildChat alert rate** (CC++'s value and terminology; WildChat is
   unlabelled so it is not an FPR). Per-model threshold, held-out WildChat audit split.
-- **Coupling metric** = retention ratio TPR_cipher/TPR_plain per model, raw TPR alongside,
-  paired bootstrap on shared prompt IDs. Our choice, not a borrowed convention. Guard against
-  the deeper-model artefact (ridge makes redundant cross-layer signal cheaper, ~beta^2/L) with
-  one low-capacity comparator: OOF per-layer logits -> stacked logistic.
+- **Coupling metric** = retention ratio TPR_transform/TPR_plain per model, raw TPR alongside.
+  This is a transform-level association across different prompt sets, not per-prompt coupling:
+  bootstrap capability by shared WebQuestions `qidx` and detectability by shared WJ ID in
+  independent resamples, and exclude the guaranteed plain `(1, 1)` normalisation point from any
+  fitted association. Our choice, not a borrowed convention. Guard against the deeper-model
+  artefact (ridge makes redundant cross-layer signal cheaper, ~beta^2/L) with one low-capacity
+  comparator or treat the 12B/27B contrast as supportive rather than causal.
 - **Storage**: score-forward-only. Hold plain train/tune features in RAM, fold scalers into
   probe weights, persist scalar scores (~15 MB) not activations (~81 GB at 27B float32;
   the 2026-07-17 "~20 GB" estimate was wrong, and float16 is unavailable on gemma-3).
@@ -83,8 +88,9 @@ Supersedes the layer/negatives/storage details of the 2026-07-17 entry.
 
 ## 2026-07-21 - Harm definition = operational; judge validated (97.2% human, operational-anchored)
 
-- **Positive class = operational/capability harm** (violent crime, cyber, fraud, weapons,
-  self-harm, PII), NOT broad content harm. Decided with David after a Codex discussion pass
+- **Positive class = operational/capability harm** (violent and non-violent crime, sex crimes
+  and child exploitation, weapons/CBRN, cyber, self-harm, privacy/PII, and fraud/deception), NOT
+  broad content harm. Decided with David after a Codex discussion pass
   + literature (Zhao et al. 2025 harm≠refusal; WildGuard's broad 13-category taxonomy).
   Rationale: invariance must be *tested*, not baked into labels — a broad grab-bag positive
   class makes plain→cipher transfer and SAE-invariance uninterpretable (lexical shortcuts,

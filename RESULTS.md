@@ -22,6 +22,9 @@ Freeze target ~end July 2026. See `RESEARCH_LOG.md` for method/decisions.
 WebQuestions trivia proxy; `capability_qa.py:42` substring-matches short golds — hand-validation
 with paired CIs still pending. Raw: Eddie `data/cap_qa_langs_{12b,27b}.jsonl`;
 MLP `data/cap_qa_{27b,12b}.jsonl` (jobs 3543515/3543526) + `data/cap_qa_27b.jsonl` (3557511, fallbacks).
+The Eddie 12B/27B language files have identical `(qidx, condition, sent)` inputs (0/600
+differences; per-condition SHA-256s match). NLLB revision:
+`f8d333a098d19b4fd9a8b18f94170487ad3f821d`.
 
 ## 2. Public-guard recall / FPR — WJ-harmful vs XSTest-safe
 
@@ -47,16 +50,27 @@ both guards ≈0% on ciphers. **Swahili = capability/detectability dissociation*
 
 ## 3. Probe — plain-trained all-layer concat, transfer to test conditions
 
-Threshold = 0.1% WildChat alert rate. **Probe currently scores plain / reverse / zulu only**
-(`probe_prompt.py` test conditions); french/hindi/swahili probe points for the language coupling
-axis are NOT yet implemented.
+Threshold = 0.1% WildChat alert rate. Trained on **operational-harm** positives only: the 960
+`hate & harassment targeting protected groups` positives and one off-taxonomy `harassment`
+positive are **excluded** by default (outside the locked operational definition; the seven
+protected-group-category rows judged benign remain hard negatives). Operational harm explicitly
+includes violent and non-violent crime, sex crimes and child exploitation, weapons/CBRN, cyber,
+self-harm, privacy/PII, and fraud/deception. Re-include all judge-harmful categories with
+`--keep-protected-group` for a broad-harm sensitivity variant if time allows.
+Test conditions now cover the full coupling axis: plain, reverse, french, hindi, swahili, zulu
+(`probe_prompt.py`, commit f0d7c55).
 
 | transform | 12B AUROC | 12B TPR | 27B AUROC | 27B TPR |
 |-----------|-----------|---------|-----------|---------|
 | plain     | _pending_ | | _pending_ | |
 | reverse   | _pending_ | | _pending_ | |
+| french    | _pending_ | | _pending_ | |
+| hindi     | _pending_ | | _pending_ | |
+| swahili   | _pending_ | | _pending_ | |
 | zulu      | _pending_ | | _pending_ | |
 
-Jobs: Eddie 56990400 (12B), Wintermute 3563857 (27B). Reverse pilot (per-layer, n=300, raw WJ
+Definitive re-run pending on f0d7c55 (exclude protected-group + fra/hin/swh conditions). Prior
+jobs Eddie 56990400 (12B, running) / Wintermute 3563857 (27B, pending) are on superseded code
+(include-protected-group, plain/reverse/zulu only). Reverse pilot (per-layer, n=300, raw WJ
 labels): plain-val AUROC ~0.997; plain→reverse transfer peaks **0.955 @ layer 34/62**.
 Raw (when done): `data/probe_prompt_{model}_report.json` + `_scores.npz`.
