@@ -74,6 +74,14 @@ def file_sha256(path):
     return digest.hexdigest()
 
 
+def strings_sha256(values):
+    digest = hashlib.sha256()
+    for value in values:
+        digest.update(str(value).encode())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def load_judged_rows(path, limit, seed, keep_protected_group):
     rows = []
     parse_errors = 0
@@ -347,14 +355,57 @@ def train_probe(x_train, y_train, x_tune, y_tune, seed):
     return weight, intercept, c_value, mean_loss, se_loss, tuning
 
 
-def score_forward(texts, model, tok, batch_size, weight, intercept):
+def score_forward(
+    texts,
+    model,
+    tok,
+    batch_size,
+    weight,
+    intercept,
+    checkpoint_path=None,
+    item_ids=None,
+    resume=False,
+):
     """Extract each batch and immediately reduce it to scalar probe logits."""
     import torch
 
     order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
-    scores = np.empty(len(texts), dtype=np.float32)
+    scores = np.full(len(texts), np.nan, dtype=np.float32)
+    completed = 0
+    ids_hash = strings_sha256(item_ids) if item_ids is not None else None
+    probe_hash = hashlib.sha256(
+        weight.tobytes() + np.asarray(intercept, dtype=np.float64).tobytes()
+    ).hexdigest()
+    if resume and checkpoint_path and checkpoint_path.exists():
+        with np.load(checkpoint_path, allow_pickle=False) as saved:
+            if str(saved["ids_sha256"]) != ids_hash:
+                raise ValueError(f"item mismatch in {checkpoint_path}")
+            if str(saved["probe_sha256"]) != probe_hash:
+                raise ValueError(f"probe mismatch in {checkpoint_path}")
+            scores = saved["scores"]
+            completed = int(saved["completed"])
+        if scores.shape != (len(texts),) or not 0 <= completed <= len(order):
+            raise ValueError(f"invalid progress in {checkpoint_path}")
+        if np.isnan(scores[order[:completed]]).any():
+            raise ValueError(f"missing completed scores in {checkpoint_path}")
+        print(f"  resumed {completed}/{len(order)} from {checkpoint_path}", flush=True)
+
+    def save_progress(done):
+        if not checkpoint_path:
+            return
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = checkpoint_path.with_suffix(".tmp.npz")
+        np.savez(
+            tmp_path,
+            scores=scores,
+            completed=np.asarray(done, dtype=np.int64),
+            ids_sha256=np.asarray(ids_hash),
+            probe_sha256=np.asarray(probe_hash),
+        )
+        tmp_path.replace(checkpoint_path)
+
     t0 = time.time()
-    for start in range(0, len(order), batch_size):
+    for start in range(completed, len(order), batch_size):
         idx = order[start : start + batch_size]
         batch_texts = truncate_left_tokens([texts[i] for i in idx], tok, MAX_INPUT_TOKENS)
         msgs = [[{"role": "user", "content": text}] for text in batch_texts]
@@ -374,8 +425,11 @@ def score_forward(texts, model, tok, batch_size, weight, intercept):
             assert len(feature) == len(weight)
             scores[row_index] = feature @ weight + intercept
         done = min(start + batch_size, len(order))
+        if checkpoint_path and (done == len(order) or done // 500 > start // 500):
+            save_progress(done)
         print(
-            f"  scored {done}/{len(order)}  {done / (time.time() - t0):.2f}/s",
+            f"  scored {done}/{len(order)}  "
+            f"{(done - completed) / (time.time() - t0):.2f}/s",
             flush=True,
         )
     return scores
@@ -456,6 +510,16 @@ def main():
     )
     parser.add_argument("--scores-out")
     parser.add_argument("--report-out")
+    parser.add_argument(
+        "--resume-probe",
+        action="store_true",
+        help="reuse the verified pre-WildChat probe checkpoint and WildChat progress",
+    )
+    parser.add_argument(
+        "--batch-pilot",
+        action="store_true",
+        help="score one worst-case WildChat batch and report peak CUDA memory, then exit",
+    )
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
@@ -465,11 +529,38 @@ def main():
 
     random.seed(args.seed)
     np.random.seed(args.seed)
+    if args.batch_pilot:
+        import torch
+
+        model, tok, n_layers, hidden = load_model(args.model, args.seed)
+        _, prompts = load_wildchat_prompts(100000, args.seed)
+        longest = sorted(prompts, key=len)[-args.batch_size :]
+        torch.cuda.reset_peak_memory_stats()
+        score_forward(
+            longest,
+            model,
+            tok,
+            args.batch_size,
+            np.zeros((n_layers + 1) * hidden, dtype=np.float32),
+            0.0,
+        )
+        print(
+            f"[batch-pilot] batch_size={args.batch_size} "
+            f"peak_allocated_gib={torch.cuda.max_memory_allocated() / 2**30:.2f} "
+            f"peak_reserved_gib={torch.cuda.max_memory_reserved() / 2**30:.2f}",
+            flush=True,
+        )
+        return
+
     model_slug = args.model.rstrip("/").split("/")[-1]
     variant = "_withpg" if args.keep_protected_group else ""
     limit_variant = f"_limit{args.limit}" if args.limit else ""
     scores_path = Path(args.scores_out or f"data/probe_prompt_{model_slug}{variant}_scores.npz")
     report_path = Path(args.report_out or f"data/probe_prompt_{model_slug}{variant}_report.json")
+    probe_checkpoint_path = scores_path.with_name(f"{scores_path.stem}_checkpoint.npz")
+    wildchat_checkpoint_path = scores_path.with_name(
+        f"{scores_path.stem}_wildchat_checkpoint.npz"
+    )
     translations_dir = Path(
         args.translations_dir
         or f"data/probe_prompt_translations{variant}{limit_variant}"
@@ -550,35 +641,93 @@ def main():
         f"[features] layers={n_layers}+embedding hidden={hidden} D={feature_dim}",
         flush=True,
     )
-    print("[extract] plain train", flush=True)
-    x_train = extract_last_token(
-        [row["prompt"] for row in train_rows], model, tok, args.batch_size, feature_dim
+    test_ids = np.asarray([str(row["id"]) for row in test_rows])
+    test_inputs_hash = strings_sha256(
+        test_plain
+        + test_reverse
+        + [text for lang in LANGS for text in test_translations[lang]]
     )
-    print("[extract] plain tune", flush=True)
-    x_tune = extract_last_token(
-        [row["prompt"] for row in tune_rows], model, tok, args.batch_size, feature_dim
-    )
-    y_train = np.asarray([int(bool(row["harmful"])) for row in train_rows])
-    y_tune = np.asarray([int(bool(row["harmful"])) for row in tune_rows])
-    weight, intercept, selected_c, selected_loss, selected_se, tuning = train_probe(
-        x_train, y_train, x_tune, y_tune, args.seed
-    )
-    del x_train, x_tune
-
-    condition_scores = {}
-    conditions = [("plain", test_plain), ("reverse", test_reverse)]
-    conditions += [(lang, test_translations[lang]) for lang in LANGS]
-    for condition, texts in conditions:
-        print(f"[score] test {condition}", flush=True)
-        condition_scores[condition] = score_forward(
-            texts, model, tok, args.batch_size, weight, intercept
+    if args.resume_probe:
+        if not probe_checkpoint_path.exists():
+            raise FileNotFoundError(f"missing {probe_checkpoint_path}")
+        with np.load(probe_checkpoint_path, allow_pickle=False) as saved:
+            if str(saved["model"]) != args.model or int(saved["seed"]) != args.seed:
+                raise ValueError(f"model or seed mismatch in {probe_checkpoint_path}")
+            if str(saved["model_revision"]) != str(model_revision or ""):
+                raise ValueError(f"model revision mismatch in {probe_checkpoint_path}")
+            if not np.array_equal(saved["ids"], test_ids):
+                raise ValueError(f"test split mismatch in {probe_checkpoint_path}")
+            if str(saved["test_inputs_sha256"]) != test_inputs_hash:
+                raise ValueError(f"test input mismatch in {probe_checkpoint_path}")
+            weight = saved["probe_weight"]
+            intercept = float(saved["probe_intercept"])
+            selected_c = float(saved["selected_c"])
+            selected_loss = float(saved["selected_loss"])
+            selected_se = float(saved["selected_se"])
+            tuning = json.loads(str(saved["tuning_json"]))
+            condition_scores = {
+                condition: saved[f"{condition}_scores"]
+                for condition in ("plain", "reverse", *LANGS)
+            }
+        print(f"[resume] probe and test scores <- {probe_checkpoint_path}", flush=True)
+    else:
+        print("[extract] plain train", flush=True)
+        x_train = extract_last_token(
+            [row["prompt"] for row in train_rows], model, tok, args.batch_size, feature_dim
         )
+        print("[extract] plain tune", flush=True)
+        x_tune = extract_last_token(
+            [row["prompt"] for row in tune_rows], model, tok, args.batch_size, feature_dim
+        )
+        y_train = np.asarray([int(bool(row["harmful"])) for row in train_rows])
+        y_tune = np.asarray([int(bool(row["harmful"])) for row in tune_rows])
+        weight, intercept, selected_c, selected_loss, selected_se, tuning = train_probe(
+            x_train, y_train, x_tune, y_tune, args.seed
+        )
+        del x_train, x_tune
+
+        condition_scores = {}
+        conditions = [("plain", test_plain), ("reverse", test_reverse)]
+        conditions += [(lang, test_translations[lang]) for lang in LANGS]
+        for condition, texts in conditions:
+            print(f"[score] test {condition}", flush=True)
+            condition_scores[condition] = score_forward(
+                texts, model, tok, args.batch_size, weight, intercept
+            )
+        probe_checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(
+            probe_checkpoint_path,
+            model=np.asarray(args.model),
+            model_revision=np.asarray(model_revision or ""),
+            seed=np.asarray(args.seed, dtype=np.int64),
+            ids=test_ids,
+            test_inputs_sha256=np.asarray(test_inputs_hash),
+            probe_weight=weight,
+            probe_intercept=np.asarray(intercept, dtype=np.float64),
+            selected_c=np.asarray(selected_c, dtype=np.float64),
+            selected_loss=np.asarray(selected_loss, dtype=np.float64),
+            selected_se=np.asarray(selected_se, dtype=np.float64),
+            tuning_json=np.asarray(json.dumps(tuning)),
+            **{
+                f"{condition}_scores": scores
+                for condition, scores in condition_scores.items()
+            },
+        )
+        print(f"[checkpoint] probe and test scores -> {probe_checkpoint_path}", flush=True)
 
     wildchat_n = min(100000, args.limit) if args.limit else 100000
     wildchat_ids, wildchat_prompts = load_wildchat_prompts(wildchat_n, args.seed)
     print(f"[score] WildChat first-user-turn prompts n={wildchat_n}", flush=True)
     wildchat_scores = score_forward(
-        wildchat_prompts, model, tok, args.batch_size, weight, intercept
+        wildchat_prompts,
+        model,
+        tok,
+        args.batch_size,
+        weight,
+        intercept,
+        checkpoint_path=wildchat_checkpoint_path,
+        item_ids=wildchat_ids,
+        resume=args.resume_probe,
     )
     rng = np.random.default_rng(args.seed)
     wildchat_order = rng.permutation(wildchat_n)
@@ -605,7 +754,7 @@ def main():
     scores_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         scores_path,
-        ids=np.asarray([str(row["id"]) for row in test_rows]),
+        ids=test_ids,
         labels=labels,
         categories=categories,
         # WJ stratum: needed for the within-vanilla_harmful validity check (does the probe
@@ -647,6 +796,8 @@ def main():
             "hidden_size": hidden,
             "dimension": feature_dim,
             "dtype": "float32",
+            "batch_size": args.batch_size,
+            "max_input_tokens": MAX_INPUT_TOKENS,
         },
         "probe": {
             "training_condition": "plain train only",
