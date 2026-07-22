@@ -27,7 +27,7 @@ export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
 
-cd /exports/eddie/scratch/s2296274/activation-guardrails
+cd "${SGE_O_WORKDIR:?qsub must be run from the intended repository checkout}"
 
 MODEL=${1:-google/gemma-3-27b-it}
 
