@@ -22,7 +22,6 @@ from probe_prompt import (
     LANGS,
     MAX_INPUT_TOKENS,
     condition_metrics,
-    extract_last_token,
     file_sha256,
     load_judged_rows,
     load_model,
@@ -36,6 +35,48 @@ from probe_prompt import (
 
 
 CALIBRATION_LAYERS = (32, 34, 41)
+
+
+def extract_last_token_layers(texts, model, tok, batch_size, layer_count, hidden):
+    """Extract [row, hidden-state index, dimension] safely from sharded models."""
+    import torch
+
+    order = sorted(range(len(texts)), key=lambda i: len(texts[i]))
+    features = np.empty((len(texts), layer_count, hidden), dtype=np.float32)
+    t0 = time.time()
+    for start in range(0, len(order), batch_size):
+        idx = order[start : start + batch_size]
+        batch_texts = truncate_left_tokens(
+            [texts[i] for i in idx], tok, MAX_INPUT_TOKENS
+        )
+        msgs = [[{"role": "user", "content": text}] for text in batch_texts]
+        enc = tok.apply_chat_template(
+            msgs,
+            tokenize=True,
+            add_generation_prompt=True,
+            return_dict=True,
+            padding=True,
+            return_tensors="pt",
+        ).to(model.device)
+        with torch.no_grad():
+            out = model(
+                **enc,
+                output_hidden_states=True,
+                use_cache=False,
+                logits_to_keep=1,
+            )
+        if len(out.hidden_states) != layer_count:
+            raise ValueError("model returned an unexpected hidden-state count")
+        # A device-mapped model can return different layers on different GPUs. Moving
+        # each small last-token slice to CPU before assignment avoids cross-device stack.
+        for layer, states in enumerate(out.hidden_states):
+            features[idx, layer, :] = states[:, -1, :].float().cpu().numpy()
+        done = min(start + batch_size, len(order))
+        print(
+            f"  extracted {done}/{len(order)}  {done / (time.time() - t0):.2f}/s",
+            flush=True,
+        )
+    return features
 
 
 def score_layer_probes(
@@ -96,10 +137,6 @@ def score_layer_probes(
         )
         tmp_path.replace(checkpoint_path)
 
-    weight_tensor = torch.as_tensor(weights, device=model.device)
-    intercept_tensor = torch.as_tensor(
-        intercepts, dtype=torch.float32, device=model.device
-    )
     selected_layers = layer_indices.tolist()
     t0 = time.time()
     for start in range(completed, len(order), batch_size):
@@ -123,13 +160,13 @@ def score_layer_probes(
                 use_cache=False,
                 logits_to_keep=1,
             )
-            last = torch.stack(
-                [out.hidden_states[layer][:, -1, :] for layer in selected_layers],
-                dim=1,
-            ).float()
-            batch_scores = torch.einsum("bkh,kh->bk", last, weight_tensor)
-            batch_scores += intercept_tensor
-        scores[idx] = batch_scores.cpu().numpy()
+        batch_scores = np.empty((len(idx), len(selected_layers)), dtype=np.float32)
+        # As in extraction, score each layer after moving only its last-token slice to
+        # CPU. This is a small transfer and works whether adjacent layers share a GPU.
+        for column, layer in enumerate(selected_layers):
+            last = out.hidden_states[layer][:, -1, :].float().cpu().numpy()
+            batch_scores[:, column] = last @ weights[column] + intercepts[column]
+        scores[idx] = batch_scores
         done = min(start + batch_size, len(order))
         if done == len(order) or done // 500 > start // 500:
             save_progress(done)
@@ -268,23 +305,24 @@ def main():
             }
         print(f"[resume] diagnostic <- {diagnostic_checkpoint}", flush=True)
     else:
-        feature_dim = layer_count * hidden
         print("[extract] plain train", flush=True)
-        x_train = extract_last_token(
+        x_train = extract_last_token_layers(
             [row["prompt"] for row in train_rows],
             model,
             tok,
             args.batch_size,
-            feature_dim,
-        ).reshape(len(train_rows), layer_count, hidden)
+            layer_count,
+            hidden,
+        )
         print("[extract] plain tune", flush=True)
-        x_tune = extract_last_token(
+        x_tune = extract_last_token_layers(
             [row["prompt"] for row in tune_rows],
             model,
             tok,
             args.batch_size,
-            feature_dim,
-        ).reshape(len(tune_rows), layer_count, hidden)
+            layer_count,
+            hidden,
+        )
         y_train = np.asarray([int(bool(row["harmful"])) for row in train_rows])
         y_tune = np.asarray([int(bool(row["harmful"])) for row in tune_rows])
 
