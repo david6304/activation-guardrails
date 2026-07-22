@@ -5,6 +5,22 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-22 - capqa languages + guard language screen; results consolidated in RESULTS.md
+
+All cipher + language results for models and guards now live in `RESULTS.md` (living table).
+
+- **capqa fra/hin/swh, both models** (N=150, Eddie): 12B french 96 / hindi 85 / swahili 87;
+  27B french 100 / hindi 88 / swahili 99 (retention = acc/plain). 27B ≥ 12B everywhere.
+- **Guard language screen** (n=150, job 3562722): WildGuard graded blindness plain 96.7 → french 88
+  → hindi 16 → swahili/zulu 0 (FPR ≤1.3%); ShieldGemma weaker/noisier (62 → 13, FPR 5-13%). Both
+  ≈0% on all ciphers (n=50). Swahili = capability/detectability dissociation (99% decode, 0% WG).
+- **probe_prompt OOM fixed** (3 wasted runs): manual 2048-token left truncation (apply_chat_template
+  `max_length` is silently ignored in transformers 5.12), `logits_to_keep=1` (the 262k-vocab lm_head
+  over all positions was the real OOM, not the hidden states), and last-token-only per-layer stack.
+  Memtest 32 GB @ 12B batch-8. 12B/27B probe re-running (Eddie 56990400, Wintermute 3563857).
+- **Gap:** probe tests plain/reverse/zulu only; french/hindi/swahili probe points (the language
+  coupling axis) are not yet implemented in `probe_prompt.py`.
+
 ## 2026-07-21 - 10k judge landed; stratum/judge disagree on 14.4%; protected-group category OPEN
 
 Judge job 56985874 (Eddie, 2x L40S, ~100 min) -> data/judged_main_prompts.jsonl, 10000 rows,
