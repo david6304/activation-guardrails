@@ -21,6 +21,13 @@ from reverse_pilot import build_prompts
 
 
 C_GRID = (0.001, 0.01, 0.1, 1.0, 10.0)
+# Language coupling axis: same NLLB codes as capability_qa.py / guard_screen.py, scored
+# as held-out transfer conditions alongside reverse. Zulu reuses its existing manifest.
+LANGS = {"french": "fra_Latn", "hindi": "hin_Deva", "swahili": "swh_Latn", "zulu": "zul_Latn"}
+# Excluded from the operational-harm probe by default: 25% of positives, outside the locked
+# operational-harm definition, and the noisiest judge category. Re-include with
+# --keep-protected-group for the broad-harm sensitivity variant.
+PROTECTED_GROUP_CATEGORY = "hate & harassment targeting protected groups"
 # Cap model inputs so the long WildChat first-turn tail cannot OOM the all-layer
 # hidden-state extraction (cost scales with sequence length). Truncate the content by
 # token here rather than via apply_chat_template, which does not forward truncation in
@@ -44,7 +51,7 @@ def normalised_hash(text):
     return hashlib.sha256(normalised.encode()).hexdigest()
 
 
-def load_judged_rows(path, limit, seed):
+def load_judged_rows(path, limit, seed, keep_protected_group):
     rows = []
     parse_errors = 0
     malformed = 0
@@ -63,6 +70,12 @@ def load_judged_rows(path, limit, seed):
             if row.get("harmful") is None:
                 continue
             rows.append(row)
+
+    excluded_protected = 0
+    if not keep_protected_group:
+        before = len(rows)
+        rows = [r for r in rows if str(r.get("category")) != PROTECTED_GROUP_CATEGORY]
+        excluded_protected = before - len(rows)
 
     pilot_hashes = {
         normalised_hash(row["orig"]) for row in build_prompts(300, 0)
@@ -92,10 +105,10 @@ def load_judged_rows(path, limit, seed):
     print(
         f"[input] kept={len(rows)} parse_errors={parse_errors} malformed={malformed} "
         f"pilot_overlap={excluded_pilot} duplicates_dropped="
-        f"{pre_deduplication - len(deduped)}",
+        f"{pre_deduplication - len(deduped)} protected_group_excluded={excluded_protected}",
         flush=True,
     )
-    return rows, parse_errors, malformed, excluded_pilot
+    return rows, parse_errors, malformed, excluded_pilot, excluded_protected
 
 
 def split_rows(rows, seed):
@@ -124,7 +137,7 @@ def translation_truncation_flags(prompts, nllb_dir):
     return {prompt: len(ids) > 256 for prompt, ids in zip(prompts, encodings)}
 
 
-def load_or_translate_zulu(prompts, manifest_path, nllb_dir):
+def load_or_translate(prompts, manifest_path, nllb_dir, tgt_code):
     translations = {}
     truncation_flags = {}
     if manifest_path.exists():
@@ -142,17 +155,17 @@ def load_or_translate_zulu(prompts, manifest_path, nllb_dir):
     if flags_missing:
         truncation_flags.update(translation_truncation_flags(flags_missing, nllb_dir))
     if missing:
-        print(f"[translate] {len(missing)} new English -> Zulu prompts", flush=True)
-        translations.update(translate_nllb(missing, nllb_dir, "zul_Latn"))
+        print(f"[translate] {len(missing)} new English -> {tgt_code} prompts", flush=True)
+        translations.update(translate_nllb(missing, nllb_dir, tgt_code))
     else:
-        print(f"[translate] reused {len(prompts)} Zulu translations", flush=True)
+        print(f"[translate] reused {len(prompts)} {tgt_code} translations", flush=True)
 
     empty = [
         normalised_hash(prompt)
         for prompt, translation in translations.items()
         if not translation.strip()
     ]
-    assert not empty, f"empty Zulu translations for prompt hashes: {empty}"
+    assert not empty, f"empty {tgt_code} translations for prompt hashes: {empty}"
     truncated = [normalised_hash(prompt) for prompt in prompts if truncation_flags[prompt]]
     if truncated:
         print(
@@ -399,7 +412,11 @@ def main():
     parser.add_argument("--model", default="google/gemma-3-27b-it")
     parser.add_argument("--in", dest="inp", default="data/judged_main_prompts.jsonl")
     parser.add_argument("--nllb", default="facebook/nllb-200-distilled-600M")
-    parser.add_argument("--zulu-manifest", default="data/probe_prompt_zulu.jsonl")
+    parser.add_argument(
+        "--keep-protected-group",
+        action="store_true",
+        help="include the 960 protected-group positives (broad-harm sensitivity variant)",
+    )
     parser.add_argument("--scores-out")
     parser.add_argument("--report-out")
     parser.add_argument("--batch-size", type=int, default=8)
@@ -412,11 +429,12 @@ def main():
     random.seed(args.seed)
     np.random.seed(args.seed)
     model_slug = args.model.rstrip("/").split("/")[-1]
-    scores_path = Path(args.scores_out or f"data/probe_prompt_{model_slug}_scores.npz")
-    report_path = Path(args.report_out or f"data/probe_prompt_{model_slug}_report.json")
+    variant = "_withpg" if args.keep_protected_group else ""
+    scores_path = Path(args.scores_out or f"data/probe_prompt_{model_slug}{variant}_scores.npz")
+    report_path = Path(args.report_out or f"data/probe_prompt_{model_slug}{variant}_report.json")
 
-    rows, parse_errors, malformed, excluded_pilot = load_judged_rows(
-        Path(args.inp), args.limit, args.seed
+    rows, parse_errors, malformed, excluded_pilot, excluded_protected = load_judged_rows(
+        Path(args.inp), args.limit, args.seed, args.keep_protected_group
     )
     train_rows, tune_rows, test_rows = split_rows(rows, args.seed)
     print(
@@ -429,9 +447,12 @@ def main():
     test_reverse = [
         build_sent(prompt, "reverse", in_obf=True, out_obf=False) for prompt in test_plain
     ]
-    test_zulu, truncated_hashes = load_or_translate_zulu(
-        test_plain, Path(args.zulu_manifest), args.nllb
-    )
+    test_translations = {}
+    truncated_by_lang = {}
+    for lang, code in LANGS.items():
+        test_translations[lang], truncated_by_lang[lang] = load_or_translate(
+            test_plain, Path(f"data/probe_prompt_{lang}.jsonl"), args.nllb, code
+        )
 
     model, tok, n_layers, hidden = load_model(args.model, args.seed)
     model_revision = getattr(model.config, "_commit_hash", None)
@@ -456,11 +477,9 @@ def main():
     del x_train, x_tune
 
     condition_scores = {}
-    for condition, texts in (
-        ("plain", test_plain),
-        ("reverse", test_reverse),
-        ("zulu", test_zulu),
-    ):
+    conditions = [("plain", test_plain), ("reverse", test_reverse)]
+    conditions += [(lang, test_translations[lang]) for lang in LANGS]
+    for condition, texts in conditions:
         print(f"[score] test {condition}", flush=True)
         condition_scores[condition] = score_forward(
             texts, model, tok, args.batch_size, weight, intercept
@@ -503,13 +522,11 @@ def main():
         # WJ stratum: needed for the within-vanilla_harmful validity check (does the probe
         # discriminate operational harm, or has it just learnt the WildJailbreak source label?)
         data_types=np.asarray([str(row.get("data_type") or "none") for row in test_rows]),
-        plain_scores=condition_scores["plain"],
-        reverse_scores=condition_scores["reverse"],
-        zulu_scores=condition_scores["zulu"],
         wildchat_ids=np.asarray(wildchat_ids),
         wildchat_scores=wildchat_scores,
         wildchat_calibration_index=calibration_index,
         wildchat_audit_index=audit_index,
+        **{f"{condition}_scores": scores for condition, scores in condition_scores.items()},
     )
 
     report = {
@@ -524,6 +541,8 @@ def main():
             "parse_errors_dropped": parse_errors,
             "malformed_lines_skipped": malformed,
             "pilot_overlap_excluded": excluded_pilot,
+            "keep_protected_group": args.keep_protected_group,
+            "protected_group_excluded": excluded_protected,
         },
         "features": {
             "pooling": "prompt-final token, embedding plus all hidden layers concatenated",
@@ -553,10 +572,14 @@ def main():
             "calibration_alert_rate": calibration_alert_rate,
             "audit_alert_rate": audit_alert_rate,
         },
-        "zulu_translation": {
-            "manifest": args.zulu_manifest,
-            "inputs_exceeding_256_tokens": len(truncated_hashes),
-            "truncated_prompt_hashes": truncated_hashes,
+        "translations": {
+            lang: {
+                "code": LANGS[lang],
+                "manifest": f"data/probe_prompt_{lang}.jsonl",
+                "inputs_exceeding_256_tokens": len(truncated_by_lang[lang]),
+                "truncated_prompt_hashes": truncated_by_lang[lang],
+            }
+            for lang in LANGS
         },
         "metrics": metrics,
         "scores": str(scores_path),
