@@ -143,6 +143,8 @@ def main():
                 vectorizer.transform(texts)
             ).astype(np.float32)
 
+    output_path = Path(args.out)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     if not args.text_only:
         shield_rows = guard_rows("tune", tune_conditions) + guard_rows(
             "test", test_conditions
@@ -154,21 +156,22 @@ def main():
         run_shieldgemma(
             shield_rows, "google/shieldgemma-9b", args.batch_size
         )
-        wildguard_rows = guard_rows("test", test_conditions)
-        print(f"[WildGuard] rows={len(wildguard_rows)}", flush=True)
-        run_wildguard(wildguard_rows, "allenai/wildguard", args.batch_size)
         for split, conditions in (("tune", tune_conditions), ("test", test_conditions)):
             for condition in conditions:
                 output[f"{split}_{condition}_shieldgemma"] = unpack_guard(
                     shield_rows, split, condition, "score"
                 ).astype(np.float32)
+        np.savez_compressed(output_path, **output)
+        print(f"[checkpoint] TF-IDF and ShieldGemma -> {output_path}", flush=True)
+
+        wildguard_rows = guard_rows("test", test_conditions)
+        print(f"[WildGuard] rows={len(wildguard_rows)}", flush=True)
+        run_wildguard(wildguard_rows, "allenai/wildguard", args.batch_size)
         for condition in test_conditions:
             output[f"test_{condition}_wildguard"] = unpack_guard(
                 wildguard_rows, "test", condition, "flag"
             ).astype(bool)
 
-    output_path = Path(args.out)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(output_path, **output)
     metadata_path = output_path.with_suffix(".json")
     metadata_path.write_text(

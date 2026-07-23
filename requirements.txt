@@ -9,6 +9,9 @@ huggingface-hub==1.19.0     # transformers 5.x requires hub>=1.0
 scikit-learn==1.9.0         # ROC/AUC, threshold selection, LR baselines
 pandas==3.0.3               # WildJailbreak is TSV
 tqdm>=4.66
+sentencepiece==0.2.2        # WildGuard tokenizer
+protobuf==7.35.1            # SentencePiece-to-fast-tokenizer conversion
+tiktoken==0.13.0            # transformers tokenizer-conversion fallback
 
 # dev
 ruff>=0.6
