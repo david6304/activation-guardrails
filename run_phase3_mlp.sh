@@ -5,8 +5,8 @@
 #     --nodelist=landonia11 run_phase3_mlp.sh --smoke --batch-size 4 \
 #     --out data/phase3_smoke.npz
 #SBATCH --job-name=phase3_sae
-#SBATCH --cpus-per-task=12
-#SBATCH --mem=160G
+#SBATCH --cpus-per-task=4
+#SBATCH --mem=96G
 #SBATCH --time=01:00:00
 #SBATCH --output=phase3_sae_%j.out
 set -euo pipefail
