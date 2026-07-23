@@ -209,7 +209,7 @@ def write_performance_csv(path, results):
         "retained_above_chance_auroc",
     )
     with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         for block in BLOCKS:
             for representation in REPRESENTATIONS:
@@ -246,7 +246,7 @@ def write_features_csv(path, rows):
         "top_examples",
     )
     with path.open("w", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=fields)
+        writer = csv.DictWriter(handle, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         for row in rows:
             writer.writerow({**row, "top_examples": json.dumps(row["top_examples"])})
