@@ -5,6 +5,55 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-23 - Phase 1/2 frozen: Swahili transfers through activations; position changes calibration
+
+The matched 27B result is positive and Phases 1/2 are frozen. At `t_inst`, the
+plain-trained all-layer logistic probe reached Swahili AUROC 0.967 and, with
+negative-only condition-matched calibration, 59.3% TPR at 1.32% realised FPR,
+versus ShieldGemma's 29.9% at 1.07% FPR. The paired activation advantage was
++29.4 points (95% CI [+21.1, +39.8]). The pre-specified activation--ShieldGemma
+ensemble did not improve on activation alone.
+
+The exact position control shows that Swahili rank discrimination is unchanged
+between `t_inst` and `t_post-inst` (AUROC 0.9669 vs 0.9670; paired difference
+-0.0001, 95% CI [-0.0072, +0.0067]), but `t_inst` transfers the frozen English
+threshold substantially better (37.3% vs 10.7% TPR; paired bootstrap mean
+difference +28.1 points, 95% CI [+13.9, +41.5]). Matched calibration recovers
+nearly equal TPR (59.3% vs 58.6%). Reverse collapses logistic discrimination at
+both positions (AUROC 0.556/0.573), so its failure is not specific to the
+post-instruction token. This supports a calibration-shift explanation for
+Swahili and a discrimination-loss explanation for reverse, without a causal
+harmfulness/refusal claim. Proceed to the bounded two-layer SAE Phase 3; no
+further Phase 2 position, layer, or transformation search.
+
+Reproducibility: `data/judged_main_prompts.jsonl`; frozen Swahili manifest SHA-256
+`47e8f8c357eb93d958bc85ec9bbe92ebb7720fe2d4f9105f6f221244ace994`;
+`google/gemma-3-27b-it` revision
+`005ad3404e59d6023443cb575daa05336842228a`; seed 0; train/tune/test
+5,341/1,781/1,781. Commands: `python -m phase1.phase1_activation --batch-size 8`,
+`python -m phase1.phase1_baselines`, `python -m phase1.analyse_phase1`, and
+`python -m phase1.phase1_activation --position t_post_inst --out
+data/phase2_activation_t_post_inst_27b.npz --batch-size 8`, followed by
+`python -m phase2.analyse_phase2 --bootstrap 10000`. Eddie jobs:
+Phase 1 `57005061`/`57005218`; Phase 2 `57058315` from clean remote commit
+`6a574074fdc635b0435a49e1d36cafb839e79167`. Definitive records and compact
+artifacts: `phase1/RESULTS.md`, `phase2/RESULTS.md`, and
+`data/phase{1,2}_*`.
+
+## 2026-07-22 - Four-week dissertation pivot: one anchor and two bounded explanatory phases
+
+With four weeks remaining, the project is narrowed to a 27B-only three-phase finish:
+(1) an exact matched plain/Swahili/reverse comparison targeting a probe or probe--text
+ensemble advantage at TPR@1% FPR; (2) `t_inst` versus `t_post-inst` analysis to distinguish
+calibration shift from loss of discrimination, without making a causal claim; and (3) a
+two-layer Gemma Scope SAE comparison for a bounded interpretability result. This is planned
+work, not an achieved result. The pivot is motivated by the current 27B `t_post-inst` evidence:
+plain AUROC 0.994, Swahili AUROC 0.967 but zero TPR at the frozen English threshold, and reverse
+AUROC 0.578, together with 99% Swahili capability and 0% WildGuard detection in the earlier
+screen. New reportable experiments freeze after at most ten days; more models/ciphers, MLP
+sweeps, refusal abliteration, and broad SAE/Delphi work leave the critical path. Full design,
+calibration rules, limitations, fallbacks, and schedule: `DISSERTATION_FINISH_PLAN.md`.
+
 ## 2026-07-22 - capqa languages + guard language screen; results consolidated in RESULTS.md
 
 All cipher + language results for models and guards now live in `RESULTS.md` (living table).

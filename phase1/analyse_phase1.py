@@ -1,4 +1,4 @@
-"""Create the frozen Phase 1 matched table and paired bootstrap intervals."""
+"""Create the frozen Phase 1 table and bootstrap intervals from the repo root."""
 
 import argparse
 import json

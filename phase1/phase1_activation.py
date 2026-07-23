@@ -1,8 +1,9 @@
-"""Score the frozen Phase 1 prompt set with t_inst activation detectors.
+"""Score the frozen prompt set with activation detectors at one token position.
 
 One Gemma forward pass supplies both the all-layer logistic probe and the
 Zhao-style layer-averaged cosine-centroid score. Only scalar tune/test scores
-and fitted detector parameters are persisted.
+and fitted detector parameters are persisted. The Phase 1 default remains
+``t_inst``; Phase 2 uses the same code at ``t_post_inst``.
 """
 
 import argparse
@@ -28,8 +29,8 @@ from probe_prompt import (
 NLLB_CODE = "swh_Latn"
 
 
-def iter_t_inst_batches(texts, model, tok, batch_size):
-    """Yield original row indices and [batch, layer, hidden] t_inst states."""
+def iter_position_batches(texts, model, tok, batch_size, position_name):
+    """Yield original row indices and [batch, layer, hidden] position states."""
     import torch
 
     end_of_turn_id = tok.convert_tokens_to_ids("<end_of_turn>")
@@ -60,9 +61,16 @@ def iter_t_inst_batches(texts, model, tok, batch_size):
             matches = (input_ids == end_of_turn_id).nonzero(as_tuple=False).flatten()
             if len(matches) == 0:
                 raise ValueError("rendered prompt contains no <end_of_turn> token")
-            position = int(matches[-1]) - 1
+            instruction_position = int(matches[-1]) - 1
+            if position_name == "t_inst":
+                position = instruction_position
+            else:
+                attended = attention_mask.nonzero(as_tuple=False).flatten()
+                position = int(attended[-1])
+                if position <= instruction_position:
+                    raise ValueError("prompt-final position does not follow instruction")
             if position < 0 or not bool(attention_mask[position]):
-                raise ValueError("invalid final instruction-token position")
+                raise ValueError(f"invalid {position_name} position")
             positions.append(position)
 
         with torch.no_grad():
@@ -92,11 +100,15 @@ def iter_t_inst_batches(texts, model, tok, batch_size):
         yield indices, batch_features
 
 
-def extract_features(texts, model, tok, batch_size, layer_count, hidden_size):
+def extract_features(
+    texts, model, tok, batch_size, layer_count, hidden_size, position_name
+):
     features = np.empty(
         (len(texts), layer_count, hidden_size), dtype=np.float32
     )
-    for indices, batch in iter_t_inst_batches(texts, model, tok, batch_size):
+    for indices, batch in iter_position_batches(
+        texts, model, tok, batch_size, position_name
+    ):
         features[indices] = batch
     return features
 
@@ -132,10 +144,13 @@ def score_detectors(
     logistic_intercept,
     harmful_centroid,
     harmless_centroid,
+    position_name,
 ):
     logistic = np.empty(len(texts), dtype=np.float32)
     centroid = np.empty(len(texts), dtype=np.float32)
-    for indices, features in iter_t_inst_batches(texts, model, tok, batch_size):
+    for indices, features in iter_position_batches(
+        texts, model, tok, batch_size, position_name
+    ):
         logistic[indices] = (
             features.reshape(len(indices), -1) @ logistic_weight
             + logistic_intercept
@@ -153,11 +168,37 @@ def main():
     parser.add_argument("--nllb", default="facebook/nllb-200-distilled-600M")
     parser.add_argument("--translations-dir", default="data/phase1_translations")
     parser.add_argument("--prepare-translations", action="store_true")
-    parser.add_argument("--out", default="data/phase1_activation_27b.npz")
+    parser.add_argument("--position", choices=("t_inst", "t_post_inst"), default="t_inst")
+    parser.add_argument("--out")
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--smoke", action="store_true")
     args = parser.parse_args()
+    output_path = Path(
+        args.out
+        or (
+            "data/phase1_activation_27b.npz"
+            if args.position == "t_inst"
+            else "data/phase2_activation_t_post_inst_27b.npz"
+        )
+    )
+    if args.smoke:
+        model, tok, num_layers, hidden_size = load_model(args.model, args.seed)
+        _, features = next(
+            iter_position_batches(
+                ["Explain photosynthesis.", "What is two plus two?"],
+                model,
+                tok,
+                2,
+                args.position,
+            )
+        )
+        expected = (2, num_layers + 1, hidden_size)
+        if features.shape != expected or not np.isfinite(features).all():
+            raise ValueError(f"invalid smoke features: {features.shape}, expected {expected}")
+        print(f"[smoke] position={args.position} shape={features.shape} finite=true")
+        return
 
     rows, _, _, _, _ = load_judged_rows(
         Path(args.inp), args.limit, args.seed, keep_protected_group=False
@@ -231,7 +272,7 @@ def main():
     model, tok, num_layers, hidden_size = load_model(args.model, args.seed)
     layer_count = num_layers + 1
     print(
-        f"[features] position=t_inst layers={layer_count} hidden={hidden_size}",
+        f"[features] position={args.position} layers={layer_count} hidden={hidden_size}",
         flush=True,
     )
     print("[extract] plain train", flush=True)
@@ -242,10 +283,17 @@ def main():
         args.batch_size,
         layer_count,
         hidden_size,
+        args.position,
     )
     print("[extract] plain tune", flush=True)
     tune_features = extract_features(
-        tune_plain, model, tok, args.batch_size, layer_count, hidden_size
+        tune_plain,
+        model,
+        tok,
+        args.batch_size,
+        layer_count,
+        hidden_size,
+        args.position,
     )
     train_labels = np.asarray([int(bool(row["harmful"])) for row in train_rows])
     tune_labels = np.asarray([int(bool(row["harmful"])) for row in tune_rows])
@@ -284,18 +332,18 @@ def main():
                 intercept,
                 harmful_centroid,
                 harmless_centroid,
+                args.position,
             )
             scores[f"{split}_{condition}_logistic"] = logistic
             scores[f"{split}_{condition}_centroid"] = centroid
 
-    output_path = Path(args.out)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     np.savez_compressed(
         output_path,
         model=np.asarray(args.model),
         model_revision=np.asarray(getattr(model.config, "_commit_hash", None) or ""),
         seed=np.asarray(args.seed),
-        position=np.asarray("t_inst"),
+        position=np.asarray(args.position),
         train_ids=np.asarray([str(row["id"]) for row in train_rows]),
         tune_ids=np.asarray([str(row["id"]) for row in tune_rows]),
         test_ids=np.asarray([str(row["id"]) for row in test_rows]),

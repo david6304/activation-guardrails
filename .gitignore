@@ -16,6 +16,13 @@ __pycache__/
 !/artifacts/.gitkeep
 /data/*
 !/data/.gitkeep
+!/data/phase1_activation_27b.npz
+!/data/phase1_baselines.json
+!/data/phase1_baselines.npz
+!/data/phase1_results.json
+!/data/phase2_activation_t_post_inst_27b.npz
+!/data/phase2_results.csv
+!/data/phase2_results.json
 /results/*
 !/results/.gitkeep
 

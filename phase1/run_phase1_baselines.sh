@@ -1,6 +1,6 @@
 #!/bin/bash
 # Matched Phase 1 TF-IDF, ShieldGemma and WildGuard scoring (MLP/ICF).
-# Usage: sbatch ... run_phase1_baselines.sh [EXTRA...]
+# Usage from the repository root: sbatch ... phase1/run_phase1_baselines.sh [EXTRA...]
 #SBATCH --job-name=phase1_text
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
@@ -24,4 +24,4 @@ git rev-parse HEAD
 git status --short
 echo "EXTRA=$*"
 
-python phase1_baselines.py "$@"
+python -m phase1.phase1_baselines "$@"

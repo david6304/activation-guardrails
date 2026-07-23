@@ -1,4 +1,4 @@
-"""Score the frozen Phase 1 split with matched text guardrails."""
+"""Score the frozen Phase 1 split with matched text guardrails from the repo root."""
 
 import argparse
 import json

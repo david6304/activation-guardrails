@@ -1,15 +1,15 @@
 #!/bin/bash
-# Matched Phase 1 text and guard scoring (Eddie, 1x L40S).
-# Usage: qsub run_phase1_baselines_eddie.sh [EXTRA...]
-#$ -N phase1_text
+# Matched Phase 1 activation scoring on Gemma 3 27B (Eddie, 2x L40S).
+# Usage from the repository root: qsub phase1/run_phase1_eddie.sh [EXTRA...]
+#$ -N phase1_act
 #$ -cwd
 #$ -q gpu
-#$ -l gpu=1
+#$ -l gpu=2
 #$ -l l40s=true
-#$ -pe sharedmem 4
+#$ -pe sharedmem 12
 #$ -l h_rss=32G
-#$ -l h_rt=02:00:00
-#$ -o phase1_text_$JOB_ID.out
+#$ -l h_rt=04:00:00
+#$ -o phase1_act_$JOB_ID.out
 #$ -j y
 set -euo pipefail
 
@@ -21,6 +21,7 @@ export HF_HOME=/exports/eddie/scratch/s2296274/hf
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HF_DATASETS_OFFLINE=1
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 cd "${SGE_O_WORKDIR:?qsub must be run from the intended checkout}"
 
@@ -31,4 +32,4 @@ git rev-parse HEAD
 git status --short
 echo "EXTRA=$*"
 
-python phase1_baselines.py "$@"
+python -m phase1.phase1_activation --batch-size 8 "$@"
