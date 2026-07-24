@@ -5,6 +5,40 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-24 - Depth coherence fails Gate B
+
+The bounded post-core depth experiment compared mean/median layer-rank
+aggregation, maximum contiguous windows, and exact Top-K non-overlapping windows
+for `M in {2,4,8}` and `K in {1,2,3}`. Selection used only two-fold
+cross-fitted tune predictions across the fixed Swahili, reverse, and
+vowel-removal development conditions. It selected `depth_topk_m8_k3`.
+
+On the already-seen Phase 1 test, treated only as exploratory development
+evidence, this method did not give a material low-FPR improvement over the
+all-layer logistic probe. Under condition-matched calibration, worst-domain TPR
+over the comparable Swahili/reverse conditions increased from **2.11% to
+3.17%** (+1.06 points), while maximum realised FPR increased from **1.32% to
+1.65%** and exceeded the 1% constraint. Concretely, depth Top-K versus all-layer
+detected 339 versus 337 harmful Swahili prompts with 20 versus 16 false
+positives, and 18 versus 12 harmful reverse prompts with 17 versus 9 false
+positives. Under strict transfer, worst-domain TPR remained 0% and depth Top-K
+also increased maximum FPR. Gate B therefore fails: do not retain this method,
+add the optional benign-variance regulariser, or broaden the depth
+hyperparameter search. Proceed to the pre-specified strong text baselines and
+fixed multilingual matrix; do not proceed to a depth-residual ensemble.
+
+Reproducibility: `google/gemma-3-27b-it` revision
+`005ad3404e59d6023443cb575daa05336842228a`; `t_inst`; seed 0;
+train/tune/test 5,341/1,781/1,781; source commit `9e6c864`; MLP job `3565792`
+(A100 80 GB, batch size 4, 41m41s, exit 0). Layerwise artefact
+`data/phase1_layerwise_27b.npz`, SHA-256
+`56f8f529f0694fa957d5360537c6e580268a249bf3b31a555c2b1fb781fa839d`;
+analysis command `conda run -n msc-diss python
+phase1/analyse_depth_coherence.py`; result
+`data/phase1_depth_coherence_results.json`, SHA-256
+`5e0d6a1d15b5c31fbfdce8ba73bfef6b6e40c9e45124e72925fe1d94e13eaaea`.
+The analysis implementation was not yet committed at this checkpoint.
+
 ## 2026-07-23 - Phase 1/2 frozen: Swahili transfers through activations; position changes calibration
 
 The matched 27B result is positive and Phases 1/2 are frozen. At `t_inst`, the
