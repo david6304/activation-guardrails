@@ -19,6 +19,7 @@ from probe_prompt import file_sha256, load_judged_rows, split_rows, strings_sha2
 
 NEW_CONDITIONS = ("french", "hindi", "zulu")
 OLD_CONDITIONS = ("plain", "swahili", "reverse")
+CONDITIONS = ("plain", "french", "hindi", "swahili", "zulu", "reverse")
 AUDIT_INDICES = (0, 254, 508, 763, 1017, 1272, 1526, 1780)
 SHIELD_MODEL = "google/shieldgemma-9b"
 WILDGUARD_MODEL = "allenai/wildguard"
@@ -68,59 +69,42 @@ def validate_sources(source, frozen, source_path, frozen_path, tune_rows, test_r
                     raise ValueError(f"{source_path} already contains {key}")
 
 
-def append_audit_rows(rows, split, conditions):
-    for condition in OLD_CONDITIONS:
-        for index in AUDIT_INDICES:
-            rows.append(
-                {
-                    "id": index,
-                    "split": split,
-                    "condition": condition,
-                    "text": conditions[condition][index],
-                    "audit": True,
-                }
-            )
-
-
-def audit_rows(rows):
-    return [row for row in rows if row.get("audit")]
-
-
 def shield_audit(rows, frozen):
+    lookup = {
+        (row["split"], row["condition"], row["id"]): row for row in rows
+    }
     differences = {}
-    for row in audit_rows(rows):
-        key = f"{row['split']}_{row['condition']}_shieldgemma"
-        expected = float(frozen[key][row["id"]])
-        difference = abs(float(row["score"]) - expected)
-        differences[f"{row['split']}:{row['condition']}:{row['id']}"] = difference
+    for split in ("tune", "test"):
+        for condition in OLD_CONDITIONS:
+            key = f"{split}_{condition}_shieldgemma"
+            for index in AUDIT_INDICES:
+                difference = abs(
+                    float(lookup[(split, condition, index)]["score"])
+                    - float(frozen[key][index])
+                )
+                differences[f"{split}:{condition}:{index}"] = difference
     maximum = max(differences.values())
-    if maximum > SHIELD_AUDIT_TOLERANCE:
-        raise RuntimeError(
-            f"ShieldGemma audit maximum difference {maximum:.6g} exceeds "
-            f"{SHIELD_AUDIT_TOLERANCE:.6g}"
-        )
     return {
         "comparison": "absolute probability difference",
         "tolerance": SHIELD_AUDIT_TOLERANCE,
         "maximum_difference": maximum,
         "differences": differences,
-        "passed": True,
+        "passed": maximum <= SHIELD_AUDIT_TOLERANCE,
     }
 
 
 def wildguard_audit(rows, frozen):
+    lookup = {(row["condition"], row["id"]): row for row in rows}
     mismatches = []
-    for row in audit_rows(rows):
-        key = f"test_{row['condition']}_wildguard"
-        expected = bool(frozen[key][row["id"]])
-        if bool(row["flag"]) != expected:
-            mismatches.append(f"{row['condition']}:{row['id']}")
-    if mismatches:
-        raise RuntimeError(f"WildGuard audit mismatches: {mismatches}")
+    for condition in OLD_CONDITIONS:
+        key = f"test_{condition}_wildguard"
+        for index in AUDIT_INDICES:
+            if bool(lookup[(condition, index)]["flag"]) != bool(frozen[key][index]):
+                mismatches.append(f"{condition}:{index}")
     return {
         "comparison": "exact native-decision equality",
         "mismatches": mismatches,
-        "passed": True,
+        "passed": not mismatches,
     }
 
 
@@ -183,6 +167,14 @@ def main():
         condition: translations[condition][len(tune_rows) :]
         for condition in NEW_CONDITIONS
     }
+    tune_conditions = {
+        condition: {**old_tune_conditions, **new_tune_conditions}[condition]
+        for condition in CONDITIONS
+    }
+    test_conditions = {
+        condition: {**old_test_conditions, **new_test_conditions}[condition]
+        for condition in CONDITIONS
+    }
 
     shield_snapshot, shield_revision = resolve_cached_snapshot(SHIELD_MODEL)
     wildguard_snapshot, wildguard_revision = resolve_cached_snapshot(
@@ -196,14 +188,11 @@ def main():
     import guard_screen
 
     guard_screen.SG_GUIDELINE = SHIELD_POLICY
-    shield_rows = guard_rows("tune", new_tune_conditions) + guard_rows(
-        "test", new_test_conditions
+    shield_rows = guard_rows("tune", tune_conditions) + guard_rows(
+        "test", test_conditions
     )
-    append_audit_rows(shield_rows, "tune", old_tune_conditions)
-    append_audit_rows(shield_rows, "test", old_test_conditions)
     print(
-        f"[ShieldGemma] new={len(tune_rows) * 6} "
-        f"audit={2 * len(OLD_CONDITIONS) * len(AUDIT_INDICES)}",
+        f"[ShieldGemma] rows={len(shield_rows)} full_rescore=true",
         flush=True,
     )
     guard_screen.run_shieldgemma(
@@ -211,28 +200,30 @@ def main():
     )
     shield_audit_result = shield_audit(shield_rows, frozen)
     print(
-        f"[audit] ShieldGemma passed max_difference="
-        f"{shield_audit_result['maximum_difference']:.6g}",
+        f"[audit] ShieldGemma passed={shield_audit_result['passed']} "
+        f"max_difference={shield_audit_result['maximum_difference']:.6g}",
         flush=True,
     )
 
-    wildguard_rows = guard_rows("test", new_test_conditions)
-    append_audit_rows(wildguard_rows, "test", old_test_conditions)
+    wildguard_rows = guard_rows("test", test_conditions)
     print(
-        f"[WildGuard] new={len(test_rows) * 3} "
-        f"audit={len(OLD_CONDITIONS) * len(AUDIT_INDICES)}",
+        f"[WildGuard] rows={len(wildguard_rows)} full_rescore=true",
         flush=True,
     )
     guard_screen.run_wildguard(
         wildguard_rows, str(wildguard_snapshot), args.wildguard_batch_size
     )
     wildguard_audit_result = wildguard_audit(wildguard_rows, frozen)
-    print("[audit] WildGuard passed exact equality", flush=True)
+    print(
+        f"[audit] WildGuard passed={wildguard_audit_result['passed']} "
+        f"mismatches={len(wildguard_audit_result['mismatches'])}",
+        flush=True,
+    )
 
     extension_scores = {}
     for split, conditions in (
-        ("tune", new_tune_conditions),
-        ("test", new_test_conditions),
+        ("tune", tune_conditions),
+        ("test", test_conditions),
     ):
         for condition in conditions:
             scores = unpack_guard(
@@ -241,7 +232,7 @@ def main():
             if scores.shape != (len(tune_rows),) or not np.isfinite(scores).all():
                 raise ValueError(f"invalid ShieldGemma scores for {split} {condition}")
             extension_scores[f"{split}_{condition}_shieldgemma"] = scores
-    for condition in NEW_CONDITIONS:
+    for condition in CONDITIONS:
         flags = unpack_guard(
             wildguard_rows, "test", condition, "flag"
         ).astype(bool)
@@ -264,7 +255,7 @@ def main():
         "frozen_audit_source_sha256": file_sha256(frozen_path),
         "source_commit": commit,
         "seed": args.seed,
-        "conditions_added": list(NEW_CONDITIONS),
+        "conditions_scored": list(CONDITIONS),
         "translation_hashes": translation_hashes,
         "shieldgemma": {
             "model": SHIELD_MODEL,
@@ -284,6 +275,10 @@ def main():
         "cuda_device": torch.cuda.get_device_name(),
         "model_dtype": "bfloat16" if torch.cuda.is_bf16_supported() else "float16",
         "training": "none",
+        "scoring": (
+            "all six guard conditions rescored in one environment; frozen old "
+            "scores are retained only as an equivalence diagnostic"
+        ),
     }
     output = {
         **source,
@@ -295,8 +290,8 @@ def main():
             strings_sha256(
                 [
                     text
-                    for conditions in (new_tune_conditions, new_test_conditions)
-                    for condition in NEW_CONDITIONS
+                    for conditions in (tune_conditions, test_conditions)
+                    for condition in CONDITIONS
                     for text in conditions[condition]
                 ]
             )
