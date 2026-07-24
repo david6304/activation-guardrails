@@ -298,6 +298,7 @@ def extract_e5(texts, model, tokenizer, batch_size, device):
 
 
 def load_encoder(baseline, device):
+    import torch
     from transformers import (
         AutoModel,
         AutoModelForSequenceClassification,
@@ -315,6 +316,7 @@ def load_encoder(baseline, device):
             revision=revision,
             local_files_only=True,
             num_labels=2,
+            dtype=torch.float32,
         )
     else:
         model_id, revision = E5_MODEL, E5_REVISION
