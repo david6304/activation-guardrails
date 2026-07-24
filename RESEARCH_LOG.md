@@ -5,6 +5,46 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-24 - Multilingual matrix complete; activation probe wins every language
+
+Step 3 of the finish plan is done: all six conditions scored for every detector.
+The all-layer `t_inst` probe beats every text baseline on AUROC and TPR in all
+five language conditions under both strict and condition-matched calibration,
+including multilingual-e5. Matched TPR plain→zulu: probe 75.4%→51.2%,
+ShieldGemma 45.2%→15.3%, WildGuard (native) 97.4%→0.4%. ShieldGemma is the
+strongest single text comparator on the low-resource end (swahili 30.1%), so it
+is the fusion partner for Step 4, not WildGuard. Reverse defeats everything, and
+the centroid is the only detector retaining signal there (AUROC 0.767 vs 0.556
+for the all-layer probe) — a probe-geometry failure, not absent signal. Full
+matrix in `RESULTS.md` §4.
+
+The ShieldGemma equivalence audit **failed** (max abs probability difference
+0.0312 vs 1e-3 tolerance) on 2 of 48 frozen audit cells, Eddie bf16 L40S versus
+the original MLP scores. It changed no reported metric (plain and swahili rows
+bit-identical; reverse AUROC 0.657→0.659) and all six conditions were rescored
+in one environment, so the matrix is internally consistent. Record it as
+cross-cluster nondeterminism in ShieldGemma's continuous score; WildGuard's
+native decisions matched exactly (0/24). No LlamaGuard — gated by the Meta
+licence, never staged; report as a limitation rather than a pending run.
+
+**Next: Step 4, de-risk fusion on frozen scalar scores** (probe + ShieldGemma,
+cross-fitted, tune/development data only) against Gate C: stop if fusion cannot
+improve worst-domain TPR at the 1% FPR constraint over the best single detector.
+CPU-only — every score needed is already in the saved artefacts, so no cluster
+job.
+
+Reproducibility: Eddie job `57134364` (node1r02, 1× L40S, bf16, 59m03s, exit 0);
+source commit `59649dd`; seed 0; test n=1781 (568/1213). ShieldGemma-9b revision
+`b8b636016df4540721a098c7aab91c97ec6ee508` (batch 8, composite guideline),
+WildGuard revision `cbba4823f3e8020e5a74a5e29bf85072def6f2ff` (batch 4).
+`data/phase1_baselines_multilingual.npz`, SHA-256
+`ea9e151968d9fa038ebb7d381395f20892f7d654a2c82e8b54d9af7fd837de72`; analysis
+`conda run -n msc-diss python -m phase1.analyse_text_encoders --activation
+data/phase1_activation_multilingual_27b.npz --baselines
+data/phase1_baselines_multilingual.npz`; result
+`data/phase1_text_encoder_multilingual_results.json`, SHA-256
+`897fa25f1af26d82215c53e547b205b5670f2562ba016ab879f77ebbdde1c31e`.
+
 ## 2026-07-24 - Depth coherence fails Gate B
 
 The bounded post-core depth experiment compared mean/median layer-rank
