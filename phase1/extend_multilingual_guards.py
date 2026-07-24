@@ -32,24 +32,21 @@ def load_npz(path):
 
 
 def resolve_cached_snapshot(model_id):
-    from huggingface_hub import snapshot_download
+    from huggingface_hub.constants import HF_HUB_CACHE
     from transformers import AutoConfig
 
     config = AutoConfig.from_pretrained(model_id, local_files_only=True)
     revision = str(getattr(config, "_commit_hash", "") or "")
     if len(revision) != 40:
         raise RuntimeError(f"could not resolve cached revision for {model_id}")
-    snapshot = Path(
-        snapshot_download(
-            model_id,
-            revision=revision,
-            local_files_only=True,
-        )
+    snapshot = (
+        Path(HF_HUB_CACHE)
+        / f"models--{model_id.replace('/', '--')}"
+        / "snapshots"
+        / revision
     )
-    if snapshot.name != revision:
-        raise RuntimeError(
-            f"resolved snapshot {snapshot.name!r} != revision {revision!r}"
-        )
+    if not snapshot.is_dir():
+        raise FileNotFoundError(f"missing cached snapshot {snapshot}")
     return snapshot, revision
 
 
