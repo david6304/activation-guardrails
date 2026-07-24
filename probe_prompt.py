@@ -203,8 +203,19 @@ def load_or_translate(prompts, manifest_path, nllb_dir, tgt_code, allow_translat
         )
     if missing:
         print(f"[translate] {len(missing)} English -> {tgt_code} prompts", flush=True)
-        truncation_flags.update(translation_truncation_flags(missing, nllb_dir))
-        translations.update(translate_nllb(missing, nllb_dir, tgt_code))
+        translation_inputs = {prompt: prompt.rstrip() for prompt in missing}
+        input_flags = translation_truncation_flags(
+            list(translation_inputs.values()), nllb_dir
+        )
+        truncation_flags.update(
+            {prompt: input_flags[text] for prompt, text in translation_inputs.items()}
+        )
+        translated = translate_nllb(
+            list(translation_inputs.values()), nllb_dir, tgt_code
+        )
+        translations.update(
+            {prompt: translated[text] for prompt, text in translation_inputs.items()}
+        )
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
         with manifest_path.open("w") as f:
             for prompt in sorted(prompts):
