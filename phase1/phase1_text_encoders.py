@@ -215,7 +215,7 @@ def train_small_guard(
             optimiser.zero_grad(set_to_none=True)
             logits = model(
                 **encoded_batch(tokenizer, texts, device, prefix="")
-            ).logits
+            ).logits.float()
             loss = functional.cross_entropy(logits, labels, weight=class_weights)
             loss.backward()
             optimiser.step()
