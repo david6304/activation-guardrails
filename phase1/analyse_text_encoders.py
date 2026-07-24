@@ -202,6 +202,15 @@ def main():
             for condition in tfidf_hashes
         ):
             raise ValueError("TF-IDF extension translation hashes differ")
+    if "multilingual_guard_extension_json" in baselines:
+        guard_hashes = json.loads(
+            str(baselines["multilingual_guard_extension_json"])
+        )["translation_hashes"]
+        if any(
+            guard_hashes.get(condition) != translation_hashes[condition]
+            for condition in guard_hashes
+        ):
+            raise ValueError("guard extension translation hashes differ")
 
     tune_labels = activation["tune_labels"]
     test_labels = activation["test_labels"]
