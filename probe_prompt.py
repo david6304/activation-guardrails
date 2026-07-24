@@ -183,6 +183,8 @@ def load_or_translate(prompts, manifest_path, nllb_dir, tgt_code, allow_translat
                 if not line.strip():
                     continue
                 row = json.loads(line)
+                if not row["translation"].strip():
+                    continue
                 translations[row["prompt"]] = row["translation"]
                 truncation_flags[row["prompt"]] = bool(row["truncated_256"])
 
