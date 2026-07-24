@@ -10,8 +10,12 @@ from sklearn.metrics import roc_auc_score
 
 CONDITIONS = ("plain", "french", "hindi", "swahili", "zulu", "reverse")
 NEW_DETECTORS = ("small_guard", "multilingual_e5")
-CURRENT_COMPARATORS = ("all_layer_logistic", "tfidf", "shieldgemma")
-CURRENT_COMPARATOR_CONDITIONS = frozenset(("plain", "swahili", "reverse"))
+CURRENT_COMPARATORS = (
+    "all_layer_logistic",
+    "centroid",
+    "tfidf",
+    "shieldgemma",
+)
 EXPECTED_MODELS = {
     "small_guard": (
         "microsoft/deberta-v3-small",
@@ -50,6 +54,8 @@ def metrics(labels, scores, threshold):
 def score_source(detector, activation, baselines, small_guard, multilingual_e5):
     if detector == "all_layer_logistic":
         return activation, "logistic"
+    if detector == "centroid":
+        return activation, "centroid"
     if detector in {"tfidf", "shieldgemma"}:
         return baselines, detector
     if detector == "small_guard":
@@ -72,15 +78,6 @@ def analyse_detector(
     tune_negative = tune_labels == 0
     for mode in ("strict", "matched"):
         for condition in CONDITIONS:
-            if (
-                detector in CURRENT_COMPARATORS
-                and condition not in CURRENT_COMPARATOR_CONDITIONS
-            ):
-                detector_results[mode][condition] = {
-                    "status": "pending",
-                    "reason": "current comparator artefact does not contain this condition",
-                }
-                continue
             calibration_condition = "plain" if mode == "strict" else condition
             reference_key = score_key("tune", calibration_condition, suffix)
             test_key = score_key("test", condition, suffix)
@@ -110,6 +107,31 @@ def analyse_detector(
                     float(result["tpr"] / plain_tpr) if plain_tpr else None
                 )
     return detector_results
+
+
+def analyse_wildguard(baselines, test_labels):
+    positive = test_labels == 1
+    negative = test_labels == 0
+    results = {}
+    for condition in CONDITIONS:
+        key = f"test_{condition}_wildguard"
+        if key not in baselines:
+            results[condition] = {
+                "status": "pending",
+                "reason": "native-decision score absent from current artefact",
+            }
+            continue
+        flags = np.asarray(baselines[key], dtype=bool)
+        if flags.shape != test_labels.shape:
+            raise ValueError(f"invalid WildGuard flags for {condition}")
+        results[condition] = {
+            "status": "available",
+            "tpr": float(flags[positive].mean()),
+            "fpr": float(flags[negative].mean()),
+            "true_positives": int(flags[positive].sum()),
+            "false_positives": int(flags[negative].sum()),
+        }
+    return results
 
 
 def main():
@@ -157,10 +179,29 @@ def main():
         raise ValueError("activation and baseline tune IDs differ")
     if not np.array_equal(activation["test_ids"], baselines["test_ids"]):
         raise ValueError("activation and baseline test IDs differ")
-    if json.loads(str(small_guard["translation_hashes_json"])) != json.loads(
+    translation_hashes = json.loads(str(small_guard["translation_hashes_json"]))
+    if translation_hashes != json.loads(
         str(multilingual_e5["translation_hashes_json"])
     ):
         raise ValueError("new baseline translation hashes differ")
+    if "multilingual_extension_json" in activation:
+        activation_hashes = json.loads(
+            str(activation["multilingual_extension_json"])
+        )["translation_hashes"]
+        if any(
+            activation_hashes.get(condition) != translation_hashes[condition]
+            for condition in activation_hashes
+        ):
+            raise ValueError("activation extension translation hashes differ")
+    if "multilingual_tfidf_extension_json" in baselines:
+        tfidf_hashes = json.loads(
+            str(baselines["multilingual_tfidf_extension_json"])
+        )["translation_hashes"]
+        if any(
+            tfidf_hashes.get(condition) != translation_hashes[condition]
+            for condition in tfidf_hashes
+        ):
+            raise ValueError("TF-IDF extension translation hashes differ")
 
     tune_labels = activation["tune_labels"]
     test_labels = activation["test_labels"]
@@ -212,6 +253,9 @@ def main():
             },
         },
         "results": results,
+        "wildguard_fixed_decision": analyse_wildguard(
+            baselines, test_labels
+        ),
     }
     output_path = Path(args.out)
     output_path.parent.mkdir(parents=True, exist_ok=True)
