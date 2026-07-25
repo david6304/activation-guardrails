@@ -15,6 +15,7 @@ CURRENT_COMPARATORS = (
     "centroid",
     "tfidf",
     "shieldgemma",
+    "qwen3guard",
 )
 EXPECTED_MODELS = {
     "small_guard": (
@@ -51,13 +52,17 @@ def metrics(labels, scores, threshold):
     }
 
 
-def score_source(detector, activation, baselines, small_guard, multilingual_e5):
+def score_source(
+    detector, activation, baselines, small_guard, multilingual_e5, modern_guards
+):
     if detector == "all_layer_logistic":
         return activation, "logistic"
     if detector == "centroid":
         return activation, "centroid"
     if detector in {"tfidf", "shieldgemma"}:
         return baselines, detector
+    if detector == "qwen3guard":
+        return modern_guards, detector
     if detector == "small_guard":
         return small_guard, "scores"
     return multilingual_e5, "scores"
@@ -142,6 +147,7 @@ def main():
     )
     parser.add_argument("--activation", default="data/phase1_activation_27b.npz")
     parser.add_argument("--baselines", default="data/phase1_baselines.npz")
+    parser.add_argument("--modern-guards", default="data/c4_modern_guards.npz")
     parser.add_argument(
         "--out", default="data/phase1_text_encoder_results.json"
     )
@@ -151,6 +157,15 @@ def main():
     multilingual_e5 = load_npz(args.multilingual_e5)
     activation = load_npz(args.activation)
     baselines = load_npz(args.baselines)
+    modern_guards = load_npz(args.modern_guards) if Path(args.modern_guards).exists() else {}
+    if modern_guards:
+        for split in ("tune", "test"):
+            if not np.array_equal(
+                modern_guards[f"{split}_ids"], activation[f"{split}_ids"]
+            ):
+                raise ValueError(f"modern guard and activation {split} IDs differ")
+        if json.loads(str(modern_guards["modern_guard_json"]))["limit"]:
+            raise ValueError("refusing to analyse a smoke modern-guard artefact")
     for name, artefact in (
         ("small_guard", small_guard),
         ("multilingual_e5", multilingual_e5),
@@ -217,7 +232,12 @@ def main():
     results = {}
     for detector in (*NEW_DETECTORS, *CURRENT_COMPARATORS):
         source, suffix = score_source(
-            detector, activation, baselines, small_guard, multilingual_e5
+            detector,
+            activation,
+            baselines,
+            small_guard,
+            multilingual_e5,
+            modern_guards,
         )
         results[detector] = analyse_detector(
             detector, source, suffix, tune_labels, test_labels
@@ -242,7 +262,13 @@ def main():
             "multilingual_e5": args.multilingual_e5,
             "activation": args.activation,
             "baselines": args.baselines,
+            "modern_guards": args.modern_guards if modern_guards else None,
         },
+        "modern_guard_metadata": (
+            json.loads(str(modern_guards["modern_guard_json"]))
+            if modern_guards
+            else None
+        ),
         "new_baseline_metadata": {
             "small_guard": {
                 "model": str(small_guard["model"]),
