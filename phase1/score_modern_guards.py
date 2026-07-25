@@ -75,7 +75,6 @@ def run_qwen3guard(rows, model_path, batch_size):
             )
     del model
     torch.cuda.empty_cache()
-    return tokeniser
 
 
 def generation_check(rows, model_path, batch_size):

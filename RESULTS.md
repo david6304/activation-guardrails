@@ -89,6 +89,7 @@ Strict transfer:
 | all-layer logistic | **0.988 / 75.4 / 1.1** | **0.980 / 63.0 / 0.9** | **0.982 / 61.8 / 0.8** | **0.967 / 37.3 / 0.2** | **0.962 / 34.5 / 0.4** | 0.556 / 0.0 / 0.0 |
 | centroid (Zhao) | 0.939 / 56.5 / 2.2 | 0.932 / 30.8 / 1.0 | 0.923 / 19.5 / 0.1 | 0.895 / 9.7 / 0.2 | 0.886 / 6.9 / 0.2 | **0.767 / 0.0 / 0.0** |
 | ShieldGemma-9b | 0.940 / 45.2 / 1.4 | 0.925 / 36.8 / 0.6 | 0.902 / 34.3 / 1.7 | 0.886 / 30.1 / 1.1 | 0.833 / 8.8 / 0.2 | 0.659 / 0.0 / 0.0 |
+| Qwen3Guard-Gen-8B | 0.968 / 54.9 / 1.9 | 0.951 / 31.7 / 0.8 | 0.950 / 15.5 / 0.1 | 0.882 / 0.2 / 0.0 | 0.795 / 0.0 / 0.0 | 0.595 / 0.0 / 0.0 |
 | multilingual-e5-base | 0.967 / 56.3 / 0.9 | 0.947 / 51.2 / 1.6 | 0.906 / 18.3 / 0.7 | 0.837 / 2.1 / 0.1 | 0.813 / 0.9 / 0.0 | 0.616 / 0.0 / 0.0 |
 | DeBERTa-v3-small guard | 0.981 / 63.9 / 1.1 | 0.940 / 15.3 / 0.1 | 0.862 / 0.0 / 0.0 | 0.833 / 0.2 / 0.0 | 0.805 / 0.0 / 0.0 | 0.472 / 0.0 / 0.0 |
 | char TF–IDF | 0.962 / 45.2 / 1.0 | 0.731 / 0.5 / 0.1 | 0.531 / 0.0 / 0.0 | 0.596 / 0.0 / 0.0 | 0.580 / 0.0 / 0.0 | 0.543 / 0.0 / 0.0 |
@@ -100,6 +101,7 @@ Condition-matched calibration (TPR% / FPR%; AUROC is calibration-invariant, as a
 | all-layer logistic | **75.4 / 1.1** | **72.5 / 1.3** | **69.5 / 1.2** | **59.3 / 1.3** | **51.2 / 1.2** | 2.1 / 0.7 |
 | centroid (Zhao) | 56.5 / 2.2 | 42.8 / 1.8 | 38.9 / 1.2 | 33.6 / 1.5 | 20.8 / 0.7 | **13.6 / 1.6** |
 | ShieldGemma-9b | 45.2 / 1.4 | 36.8 / 0.6 | 30.1 / 1.3 | 30.1 / 1.1 | 15.3 / 0.8 | 1.9 / 0.2 |
+| Qwen3Guard-Gen-8B | 54.9 / 1.9 | 49.1 / 1.7 | 41.5 / 1.2 | 16.4 / 1.0 | 9.2 / 1.2 | 1.6 / 1.2 |
 | multilingual-e5-base | 56.3 / 0.9 | 41.2 / 0.7 | 31.9 / 1.7 | 16.7 / 1.6 | 14.1 / 1.4 | 5.1 / 2.1 |
 | DeBERTa-v3-small guard | 63.9 / 1.1 | 40.0 / 1.3 | 13.6 / 0.6 | 11.8 / 1.4 | 6.2 / 0.8 | 2.1 / 1.8 |
 | char TF–IDF | 45.2 / 1.0 | 8.8 / 0.8 | 5.8 / 0.9 | 3.9 / 0.8 | 3.3 / 1.2 | 3.7 / 1.5 |
@@ -116,7 +118,14 @@ Probe TPR retention vs plain: strict 84% / 82% / 50% / 46% / 0%; matched 96% / 9
 
 **Reading.** The all-layer activation probe leads every text baseline on AUROC *and* TPR in all
 five language conditions under both calibrations, including against multilingual-e5, a text
-encoder built for multilingual semantics. Degradation is monotone in language resource level
+encoder built for multilingual semantics, and against Qwen3Guard-Gen-8B, a purpose-built
+multilingual guard released 2025-09. Qwen3Guard is the strongest text comparator at the
+mid-resource end (matched french 49.1%, hindi 41.5%, both well above ShieldGemma's 36.8% / 30.1%)
+but *not* at the low-resource end, where it falls below ShieldGemma (swahili 16.4% vs 30.1%, zulu
+9.2% vs 15.3%) — multilingual guard training moves french and hindi and leaves swahili and zulu
+roughly where they were. The probe's matched margin over the better of the two open guards in each
+condition is +20.5 / +23.4 / +28.0 / +29.2 / +35.9 points (plain → zulu). Degradation is monotone in language
+resource level
 (plain → french → hindi → swahili → zulu) for every detector, but far steeper for text: WildGuard
 falls 97.4% → 0.4%, ShieldGemma 45.2% → 15.3% (matched), the probe 75.4% → 51.2%. ShieldGemma is
 now the strongest *single* text comparator on the low-resource end (swahili 30.1%), so it is the
@@ -126,10 +135,21 @@ logistic collapses to 0.556 — a probe-geometry failure rather than absent sign
 
 **Caveat.** The ShieldGemma cross-environment audit failed (max abs probability difference 0.0312
 vs 1e-3 tolerance) on 2 of 48 frozen audit cells; it changed no reported metric (see
-`RESEARCH_LOG.md` 2026-07-24). WildGuard's audit passed exactly. No LlamaGuard: gated by the Meta
-licence and never staged — an explicit limitation, not a pending run.
+`RESEARCH_LOG.md` 2026-07-24). WildGuard's audit passed exactly. Qwen3Guard's batch-composition
+audit (the same 48 cells rescored at batch size 1) also failed the 1e-3 tolerance, at 5 of 48 cells
+and max 0.0220, but the deviation is confined to unsaturated scores: ≤4.8e-4 on the 40 cells with
+P(Unsafe) outside [0.01, 0.99] and up to 0.0220 on the 8 mid-range cells. The plain/french/hindi
+thresholds sit in the saturated region (0.995–0.997) and are unaffected; the swahili, zulu and
+reverse thresholds (0.61, 0.071, 0.0034) are not, so a few alerts there are within score noise.
+All reported Qwen3Guard numbers come from one internally consistent batched pass.
 
-Raw: `data/phase1_baselines_multilingual.npz` (Eddie job 57134364), `data/phase1_activation_multilingual_27b.npz`,
+No Llama Guard 4: `meta-llama/Llama-Guard-4-12B` is still gated (HF 403 on 2026-07-25), so the
+second C4 guard is outstanding, not abandoned. Older LlamaGuard versions were deliberately not
+substituted — they do not answer the current-comparator objection.
+
+Raw: `data/phase1_baselines_multilingual.npz` (Eddie job 57134364), `data/c4_modern_guards.npz`
+(Eddie job 57140956), `data/phase1_activation_multilingual_27b.npz`,
 `data/phase1_small_guard.npz`, `data/phase1_multilingual_e5.npz`; analysis
-`data/phase1_text_encoder_multilingual_results.json`. Commit `59649dd`, seed 0. Known-test status:
+`data/phase1_text_encoder_multilingual_results.json` and `data/c4_modern_guard_results.json`.
+Commits `59649dd` (rows through TF–IDF) and `00149bb` (Qwen3Guard), seed 0. Known-test status:
 exploratory development evidence — no model, layer, threshold or condition was selected on it.

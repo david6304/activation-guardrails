@@ -5,6 +5,35 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-25 - C4: the probe also beats a current multilingual guard
+
+Qwen3Guard-Gen-8B scored on all six conditions; the probe still leads every condition on
+AUROC and matched TPR, so the headline survives a 2025 purpose-built multilingual guard.
+Margin over the better of the two guards: +20.5/+23.4/+28.0/+29.2/+35.9 points
+(plain→zulu). **"Strongest guard from C4" is condition-dependent** — Qwen3Guard leads at
+the mid-resource end (matched french 49.1%, hindi 41.5% vs ShieldGemma 36.8%, 30.1%) and
+*loses* at the low-resource end (swahili 16.4%, zulu 9.2% vs 30.1%, 15.3%); C5 and C7
+must carry both or state which condition selected the arm. Full matrix in `RESULTS.md` §4.
+
+Llama Guard 4 is **not done** — `meta-llama/Llama-Guard-4-12B` still returns HF 403 for
+this account. Report as a missing comparator; do not substitute an older LlamaGuard.
+
+Score = softmax over the three verdict branches at a teacher-forced `Safety:` position,
+one forward pass, validated 96/96 against free generation on the smoke rows. The
+batch-composition audit failed the 1e-3 tolerance (5/48 cells, max 0.0220) but only on
+unsaturated scores (≤4.8e-4 on the 40 saturated cells), which spares the
+plain/french/hindi thresholds and not swahili/zulu/reverse.
+
+Reproducibility: `Qwen/Qwen3Guard-Gen-8B` revision
+`4505cb1a6f1864f21f8b27f7daf1b9a1aab6edbb`, bf16, batch 8; Eddie jobs `57140593`
+(smoke) and `57140956` (node1r03, 1× L40S); source commit `00149bb`; seed 0;
+tune/test 1781/1781. `python -m phase1.score_modern_guards`, then
+`python -m phase1.analyse_text_encoders --activation
+data/phase1_activation_multilingual_27b.npz --baselines
+data/phase1_baselines_multilingual.npz --modern-guards data/c4_modern_guards.npz --out
+data/c4_modern_guard_results.json`. `data/c4_modern_guards.npz` SHA-256
+`418184f50a3dafa6d977869014df0b2b642791e130d36e282a5002c23435b820`.
+
 ## 2026-07-25 - Fusion fails Gate C; the probe absorbs the text guard
 
 Step 4 compared equal logit averaging, CC++-style weighted averaging, logistic

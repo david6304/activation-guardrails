@@ -26,7 +26,7 @@ items unless the confirmatory track is blocked and their dependencies are met.
 | C1 | Unlabelled threshold transport | pilot done, needs full grid | — | 0 |
 | C2 | Layer aggregation diagnosis | pilot done, needs curve + CIs | — | 0 |
 | C3 | Large negative pool / 0.1% FPR | not started | C4 (shares scoring job) | 1 |
-| C4 | Qwen3Guard + Llama Guard 4 | not started | — | 2 |
+| C4 | Qwen3Guard + Llama Guard 4 | Qwen3Guard done; Llama Guard 4 blocked on the Meta licence (HF 403) | — | 1 of 2 |
 | C5 | Normalise-then-guard | not started | C4 | 2--3 |
 | C6 | Comprehension-conditional monitoring | not started | — | 1--2 |
 | C7 | External-source confirmation | not started | C4 | 3--4 |
@@ -382,6 +382,14 @@ affected chapter rewritten before submission.
 
 `data/c4_modern_guards.npz`, updated `RESULTS.md` §4, and a `RESEARCH_LOG.md`
 entry recording revisions and the audit result.
+
+## Outcome (2026-07-25)
+
+Qwen3Guard done; the probe still leads in all five language conditions, so no
+chapter rewrite. **"Strongest guard from C4" is condition-dependent**: Qwen3Guard
+leads on plain/french/hindi, ShieldGemma on swahili/zulu. C5 and C7 must either
+carry both or say which condition selected the arm. Llama Guard 4 remains
+outstanding on the Meta licence — it is a missing comparator, not a resolved one.
 
 ---
 
