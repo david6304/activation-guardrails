@@ -32,6 +32,35 @@ when an item lands, exactly as in the confirmatory plan.
 | X8 | Adaptive attack | gated | confirmatory track written up; threat model approved | 2--3 |
 | X9 | Causal steering | ready | C2's selected layer recorded | 1--2 |
 
+### When to start one
+
+Four conditions must all hold before any exploratory item begins:
+
+1. the confirmatory item that unblocks it is not merely run but **written up**;
+2. the dissertation chapters covering the frozen core are drafted — if writing
+   is behind, there is no exploratory budget;
+3. it is more than ~10 days before submission if the item needs a cluster job
+   (assumed submission 2026-08-21 — correct this date if wrong); and
+4. no other exploratory item is already in flight.
+
+Which item to pick is then decided by what the confirmatory track found:
+
+| Trigger | Start | Reasoning |
+|---|---|---|
+| C4: current guards conform, probe still leads | C6, then X1 | headline is safe, so spend the budget on mechanism |
+| C4: Qwen3Guard closes the language gap | X2, then X3 | headline is threatened; find out whether the probe read semantics, language, or topic |
+| C5: normalise-then-guard wins | X1, reframed | claim narrows to cost and latency, but comprehension still explains *when* internal monitoring works |
+| C6 positive | X1 Arm A | the causal upgrade of a result that already landed — best available bet |
+| C6 null | X4, then X5 | mechanism must then come from geometry rather than comprehension |
+| C7 fails | **stop exploring** | if the core does not transfer across sources, write that limitation honestly instead |
+| C7 passes with time left | X8 | adaptive robustness is the last credibility gap worth closing |
+| Riders honoured, spare afternoon | X4 | roughly zero jobs at ~80% probability; take it whenever |
+| Any spare queue slot | X7 | cheap triage, no gate |
+
+If two triggers fire at once, prefer the falsifier (X2, X3, X8) over the
+mechanism bet. Discovering the headline is wrong is worth more than adding a
+second result on top of a headline that will not survive.
+
 "Ready" means the item has no technical blocker, not that it should be started.
 X4 and X5 are cheap only if the standing riders in `DISSERTATION_FINISH_PLAN.md`
 were honoured by an earlier job; if they were not, both need a dedicated
