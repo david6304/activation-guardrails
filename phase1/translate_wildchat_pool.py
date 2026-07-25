@@ -1,9 +1,17 @@
-"""Translate the frozen C3 WildChat pool to Swahili with the pinned NLLB revision.
+"""Translate the C3 WildChat pool's English rows to Swahili (optional arm).
 
-Gives a shifted background of the same size as the plain pool, so the matched
-0.1% operating point can be set on shifted traffic. NLLB truncates its input at
-256 tokens; WildChat's length tail is heavy, so the truncated fraction is
-recorded and must be reported beside any Swahili background alert rate.
+A shifted background lets the matched operating point be set on shifted
+traffic. Two constraints make this a sensitivity analysis rather than a
+matching-size counterpart to the plain pool, and both must be reported with any
+number it produces:
+
+1. Only 47% of the pool is labelled English, and NLLB is invoked with
+   `src_lang="eng_Latn"`. Translating the whole pool would mis-specify the
+   source language for most of it, so only English rows are translated and the
+   Swahili background is correspondingly smaller.
+2. NLLB truncates its input at 256 tokens and WildChat's length tail is heavy,
+   so long prompts are translated from a prefix. The truncated fraction is
+   recorded.
 """
 
 import argparse
@@ -32,6 +40,9 @@ def main():
         raise FileExistsError(f"refusing to overwrite {output_path}")
 
     rows = [json.loads(line) for line in open(args.prompts) if line.strip()]
+    total = len(rows)
+    rows = [row for row in rows if row["language"] == "English"]
+    print(f"[input] {len(rows)}/{total} English-labelled prompts", flush=True)
     if args.limit:
         rows = rows[: args.limit]
     snapshot, revision = resolve_cached_snapshot(NLLB_MODEL)
@@ -68,6 +79,8 @@ def main():
         "nllb_revision": revision,
         "target": TARGET,
         "n": len(rows),
+        "pool_n": total,
+        "selection": "rows whose WildChat language label is English",
         "truncated_256": truncated,
         "empty_translations": empty,
         "translations_path": str(output_path),

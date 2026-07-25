@@ -312,8 +312,16 @@ Segment-Level Coherence, which report at 0.1%.
    the ID manifest and record its SHA-256 before scoring.
 3. Score with the frozen all-layer probe and centroid (`t_inst`), and with
    ShieldGemma and Qwen3Guard from C4. One 27B forward pass, score-forward only.
-4. Also produce a Swahili-translated copy of the same 50,000 prompts using the
-   pinned NLLB revision, to give a shifted background of matching size.
+4. ~~Also produce a Swahili-translated copy of the same 50,000 prompts using the
+   pinned NLLB revision, to give a shifted background of matching size.~~
+   **Cut 2026-07-25.** The frozen pool is only 47% English-labelled (24% Chinese,
+   12% Russian) and the repo's NLLB path translates with `src_lang="eng_Latn"`,
+   so a whole-pool copy would mis-specify the source language for most of it and
+   confound language shift with source mis-specification and 256-token
+   truncation. The plain pool is the C3 deliverable. An English-labelled-subset
+   Swahili arm (~23.5k rows) remains available in
+   `phase1/translate_wildchat_pool.py` as a clearly-labelled sensitivity
+   analysis, to be run only after the plain result and the chapters are secure.
 5. Recompute the C1/C2 and headline tables with thresholds set on this pool at
    1% and 0.1%.
 
