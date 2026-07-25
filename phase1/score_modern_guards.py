@@ -1,10 +1,16 @@
-"""Score the frozen Phase 1 split's six conditions with Qwen3Guard-Gen-8B.
+"""Score the frozen Phase 1 split's six conditions with a current open guard.
 
 Qwen3Guard-Gen emits a three-way verdict whose first line is
 `Safety: Safe|Unsafe|Controversial`. Teacher-forcing the prefix `Safety:` puts
 the decision at one position, so a single forward pass gives the continuous
 label-token probability the Phase 1 operating-point protocol needs; the three
 branches start with distinct first tokens, so the softmax over them is exact.
+
+Llama Guard 4 works the same way: its first line must read `safe` or `unsafe`,
+which are single distinct tokens, so teacher-forcing the `\\n\\n` that opens the
+assistant turn puts both branches at one position. Its chat template takes
+multimodal content parts — a plain string renders an *empty* conversation, so
+the user text is passed as `[{"type": "text", ...}]`.
 """
 
 import argparse
@@ -21,8 +27,11 @@ from probe_prompt import load_judged_rows, split_rows, strings_sha256
 
 
 QWEN_MODEL = "Qwen/Qwen3Guard-Gen-8B"
+LLAMA_MODEL = "meta-llama/Llama-Guard-4-12B"
 DECISION_PREFIX = "Safety:"
+LLAMA_DECISION_PREFIX = "\n\n"
 LABELS = (" Safe", " Unsafe", " Controversial")
+LLAMA_LABELS = ("safe", "unsafe")
 AUDIT_INDICES = (0, 254, 508, 763, 1017, 1272, 1526, 1780)
 AUDIT_CONDITIONS = ("plain", "swahili", "reverse")
 AUDIT_TOLERANCE = 1e-3
@@ -73,6 +82,98 @@ def run_qwen3guard(rows, model_path, batch_size):
                 f"  qwen3guard {min(start + batch_size, len(rows))}/{len(rows)}",
                 flush=True,
             )
+    del model
+    torch.cuda.empty_cache()
+
+
+def llama_prompt(tokeniser, text):
+    return (
+        tokeniser.apply_chat_template(
+            [{"role": "user", "content": [{"type": "text", "text": text}]}],
+            tokenize=False,
+            add_generation_prompt=True,
+        )
+        + LLAMA_DECISION_PREFIX
+    )
+
+
+def run_llamaguard4(rows, model_path, batch_size):
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    tokeniser = AutoTokenizer.from_pretrained(model_path)
+    tokeniser.padding_side = "left"
+    ids = []
+    for label in LLAMA_LABELS:
+        encoded = tokeniser(label, add_special_tokens=False)["input_ids"]
+        if len(encoded) != 1:
+            raise ValueError(f"{label!r} is not a single token: {encoded}")
+        ids.append(int(encoded[0]))
+    if len(set(ids)) != len(ids):
+        raise ValueError(f"verdict branches share a token: {ids}")
+    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    model = AutoModelForCausalLM.from_pretrained(model_path, dtype=dtype).to("cuda")
+    model.eval()
+    for start in range(0, len(rows), batch_size):
+        batch = rows[start : start + batch_size]
+        texts = [llama_prompt(tokeniser, row["text"]) for row in batch]
+        encoded = tokeniser(
+            texts, return_tensors="pt", padding=True, add_special_tokens=False
+        ).to(model.device)
+        with torch.no_grad():
+            logits = model(**encoded).logits[:, -1, ids]
+        probabilities = torch.softmax(logits.float(), dim=-1)
+        for row, probability in zip(batch, probabilities.tolist()):
+            row["score"] = probability[1]
+            row["verdict"] = int(np.argmax(probability))
+        if start % (batch_size * 50) == 0 or start + batch_size >= len(rows):
+            print(
+                f"  llamaguard4 {min(start + batch_size, len(rows))}/{len(rows)}",
+                flush=True,
+            )
+    del model
+    torch.cuda.empty_cache()
+
+
+def generation_check_llamaguard4(rows, model_path, batch_size):
+    """Confirm the forced-prefix verdict is what the model would freely generate."""
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    tokeniser = AutoTokenizer.from_pretrained(model_path)
+    tokeniser.padding_side = "left"
+    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    model = AutoModelForCausalLM.from_pretrained(model_path, dtype=dtype).to("cuda")
+    model.eval()
+    agree = 0
+    for start in range(0, len(rows), batch_size):
+        batch = rows[start : start + batch_size]
+        texts = [
+            tokeniser.apply_chat_template(
+                [{"role": "user", "content": [{"type": "text", "text": row["text"]}]}],
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+            for row in batch
+        ]
+        encoded = tokeniser(
+            texts, return_tensors="pt", padding=True, add_special_tokens=False
+        ).to(model.device)
+        with torch.no_grad():
+            generated = model.generate(
+                **encoded,
+                max_new_tokens=8,
+                do_sample=False,
+                pad_token_id=tokeniser.pad_token_id,
+            )
+        new = generated[:, encoded["input_ids"].shape[1] :]
+        for row, token_ids in zip(batch, new):
+            text = tokeniser.decode(token_ids, skip_special_tokens=True).strip()
+            forced = LLAMA_LABELS[row["verdict"]]
+            match = text.splitlines()[0].strip() == forced if text else False
+            agree += int(match)
+            print(f"  gen={text.splitlines()[:1]} forced={forced} match={match}")
+    print(f"[generation check] agreement={agree}/{len(rows)}", flush=True)
     del model
     torch.cuda.empty_cache()
 
@@ -152,6 +253,13 @@ def main():
     parser.add_argument("--in", dest="inp", default="data/judged_main_prompts.jsonl")
     parser.add_argument("--translations-dir", default="data/phase1_translations")
     parser.add_argument("--out", default="data/c4_modern_guards.npz")
+    parser.add_argument(
+        "--guard", choices=("qwen3guard", "llamaguard4"), default="qwen3guard"
+    )
+    parser.add_argument(
+        "--source",
+        help="existing modern-guard npz whose arrays are carried into --out",
+    )
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument(
@@ -197,22 +305,27 @@ def main():
             for split, conditions in conditions_by_split.items()
         }
 
-    snapshot, revision = resolve_cached_snapshot(QWEN_MODEL)
-    print(f"[models] Qwen3Guard={revision}", flush=True)
+    model_id = QWEN_MODEL if args.guard == "qwen3guard" else LLAMA_MODEL
+    runner = run_qwen3guard if args.guard == "qwen3guard" else run_llamaguard4
+    checker = (
+        generation_check if args.guard == "qwen3guard" else generation_check_llamaguard4
+    )
+    snapshot, revision = resolve_cached_snapshot(model_id)
+    print(f"[models] {args.guard}={revision}", flush=True)
 
     scoring_rows = guard_rows("tune", conditions_by_split["tune"]) + guard_rows(
         "test", conditions_by_split["test"]
     )
-    print(f"[Qwen3Guard] rows={len(scoring_rows)}", flush=True)
-    run_qwen3guard(scoring_rows, str(snapshot), args.batch_size)
+    print(f"[{args.guard}] rows={len(scoring_rows)}", flush=True)
+    runner(scoring_rows, str(snapshot), args.batch_size)
 
     if args.limit:
         audit = {"skipped": "smoke run"}
-        generation_check(scoring_rows, str(snapshot), args.batch_size)
+        checker(scoring_rows, str(snapshot), args.batch_size)
     else:
         rescored = audit_rows(scoring_rows)
         print(f"[audit] rows={len(rescored)} batch_size=1", flush=True)
-        run_qwen3guard(rescored, str(snapshot), 1)
+        runner(rescored, str(snapshot), 1)
         audit = batch_audit(scoring_rows, rescored)
         print(
             f"[audit] passed={audit['passed']} "
@@ -221,7 +334,11 @@ def main():
         )
 
     expected = args.limit or len(tune_rows)
-    output = {
+    output = {}
+    if args.source:
+        with np.load(args.source, allow_pickle=False) as saved:
+            output.update({key: saved[key] for key in saved.files})
+    output |= {
         "tune_ids": np.asarray([str(row["id"]) for row in tune_rows]),
         "test_ids": np.asarray([str(row["id"]) for row in test_rows]),
         "tune_labels": np.asarray(
@@ -237,27 +354,40 @@ def main():
                 np.float32
             )
             if scores.shape != (expected,) or not np.isfinite(scores).all():
-                raise ValueError(f"invalid Qwen3Guard scores for {split} {condition}")
-            output[f"{split}_{condition}_qwen3guard"] = scores
-            output[f"{split}_{condition}_qwen3guard_controversial"] = unpack_guard(
-                scoring_rows, split, condition, "controversial"
-            ).astype(np.float32)
-            output[f"{split}_{condition}_qwen3guard_verdict"] = unpack_guard(
+                raise ValueError(f"invalid {args.guard} scores for {split} {condition}")
+            output[f"{split}_{condition}_{args.guard}"] = scores
+            output[f"{split}_{condition}_{args.guard}_verdict"] = unpack_guard(
                 scoring_rows, split, condition, "verdict"
             ).astype(np.int8)
+            if args.guard == "qwen3guard":
+                output[f"{split}_{condition}_qwen3guard_controversial"] = unpack_guard(
+                    scoring_rows, split, condition, "controversial"
+                ).astype(np.float32)
 
     commit = subprocess.run(
         ["git", "rev-parse", "HEAD"], check=True, capture_output=True, text=True
     ).stdout.strip()
     import torch
 
+    if args.guard == "qwen3guard":
+        guard_metadata = {
+            "decision_prefix": DECISION_PREFIX,
+            "labels": list(LABELS),
+            "score": "softmax P(' Unsafe') over the three verdict branches",
+            "verdict_codes": {"0": "Safe", "1": "Unsafe", "2": "Controversial"},
+        }
+    else:
+        guard_metadata = {
+            "decision_prefix": LLAMA_DECISION_PREFIX,
+            "labels": list(LLAMA_LABELS),
+            "score": "softmax P('unsafe') over the two verdict tokens",
+            "verdict_codes": {"0": "safe", "1": "unsafe"},
+        }
     metadata = {
-        "model": QWEN_MODEL,
+        "guard": args.guard,
+        "model": model_id,
         "revision": revision,
-        "decision_prefix": DECISION_PREFIX,
-        "labels": list(LABELS),
-        "score": "softmax P(' Unsafe') over the three verdict branches",
-        "verdict_codes": {"0": "Safe", "1": "Unsafe", "2": "Controversial"},
+        **guard_metadata,
         "batch_size": args.batch_size,
         "limit": args.limit,
         "seed": args.seed,
@@ -270,9 +400,10 @@ def main():
         "cuda_device": torch.cuda.get_device_name(),
         "model_dtype": "bfloat16" if torch.cuda.is_bf16_supported() else "float16",
         "training": "none",
+        "source": args.source,
     }
-    output["modern_guard_json"] = np.asarray(json.dumps(metadata))
-    output["modern_guard_inputs_sha256"] = np.asarray(
+    output[f"{args.guard}_json"] = np.asarray(json.dumps(metadata))
+    output[f"{args.guard}_inputs_sha256"] = np.asarray(
         strings_sha256(
             [
                 text

@@ -37,9 +37,16 @@ fi
 
 BATCH_SIZE="${BATCH_SIZE:-8}"
 LIMIT="${LIMIT:-0}"
+GUARD="${GUARD:-qwen3guard}"
+SOURCE="${SOURCE:-}"
 OUTPUT_PATH="${OUTPUT_PATH:-data/c4_modern_guards_${JOB_ID}.npz}"
+if [[ "$GUARD" == "qwen3guard" ]]; then
+    GUARD_CACHE="$HF_HOME/hub/models--Qwen--Qwen3Guard-Gen-8B"
+else
+    GUARD_CACHE="$HF_HOME/hub/models--meta-llama--Llama-Guard-4-12B"
+fi
 for path in \
-    "$HF_HOME/hub/models--Qwen--Qwen3Guard-Gen-8B" \
+    "$GUARD_CACHE" \
     data/judged_main_prompts.jsonl \
     data/phase1_translations/french.jsonl \
     data/phase1_translations/hindi.jsonl \
@@ -56,9 +63,11 @@ hostname
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 echo "commit=$CURRENT_COMMIT"
 python -c 'import torch, transformers; print("torch", torch.__version__, "transformers", transformers.__version__)'
-echo "command=python -m phase1.score_modern_guards --out $OUTPUT_PATH --batch-size $BATCH_SIZE --limit $LIMIT"
+echo "command=python -m phase1.score_modern_guards --guard $GUARD --out $OUTPUT_PATH --batch-size $BATCH_SIZE --limit $LIMIT ${SOURCE:+--source $SOURCE}"
 
 python -m phase1.score_modern_guards \
+    --guard "$GUARD" \
     --out "$OUTPUT_PATH" \
     --batch-size "$BATCH_SIZE" \
-    --limit "$LIMIT"
+    --limit "$LIMIT" \
+    ${SOURCE:+--source "$SOURCE"}
