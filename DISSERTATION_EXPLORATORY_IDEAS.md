@@ -13,6 +13,30 @@ rules in `DISSERTATION_FINISH_PLAN.md` apply here unchanged. Raw activations
 were never persisted, so every item that needs vectors rather than scores costs
 a new extraction job.
 
+## Execution state
+
+**A session may start an item here only when David names it in the session
+prompt** — except X7, which is cheap triage and may run whenever a queue slot
+is free. An idle confirmatory queue is not authorisation. Update this table
+when an item lands, exactly as in the confirmatory plan.
+
+| ID | Item | Status | Unblocked when | Jobs |
+|---|---|---|---|---:|
+| X1 | Causal comprehension x scale | blocked | C6's comprehension task exists | 4--8 |
+| X4 | Harm-direction rotation | waiting on rider | any extraction job has run with rider 1 | 0--1 |
+| X2 | Payload vs wrapper translation | ready | — | 1--2 |
+| X5 | Two targeted readouts | partly riding | rider 1 and 2 stored; else needs own job | 0--1 |
+| X3 | Leave-one-family-out | ready | — | 1--2 |
+| X6 | Benign-only transport | ready | C2's selected layer recorded | 2--3 |
+| X7 | Output-side kill test | **runnable now, no gate** | — | 1 |
+| X8 | Adaptive attack | gated | confirmatory track written up; threat model approved | 2--3 |
+| X9 | Causal steering | ready | C2's selected layer recorded | 1--2 |
+
+"Ready" means the item has no technical blocker, not that it should be started.
+X4 and X5 are cheap only if the standing riders in `DISSERTATION_FINISH_PLAN.md`
+were honoured by an earlier job; if they were not, both need a dedicated
+extraction and should be repriced accordingly.
+
 ## Why the current negatives should not be accepted at face value
 
 The saved evidence points at a readout failure, not absent information:

@@ -31,10 +31,38 @@ items unless the confirmatory track is blocked and their dependencies are met.
 | C6 | Comprehension-conditional monitoring | not started | — | 1--2 |
 | C7 | External-source confirmation | not started | C4 | 3--4 |
 
-Exploratory items in `DISSERTATION_EXPLORATORY_IDEAS.md` and their blockers:
-X1 needs C6's comprehension task; X4 attaches to the first extraction job (C3
-or C7); X6 and X9 need C2's selected layer; X7 has no dependencies and can run
-any time.
+### When to touch the exploratory track
+
+Exploratory items live in `DISSERTATION_EXPLORATORY_IDEAS.md`, which has its own
+state table. A session may start one **only** when David has named it in the
+session prompt. Do not infer that an exploratory item is due because the
+confirmatory queue looks idle — starting a speculative branch is a research
+priority decision, not a scheduling one.
+
+Two exceptions, which need no instruction:
+
+- **Standing riders below.** These are mandatory parts of confirmatory jobs.
+- **X7's output-side kill test.** One short job, no dependencies, exists to
+  close a question cheaply. Run it whenever a queue slot is free.
+
+### Standing riders
+
+Any job that runs a forward pass over prompts **must** additionally save the
+following. Each costs almost nothing at extraction time and costs a full
+GPU job to recover later.
+
+1. **Class-conditional means per layer, per condition** — the harmful mean, the
+   benign mean, and the diagonal of each covariance. This is 62x5376 floats per
+   class per condition against 81 GB of raw activations. It unblocks X4
+   entirely and gives the difference-in-means readout of X5 for free on any job
+   that touches the train split.
+2. **Payload-mean pooling alongside `t_inst`** — the same forward pass, pooled
+   over the payload tokens instead of read at the last instruction token. Store
+   both score sets. This unblocks the second half of X5.
+
+Neither rider changes any confirmatory result: the primary detector remains the
+all-layer `t_inst` logistic probe. Riders are stored, not analysed, unless the
+corresponding X item is separately authorised.
 
 Pilot scripts already committed and reproducing:
 `phase1/analyse_unlabelled_calibration.py` (C1) and
