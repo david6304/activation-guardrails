@@ -53,6 +53,16 @@ def load_prompts(path, condition, swahili_path, limit):
     return rows
 
 
+def take_shard(rows, shard, num_shards):
+    """Contiguous slice of the frozen order, so shards concatenate back to it."""
+    if num_shards <= 1:
+        return rows
+    if not 0 <= shard < num_shards:
+        raise ValueError(f"--shard {shard} outside 0..{num_shards - 1}")
+    edges = np.linspace(0, len(rows), num_shards + 1).astype(int)
+    return rows[edges[shard] : edges[shard + 1]]
+
+
 def score_probe(rows, source_path, batch_size, seed):
     with np.load(source_path, allow_pickle=False) as saved:
         weight = saved["logistic_weight"]
@@ -85,15 +95,20 @@ def score_guard(rows, detector, batch_size):
     from transformers import AutoTokenizer
 
     tokeniser = AutoTokenizer.from_pretrained(snapshot)
-    truncated = 0
-    guard_rows = []
-    for text in truncate_left_tokens(
-        [row["text"] for row in rows], tokeniser, MAX_TOKENS
-    ):
-        guard_rows.append({"text": text})
-    for row, guard_row in zip(rows, guard_rows):
-        truncated += int(guard_row["text"] != row["text"])
-    runner(guard_rows, str(snapshot), batch_size)
+    texts = truncate_left_tokens([row["text"] for row in rows], tokeniser, MAX_TOKENS)
+    truncated = sum(
+        int(text != row["text"]) for row, text in zip(rows, texts)
+    )
+    # WildChat's length spread is three orders of magnitude, so a batch built in
+    # dataset order pads almost everything to its longest member. Score in length
+    # order and restore the original order afterwards.
+    lengths = [len(tokeniser(text, add_special_tokens=False)["input_ids"]) for text in texts]
+    order = sorted(range(len(texts)), key=lambda index: lengths[index])
+    sorted_rows = [{"text": texts[index]} for index in order]
+    runner(sorted_rows, str(snapshot), batch_size)
+    guard_rows = [None] * len(rows)
+    for position, index in enumerate(order):
+        guard_rows[index] = sorted_rows[position]
     scores = {detector: np.asarray([row["score"] for row in guard_rows], dtype=np.float32)}
     if detector == "qwen3guard":
         scores["qwen3guard_controversial"] = np.asarray(
@@ -123,6 +138,8 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument("--shard", type=int, default=0)
+    parser.add_argument("--num-shards", type=int, default=1)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
@@ -130,7 +147,12 @@ def main():
     if output_path.exists():
         raise FileExistsError(f"refusing to overwrite {output_path}")
     rows = load_prompts(args.prompts, args.condition, args.swahili, args.limit)
-    print(f"[input] {len(rows)} prompts, condition={args.condition}", flush=True)
+    rows = take_shard(rows, args.shard, args.num_shards)
+    print(
+        f"[input] {len(rows)} prompts, condition={args.condition}, "
+        f"shard {args.shard + 1}/{args.num_shards}",
+        flush=True,
+    )
 
     if args.detector == "probe":
         scores, revision = score_probe(rows, args.source, args.batch_size, args.seed)
@@ -153,6 +175,8 @@ def main():
         "model_revision": revision,
         "batch_size": args.batch_size,
         "limit": args.limit,
+        "shard": args.shard,
+        "num_shards": args.num_shards,
         "seed": args.seed,
         "max_tokens": MAX_TOKENS,
         "truncated_to_max_tokens": truncated,
