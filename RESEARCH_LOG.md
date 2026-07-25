@@ -5,6 +5,37 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-25 - Fusion fails Gate C; the probe absorbs the text guard
+
+Step 4 compared equal logit averaging, CC++-style weighted averaging, logistic
+stacking and a Neyman--Pearson worst-domain weight against the strongest single
+detector, all 2-fold cross-fitted on tune (weights, standardisation and the
+condition-matched threshold fitted on the calibration fold, evaluated held-out).
+Worst-domain set = {french, hindi, swahili, zulu}; reverse reported separately.
+
+ShieldGemma does hold residual signal — 13/12/26/17 probe-missed harmful tune
+prompts in french/hindi/swahili/zulu, residual AUROC 0.859/0.844/0.837/0.770 —
+but it buys nothing at the operating point. Worst-domain (zulu) TPR: probe
+49.2%, NP fusion 50.1% (+0.88 points, 95% CI [+0.18, +1.76]) at worse realised
+FPR (1.40% vs 1.32%); every other fusion is worse than the probe alone. The NP
+weight lands at 0.96--0.98 on the probe, i.e. the free optimum discards the text
+guard. The already-seen test agrees (51.2% vs 51.8%). Gate C fails against the
+pre-declared five-point material gain, so do not train the depth-residual
+ensemble; with Gate B already failed, the method route is closed and Step 7's
+mechanism fallback (comprehension-conditional monitoring) is next.
+
+Caveat: ~606 calibration negatives per fold means every system, the probe
+included, overshoots the nominal 1% FPR, so the FPR test is relative to the
+probe's realised 1.32%, not to 1%.
+
+Reproducibility: source commit `0ae4d44`; seed 0; tune n=1781 (568/1213);
+`conda run -n msc-diss python -m phase1.analyse_fusion`; result
+`data/phase1_fusion_results.json`, SHA-256
+`378f5f274b277dbc3116acbab433d0039e4e50531f252712996bc8d7b9b583f6`. Inputs:
+`data/phase1_activation_multilingual_27b.npz` (SHA-256 `76e3133c...4b682e`),
+`data/phase1_baselines_multilingual.npz` (SHA-256 `ea9e1519...837e72`),
+`data/phase1_small_guard.npz`, `data/phase1_multilingual_e5.npz`. CPU only.
+
 ## 2026-07-24 - Multilingual matrix complete; activation probe wins every language
 
 Step 3 of the finish plan is done: all six conditions scored for every detector.
