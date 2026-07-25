@@ -1,10 +1,12 @@
 """Score the frozen C3 WildChat background pool with one detector.
 
 One detector per invocation so each is a short, resumable job. The probe and
-centroid reuse the frozen Phase 1 parameters; the guards reuse the same runners
-as the Phase 1 matrix. WildChat's length tail is far heavier than
-WildJailbreak's, so every detector sees prompts left-truncated to the same
-2048-token budget the probe already applies (`iter_position_batches`).
+centroid reuse the frozen Phase 1 parameters and scoring path; the guards use
+the same decision positions and templates as the Phase 1 matrix through a
+cheaper last-position forward, audited against the Phase 1 runner with
+`--audit`. WildChat's length tail is far heavier than WildJailbreak's, so every
+detector sees prompts left-truncated to the same 2048-token budget the probe
+already applies (`iter_position_batches`).
 
 WildChat is unlabelled: the resulting quantity is a background alert rate, not
 an FPR.
@@ -89,7 +91,75 @@ def score_probe(rows, source_path, batch_size, seed):
     return {"logistic": logistic, "centroid": centroid}, revision
 
 
-def score_guard(rows, detector, batch_size):
+def run_guard_last_position(rows, detector, model_path, batch_size):
+    """The Phase 1 guard forward, but with the LM head applied at one position.
+
+    `guard_screen.run_shieldgemma` and `score_modern_guards.run_qwen3guard` read
+    `logits[:, -1]` after materialising logits at *every* position. On Phase 1's
+    95-character prompts that is free; on WildChat, a 1,500-token prompt against
+    a 256k vocabulary costs ~0.75 GB of logits per example and dominates the
+    forward. `logits_to_keep=1` computes the same last-position logits from the
+    same hidden states. `--audit` checks that equality on real rows.
+    """
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    from guard_screen import SG_GUIDELINE
+    from phase1.score_modern_guards import DECISION_PREFIX, label_token_ids
+
+    tokeniser = AutoTokenizer.from_pretrained(model_path)
+    tokeniser.padding_side = "left"
+    if tokeniser.pad_token is None:
+        tokeniser.pad_token = tokeniser.eos_token
+    if detector == "shieldgemma":
+        vocab = tokeniser.get_vocab()
+        ids = [vocab["Yes"], vocab["No"]]
+    else:
+        ids = label_token_ids(tokeniser)
+    dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    model = AutoModelForCausalLM.from_pretrained(model_path, dtype=dtype).to("cuda")
+    model.eval()
+    for start in range(0, len(rows), batch_size):
+        batch = rows[start : start + batch_size]
+        if detector == "shieldgemma":
+            encoded = tokeniser.apply_chat_template(
+                [[{"role": "user", "content": row["text"]}] for row in batch],
+                guideline=SG_GUIDELINE,
+                padding=True,
+                return_dict=True,
+                return_tensors="pt",
+            ).to(model.device)
+        else:
+            texts = [
+                tokeniser.apply_chat_template(
+                    [{"role": "user", "content": row["text"]}], tokenize=False
+                )
+                + DECISION_PREFIX
+                for row in batch
+            ]
+            encoded = tokeniser(
+                texts, return_tensors="pt", padding=True, add_special_tokens=False
+            ).to(model.device)
+        with torch.no_grad():
+            logits = model(**encoded, logits_to_keep=1).logits[:, -1, ids]
+        probabilities = torch.softmax(logits.float(), dim=-1)
+        for row, probability in zip(batch, probabilities.tolist()):
+            row["score"] = probability[0] if detector == "shieldgemma" else probability[1]
+            if detector == "shieldgemma":
+                row["flag"] = row["score"] > 0.5
+            else:
+                row["controversial"] = probability[2]
+                row["verdict"] = int(np.argmax(probability))
+        if start % (batch_size * 50) == 0 or start + batch_size >= len(rows):
+            print(
+                f"  {detector} {min(start + batch_size, len(rows))}/{len(rows)}",
+                flush=True,
+            )
+    del model
+    torch.cuda.empty_cache()
+
+
+def score_guard(rows, detector, batch_size, audit):
     model_id, runner = GUARDS[detector]
     snapshot, revision = resolve_cached_snapshot(model_id)
     from transformers import AutoTokenizer
@@ -105,7 +175,22 @@ def score_guard(rows, detector, batch_size):
     lengths = [len(tokeniser(text, add_special_tokens=False)["input_ids"]) for text in texts]
     order = sorted(range(len(texts)), key=lambda index: lengths[index])
     sorted_rows = [{"text": texts[index]} for index in order]
-    runner(sorted_rows, str(snapshot), batch_size)
+    run_guard_last_position(sorted_rows, detector, str(snapshot), batch_size)
+    if audit:
+        # Same rows through the unmodified Phase 1 runner, which materialises
+        # logits at every position. Equality is the licence to use the cheap path.
+        # Spread over the length range: rows are length-sorted, and the cheap
+        # path is exactly what long sequences exercise.
+        picks = np.linspace(0, len(sorted_rows) - 1, audit).astype(int)
+        checked = [dict(sorted_rows[index]) for index in picks]
+        runner(checked, str(snapshot), batch_size)
+        difference = max(
+            abs(float(row["score"]) - float(sorted_rows[index]["score"]))
+            for row, index in zip(checked, picks)
+        )
+        print(f"[audit] rows={len(checked)} max_abs_difference={difference:.3g}", flush=True)
+    else:
+        difference = None
     guard_rows = [None] * len(rows)
     for position, index in enumerate(order):
         guard_rows[index] = sorted_rows[position]
@@ -121,7 +206,13 @@ def score_guard(rows, detector, batch_size):
         scores[f"{detector}_flag"] = np.asarray(
             [bool(row["flag"]) for row in guard_rows], dtype=np.bool_
         )
-    return scores, revision, truncated, [row["text"] for row in guard_rows]
+    return (
+        scores,
+        revision,
+        truncated,
+        [row["text"] for row in guard_rows],
+        difference,
+    )
 
 
 def main():
@@ -138,6 +229,12 @@ def main():
     parser.add_argument("--out", required=True)
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument(
+        "--audit",
+        type=int,
+        default=0,
+        help="rescore the first N rows with the Phase 1 guard forward and compare",
+    )
     parser.add_argument("--shard", type=int, default=0)
     parser.add_argument("--num-shards", type=int, default=1)
     parser.add_argument("--seed", type=int, default=0)
@@ -157,10 +254,11 @@ def main():
     if args.detector == "probe":
         scores, revision = score_probe(rows, args.source, args.batch_size, args.seed)
         truncated = None
+        audit_difference = None
         scored_texts = [row["text"] for row in rows]
     else:
-        scores, revision, truncated, scored_texts = score_guard(
-            rows, args.detector, args.batch_size
+        scores, revision, truncated, scored_texts, audit_difference = score_guard(
+            rows, args.detector, args.batch_size, args.audit
         )
     for name, values in scores.items():
         if len(values) != len(rows) or not np.isfinite(
@@ -180,6 +278,8 @@ def main():
         "seed": args.seed,
         "max_tokens": MAX_TOKENS,
         "truncated_to_max_tokens": truncated,
+        "audit_rows": args.audit,
+        "audit_max_abs_difference": audit_difference,
         "n": len(rows),
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
