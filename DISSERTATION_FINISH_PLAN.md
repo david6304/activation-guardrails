@@ -23,8 +23,8 @@ items unless the confirmatory track is blocked and their dependencies are met.
 
 | ID | Item | Status | Depends on | Jobs |
 |---|---|---|---|---:|
-| C1 | Unlabelled threshold transport | pilot done, needs full grid | — | 0 |
-| C2 | Layer aggregation diagnosis | pilot done, needs curve + CIs | — | 0 |
+| C1 | Unlabelled threshold transport | done (acceptance met), figure outstanding | — | 0 |
+| C2 | Layer aggregation diagnosis | done, figure outstanding | — | 0 |
 | C3 | Large negative pool / 0.1% FPR | not started | C4 (shares scoring job) | 1 |
 | C4 | Qwen3Guard + Llama Guard 4 | Qwen3Guard done; Llama Guard 4 blocked on the Meta licence (HF 403) | — | 1 of 2 |
 | C5 | Normalise-then-guard | not started | C4 | 2--3 |
@@ -208,6 +208,12 @@ in at least three of the four language conditions.
 `data/c1_unlabelled_calibration.json` plus a TPR-versus-`k` figure faceted by
 `pi`. Record in `RESULTS.md` as a new section.
 
+## Outcome (2026-07-25)
+
+Acceptance met in all four language conditions (recovery 86/88/93/93% at
+`k=300, pi=0.01`). `RESULTS.md` §5. The figure is not drawn — matplotlib is not
+installed in `msc-diss`, and the JSON holds every cell.
+
 ---
 
 # C2. Layer aggregation destroys shift-robust signal
@@ -269,6 +275,13 @@ already closed that route.
 
 `data/c2_layerwise_selection.json`, a per-layer AUROC figure with one line per
 condition, and a `RESULTS.md` subsection.
+
+## Outcome (2026-07-25)
+
+Confirmed with 10,000-repeat paired intervals: L54 centroid +0.273 reverse AUROC
+[+0.246, +0.299] over the all-layer probe, +3.3 matched TPR points [+0.2, +6.9],
+against +10.2 for the plain layer-averaged centroid. `RESULTS.md` §6. Per-layer
+curves are in the JSON; the figure is not drawn (no matplotlib in `msc-diss`).
 
 ---
 

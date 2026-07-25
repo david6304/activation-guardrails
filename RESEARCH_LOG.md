@@ -5,6 +5,32 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-25 - C1/C2: unlabelled calibration works; layer concatenation is the reverse failure
+
+**C1 passes.** A threshold set from 300 *unlabelled* same-condition prompts at 1% harmful
+prevalence recovers 86/88/93/93% of the probe's oracle matched TPR (french/hindi/swahili/zulu),
+so the matched operating point is a deployment claim, not an adaptation result. The probe leads
+the better of the two open guards by +18.7/+21.3/+25.5/+32.4 points at that operating point.
+Honest boundaries: only the probe and Qwen3Guard gain much over their strict thresholds; at
+`pi=0.05` the probe keeps just 25.3% swahili TPR, but by becoming conservative (FPR 0.16%), not
+unsafe; `k=100` overshoots TPR *and* FPR. `RESULTS.md` §5.
+
+**C2 confirmed with intervals.** On reverse, a layer selected on plain tune data only (L54
+centroid) beats the all-layer probe by +0.273 AUROC [+0.246, +0.299] while costing nothing on
+plain/swahili — the signal is present and the concatenated readout cannot see it. It does **not**
+survive the operating point: +3.3 matched TPR points [+0.2, +6.9], against +10.2 for the plain
+layer-averaged centroid. Report as a readout-geometry diagnosis, never as a cipher detector, and
+do not reopen the layer sweep (Gate B). `RESULTS.md` §6.
+
+Reproducibility: source commit `d4ed74b`; seed 0; CPU only; inputs are the frozen §4 score
+artefacts plus `data/phase1_layerwise_27b.npz`.
+`conda run -n msc-diss python -m phase1.analyse_unlabelled_calibration` (400 draws/cell) →
+`data/c1_unlabelled_calibration.json` SHA-256 `f5855064cca4b4c2373ebb18cdb8a55ed72a8aa7aabbab16f15989af999fbf63`;
+`conda run -n msc-diss python -m phase1.analyse_layerwise_selection` (10,000 bootstrap) →
+`data/c2_layerwise_selection.json` SHA-256 `8b24df60bc9b3c27f384013248b1ed89d748340861b08aacfb5c78e9b350f6b0`.
+Both figures are outstanding: matplotlib is not installed in `msc-diss`; the per-cell and
+per-layer values needed to draw them are in the JSON.
+
 ## 2026-07-25 - C4: the probe also beats a current multilingual guard
 
 Qwen3Guard-Gen-8B scored on all six conditions; the probe still leads every condition on

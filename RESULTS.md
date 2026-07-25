@@ -153,3 +153,120 @@ Raw: `data/phase1_baselines_multilingual.npz` (Eddie job 57134364), `data/c4_mod
 `data/phase1_text_encoder_multilingual_results.json` and `data/c4_modern_guard_results.json`.
 Commits `59649dd` (rows through TF–IDF) and `00149bb` (Qwen3Guard), seed 0. Known-test status:
 exploratory development evidence — no model, layer, threshold or condition was selected on it.
+
+## 5. C1 — threshold transport from *unlabelled* shifted traffic
+
+The matched operating point of §4 uses labelled tune negatives. This section replaces that
+labelling requirement: the threshold is the 99th percentile of `k` same-condition prompts drawn
+without using labels, contaminated at harmful prevalence `pi`, which is what shifted *benign
+traffic* looks like in deployment. 400 draws per cell, seed 0, applied to the frozen test split.
+Strict and oracle reference rows are the §4 strict and matched columns.
+
+Headline cell `k=300, pi=0.01` — mean TPR% / mean realised FPR% (recovery = TPR as a fraction of
+the §4 matched oracle):
+
+| detector | french | hindi | swahili | zulu | reverse |
+|----------|--------|-------|---------|------|---------|
+| all-layer logistic | **62.1 / 1.00** (86%) | **61.4 / 0.80** (88%) | **55.0 / 1.05** (93%) | **47.7 / 1.00** (93%) | 2.8 / 0.95 (130%) |
+| centroid (Zhao) | 41.9 / 1.88 (98%) | 37.5 / 1.09 (96%) | 33.2 / 1.60 (99%) | 20.5 / 0.82 (99%) | **12.6 / 1.49** (93%) |
+| ShieldGemma-9b | 36.6 / 0.86 (99%) | 29.1 / 1.26 (97%) | 29.5 / 1.08 (98%) | 15.3 / 0.85 (100%) | 2.8 / 0.61 (147%) |
+| Qwen3Guard-Gen-8B | 43.4 / 1.44 (88%) | 40.1 / 1.05 (96%) | 16.1 / 0.99 (99%) | 9.6 / 1.32 (104%) | 2.3 / 1.36 (147%) |
+| multilingual-e5-base | 37.6 / 0.69 (91%) | 28.1 / 1.56 (88%) | 16.7 / 1.68 (100%) | 15.6 / 1.61 (111%) | 5.7 / 2.33 (111%) |
+| DeBERTa-v3-small guard | 38.7 / 1.30 (97%) | 14.4 / 0.87 (106%) | 13.0 / 1.51 (110%) | 7.1 / 1.01 (114%) | 2.2 / 2.10 (106%) |
+| char TF–IDF | 9.0 / 1.10 (102%) | 5.6 / 0.85 (96%) | 4.3 / 1.08 (111%) | 3.6 / 1.28 (108%) | 3.9 / 2.04 (104%) |
+
+Probe TPR versus `k` and `pi` (mean TPR%; realised FPR% in the swahili row beneath):
+
+| condition | k | pi=0.00 | 0.01 | 0.02 | 0.05 | 0.10 |
+|---|---:|---|---|---|---|---|
+| french | 300 | 73.5 | 62.1 | 46.9 | 24.4 | 12.9 |
+| hindi | 300 | 70.9 | 61.4 | 49.5 | 26.6 | 13.7 |
+| swahili | 100 | 67.0 | 60.3 | 50.8 | 34.4 | 21.1 |
+| swahili | 300 | 62.0 | 55.0 | 45.8 | 25.3 | 13.4 |
+| swahili | 1000 | 60.3 | 54.9 | 44.5 | 22.3 | 11.6 |
+| swahili | 3000 | 59.7 | 54.6 | 43.6 | 19.9 | 10.9 |
+| swahili FPR | 300 | 1.44 | 1.05 | 0.67 | 0.16 | 0.02 |
+| zulu | 300 | 53.6 | 47.7 | 42.6 | 25.3 | 13.5 |
+| reverse | 300 | 2.8 | 2.8 | 2.7 | 2.7 | 2.5 |
+
+**Reading.** The acceptance rule (probe recovers ≥85% of oracle TPR at `k=300, pi=0.01` in ≥3 of
+the four language conditions) is met in all four: 86 / 88 / 93 / 93%. The condition-matched
+operating point therefore does not need labelled shifted data — a few hundred unlabelled
+same-condition prompts recover most of it, which is a deployment claim rather than an adaptation
+result. The detector ranking of §4 is unchanged, and the probe's advantage over the better of the
+two open guards at this operating point is +18.7 / +21.3 / +25.5 / +32.4 points
+(french → zulu).
+
+Three qualifications, all reportable rather than repairable. First, the probe is the *only*
+detector for which unlabelled calibration is worth much: it gains +17.7 (swahili) and +13.2 (zulu)
+TPR points over its strict threshold, whereas ShieldGemma gains −0.6 and +6.5 — though Qwen3Guard,
+whose strict thresholds transport worst of all, also gains substantially (+15.9 swahili, +24.6
+hindi). Second, recovery is bounded above by ~90–100% and never exceeds the oracle in the language
+conditions; the >100% cells belong to detectors whose oracle TPR is near zero, where the ratio is
+uninformative. Third, contamination costs TPR steeply — at `pi=0.05` the probe retains only
+25.3% swahili TPR — but it does so by pushing the threshold *up*: realised FPR falls to 0.16%, so
+a contaminated estimate makes the detector conservative, not unsafe. Larger `k` slightly *lowers*
+TPR (`k=100` overshoots both TPR and FPR because the interpolated 99th percentile of 100 points is
+anti-conservative); `k=300` is already close to the `k=3000` asymptote.
+
+Reverse is unaffected, as expected: there is no operating-point signal for calibration to recover.
+
+Raw: `data/c1_unlabelled_calibration.json` (SHA-256
+`f5855064cca4b4c2373ebb18cdb8a55ed72a8aa7aabbab16f15989af999fbf63`),
+`conda run -n msc-diss python -m phase1.analyse_unlabelled_calibration`, seed 0, 400 draws per
+cell, CPU only. Inputs are the frozen score artefacts of §4. Reference rows use the repo's
+`threshold_at_one_percent`; the simulated draws use the plain interpolated 99th percentile, since
+the order-statistic version is markedly conservative at `k=100`.
+
+## 6. C2 — layer aggregation destroys shift-robust signal
+
+Single-layer readouts from `data/phase1_layerwise_27b.npz`, with the layer chosen once by argmax
+AUROC on **plain tune** scores only (logistic → L34, centroid → L54; no transformed and no test
+data enter the rule), against the two aggregated readouts. Test AUROC:
+
+| detector (plain-tune selection) | plain | swahili | reverse | vowel |
+|---|---|---|---|---|
+| all-layer logistic | 0.988 | 0.967 | 0.556 | — |
+| layer-averaged centroid | 0.939 | 0.895 | 0.767 | 0.825 |
+| L34 logistic | **0.989** | **0.973** | 0.668 | 0.832 |
+| L54 centroid | 0.971 | 0.925 | **0.829** | **0.879** |
+
+Paired bootstrap (10,000 repeats, resampling calibration negatives and test examples jointly)
+against the all-layer logistic, on reverse: L54 centroid **+0.273 AUROC** [+0.246, +0.299], L34
+logistic +0.112 [+0.087, +0.136], layer-averaged centroid +0.211 [+0.184, +0.238]. On plain and
+swahili the single layer is level with the all-layer probe on AUROC (+0.001 [−0.000, +0.003] and
++0.006 [+0.002, +0.010] for L34) — so the reverse gain is not bought with in-distribution loss.
+
+**The gain is rank-level and does not survive at the operating point.** Condition-matched TPR% /
+FPR% at 1%:
+
+| detector | plain | swahili | reverse | vowel |
+|---|---|---|---|---|
+| all-layer logistic | 75.4 / 1.1 | 59.3 / 1.3 | 2.1 / 0.7 | — |
+| layer-averaged centroid | 56.5 / 2.2 | 33.6 / 1.5 | **13.6 / 1.6** | **20.8 / 0.6** |
+| L34 logistic | 78.0 / 1.2 | 57.2 / 1.0 | 3.3 / 0.9 | 13.0 / 1.0 |
+| L54 centroid | 62.0 / 1.2 | 43.3 / 1.4 | 5.5 / 1.1 | 10.2 / 0.7 |
+
+On reverse the selected layer beats the all-layer probe by only +3.3 TPR points [+0.2, +6.9],
+while the *simpler* layer-averaged centroid beats it by +10.2 [+3.5, +15.3]. A plain-tune-selected
+layer is therefore not a cipher detector, and this is not an argument for a layer sweep — Gate B
+(2026-07-24) already closed that route. The result is diagnostic: concatenating all 62 layers
+maximises in-distribution fit and destroys out-of-distribution rank transfer, and the information
+reverse-condition prompts still carry sits in a narrow band near L54 that the concatenated probe's
+weights do not read.
+
+Selection leaves little on the table. The best test layer for reverse is L54 for the centroid
+(0.829, identical to the plain-tune choice) and L55 for the logistic (0.755 against 0.668),
+so the honest plain-only rule costs the centroid nothing and the logistic 0.09 AUROC.
+
+Length interaction at L54 centroid (test AUROC by prompt-length quartile): plain 0.981 / 0.992 /
+0.963 / 0.933; swahili 0.949 / 0.957 / 0.902 / 0.884; reverse 0.910 / 0.905 / 0.771 / 0.722;
+vowel 0.913 / 0.927 / 0.843 / 0.805. The drop is largest on reverse (0.19) against plain (0.05),
+which is the interaction motivating C6 — suggestive but confounded, since plain falls too.
+
+Raw: `data/c2_layerwise_selection.json` (SHA-256
+`8b24df60bc9b3c27f384013248b1ed89d748340861b08aacfb5c78e9b350f6b0`, includes the full 62-layer
+AUROC curves for the figure), `conda run -n msc-diss python -m phase1.analyse_layerwise_selection`,
+seed 0, CPU only. Layer ids are 1-indexed as stored in `layer_indices`. Vowel removal exists only
+in the layerwise artefact, so its layer-averaged centroid row is recomputed as the mean over
+layers (agrees with the frozen centroid to ~1e-4 where both exist).
