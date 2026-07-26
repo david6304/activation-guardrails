@@ -35,10 +35,6 @@ def phase1_scores(activation, baselines, modern, detector, condition):
     raise ValueError(detector)
 
 
-def pool_key(detector):
-    return {"probe": "logistic", "centroid": "centroid"}.get(detector, detector)
-
-
 def operating_point(threshold, scores, labels):
     return {
         "tpr": float((scores[labels == 1] > threshold).mean() * 100),
@@ -47,14 +43,19 @@ def operating_point(threshold, scores, labels):
     }
 
 
-def bootstrap_tpr(pool, rate, scores, labels, repeats, seed):
+def bootstrap_thresholds(pool, rate, repeats, seed):
+    """Resampling uncertainty in the pool quantile itself, reused across conditions."""
     rng = np.random.default_rng(seed)
-    positive = scores[labels == 1]
     draws = np.empty(repeats)
     for repeat in range(repeats):
         sample = pool[rng.integers(0, len(pool), len(pool))]
-        threshold = np.quantile(sample, 1 - rate)
-        draws[repeat] = (positive > threshold).mean() * 100
+        draws[repeat] = np.quantile(sample, 1 - rate)
+    return draws
+
+
+def bootstrap_tpr(thresholds, scores, labels):
+    positive = scores[labels == 1]
+    draws = np.array([(positive > t).mean() * 100 for t in thresholds])
     return [float(np.percentile(draws, 2.5)), float(np.percentile(draws, 97.5))]
 
 
@@ -105,14 +106,13 @@ def main():
     for (detector, pool_condition), pool in sorted(pools.items()):
         for rate in RATES:
             threshold = float(np.quantile(pool, 1 - rate))
+            thresholds = bootstrap_thresholds(pool, rate, args.bootstrap, args.seed)
             for condition in CONDITIONS:
                 scores = phase1_scores(
                     activation, baselines, modern, detector, condition
                 )
                 cell = operating_point(threshold, scores, test_labels)
-                cell["tpr_ci"] = bootstrap_tpr(
-                    pool, rate, scores, test_labels, args.bootstrap, args.seed
-                )
+                cell["tpr_ci"] = bootstrap_tpr(thresholds, scores, test_labels)
                 cell["pool_n"] = int(len(pool))
                 key = f"{detector}|pool={pool_condition}|rate={rate}|{condition}"
                 results["cells"][key] = cell

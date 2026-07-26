@@ -121,7 +121,11 @@ def run_llamaguard4(rows, model_path, batch_size):
             texts, return_tensors="pt", padding=True, add_special_tokens=False
         ).to(model.device)
         with torch.no_grad():
-            logits = model(**encoded).logits[:, -1, ids]
+            # use_cache=False: Llama4 builds a DynamicCache whose per-layer
+            # constructor reads config.sliding_window, which is None for this
+            # checkpoint under transformers 5.12 and raises. A scoring forward
+            # needs no cache anyway.
+            logits = model(**encoded, use_cache=False).logits[:, -1, ids]
         probabilities = torch.softmax(logits.float(), dim=-1)
         for row, probability in zip(batch, probabilities.tolist()):
             row["score"] = probability[1]
@@ -164,6 +168,7 @@ def generation_check_llamaguard4(rows, model_path, batch_size):
                 **encoded,
                 max_new_tokens=8,
                 do_sample=False,
+                use_cache=False,
                 pad_token_id=tokeniser.pad_token_id,
             )
         new = generated[:, encoded["input_ids"].shape[1] :]
