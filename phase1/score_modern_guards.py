@@ -97,9 +97,35 @@ def llama_prompt(tokeniser, text):
     )
 
 
+def load_llamaguard4(model_path, dtype):
+    """Load Llama Guard 4 with the full attention its config actually describes.
+
+    The checkpoint sets `text_config.attention_chunk_size` to null -- it is a
+    dense pruned Scout derivative with no chunked local attention -- but
+    transformers derives `layer_types` from `no_rope_layers`, which is all ones
+    here, so every one of the 48 layers asks for a chunked mask that
+    `create_chunked_causal_mask` then refuses to build without a chunk size.
+    In `modeling_llama4` these two fields are read nowhere else: chunk size only
+    in mask construction, `layer_types` only in choosing which mask a layer gets
+    (`use_rope` reads `no_rope_layers` directly). Naming every layer full
+    attention is therefore the configuration the checkpoint describes, and the
+    chunk size only has to be set so the unused eager mask stops raising.
+    """
+    from transformers import AutoConfig, AutoModelForCausalLM
+
+    config = AutoConfig.from_pretrained(model_path)
+    text_config = config.text_config
+    if text_config.attention_chunk_size is None:
+        text_config.layer_types = ["full_attention"] * text_config.num_hidden_layers
+        text_config.attention_chunk_size = text_config.max_position_embeddings
+    return AutoModelForCausalLM.from_pretrained(
+        model_path, dtype=dtype, config=config
+    ).to("cuda")
+
+
 def run_llamaguard4(rows, model_path, batch_size):
     import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoTokenizer
 
     tokeniser = AutoTokenizer.from_pretrained(model_path)
     tokeniser.padding_side = "left"
@@ -112,7 +138,7 @@ def run_llamaguard4(rows, model_path, batch_size):
     if len(set(ids)) != len(ids):
         raise ValueError(f"verdict branches share a token: {ids}")
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
-    model = AutoModelForCausalLM.from_pretrained(model_path, dtype=dtype).to("cuda")
+    model = load_llamaguard4(model_path, dtype)
     model.eval()
     for start in range(0, len(rows), batch_size):
         batch = rows[start : start + batch_size]
@@ -142,12 +168,12 @@ def run_llamaguard4(rows, model_path, batch_size):
 def generation_check_llamaguard4(rows, model_path, batch_size):
     """Confirm the forced-prefix verdict is what the model would freely generate."""
     import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoTokenizer
 
     tokeniser = AutoTokenizer.from_pretrained(model_path)
     tokeniser.padding_side = "left"
     dtype = torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
-    model = AutoModelForCausalLM.from_pretrained(model_path, dtype=dtype).to("cuda")
+    model = load_llamaguard4(model_path, dtype)
     model.eval()
     agree = 0
     for start in range(0, len(rows), batch_size):
