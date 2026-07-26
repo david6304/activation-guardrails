@@ -270,3 +270,66 @@ AUROC curves for the figure), `conda run -n msc-diss python -m phase1.analyse_la
 seed 0, CPU only. Layer ids are 1-indexed as stored in `layer_indices`. Vowel removal exists only
 in the layerwise artefact, so its layer-averaged centroid row is recomputed as the mean over
 layers (agrees with the frozen centroid to ~1e-4 where both exist).
+
+## 7. C3 — operating points on a 50,000-prompt WildChat background pool
+
+The §4 thresholds come from 1,213 labelled tune negatives, so the 1% point rests on about
+twelve prompts and 0.1% is not estimable at all. This sets thresholds on 50,000 unlabelled
+first-user-turn WildChat-1M prompts instead (seed 0, deduplicated, **no overlap with any Phase 1
+prompt**, manifest SHA-256 `f7fcc84c2b46beb10acef951551b3ec896db53ab6a761803160bcb28c039dcc5`).
+The pool is real traffic and unfiltered by language: 47% English, 24% Chinese, 12% Russian,
+median 83 characters with a heavy tail (p99 11,910). Prompts are left-truncated to 2,048 tokens,
+the budget the probe already applies.
+
+WildChat is unlabelled, so the quantity the threshold fixes is a **background alert rate**, never
+an FPR. The labelled FPR on the Phase 1 test negatives is reported beside each TPR. This also
+makes the numbers only loosely comparable to CC++ and Segment-Level Coherence, which report at a
+labelled-negative 0.1% FPR.
+
+TPR% at a **1% background alert rate** (labelled test FPR% in brackets):
+
+| detector | plain | french | hindi | swahili | zulu | reverse |
+|----------|-------|--------|-------|---------|------|---------|
+| all-layer logistic | **80.6** (1.73) | **70.1** (1.32) | **68.7** (1.15) | **47.2** (0.58) | **46.1** (0.82) | 0.0 (0.00) |
+| centroid (Zhao) | 23.1 (0.49) | 5.6 (0.00) | 0.2 (0.00) | 0.0 (0.00) | 0.0 (0.00) | 0.0 (0.00) |
+
+TPR% at a **0.1% background alert rate** — the operating point §4 could not reach:
+
+| detector | plain | french | hindi | swahili | zulu | reverse |
+|----------|-------|--------|-------|---------|------|---------|
+| all-layer logistic | **66.5** (0.49) | **53.0** (0.41) | **52.1** (0.25) | **26.9** (0.16) | **23.1** (0.00) | 0.0 (0.00) |
+| centroid (Zhao) | 9.7 (0.08) | 1.4 (0.00) | 0.0 (0.00) | 0.0 (0.00) | 0.0 (0.00) | 0.0 (0.00) |
+
+Intervals are 2,000-repeat bootstrap resamples of the pool, propagating uncertainty in the pool
+quantile: probe plain 0.1% [63.2, 67.6], swahili 0.1% [24.8, 28.9], zulu 0.1% [20.6, 26.1].
+
+**Reading.** The probe holds a usable operating point an order of magnitude stricter than the one
+§4 reports: at one alert per thousand real prompts it still recovers two-thirds of plain harmful
+prompts and about a quarter of Swahili ones. The tenfold tightening costs 14 points on plain
+(80.6→66.5) and 20 on swahili (47.2→26.9), so the low-FPR tail is where language shift bites
+hardest — consistent with C2's finding that rank information survives shift better than the
+operating point does.
+
+Two observations about the pool itself. First, the frozen §4 tune-negative threshold (3.956)
+raises alerts on only **0.41%** of real WildChat traffic, so the deployed threshold is
+*conservative* relative to traffic: WildJailbreak's benign stratum scores higher than real user
+prompts, and calibrating on it overstates the alert volume a deployment would actually see.
+Second, the centroid all but collapses under pool calibration (plain 23.1% at 1%, 9.7% at 0.1%)
+while it reached 56.5% on tune negatives — its scores separate WildJailbreak benign prompts far
+better than they separate real traffic, which is a caution against reading §4's centroid row as a
+deployment number.
+
+**Incomplete.** ShieldGemma and Qwen3Guard have **not** been scored on the pool, so this section
+carries no cross-detector comparison at 0.1%; that requires roughly 17 GPU-hours per guard at the
+measured rate and is the outstanding half of C3. The Swahili background was cut (see
+`DISSERTATION_FINISH_PLAN.md` C3), so all rows above use the plain pool threshold.
+
+Raw: `data/c3_pool_probe_plain.npz` (SHA-256
+`8e07d9b9676e20b56918d9e14b8d205ae15918c9d36071349d3c70c2f468d081`),
+`data/c3_pool_results.json` (SHA-256
+`3a19f53d9548b38a4a4f9da1d7b220f10d4ad9b980ed9ec47b28ca366ed6803a`),
+`data/c3_wildchat_prompts.jsonl`, `data/c3_wildchat_manifest.json`. MLP job 3567213 (2× RTX A6000,
+bf16, batch 4, 3h07m39s, exit 0), `google/gemma-3-27b-it` revision `005ad3404e59d6023443cb575daa05336842228a`,
+`t_inst`, frozen probe and centroid parameters from `data/phase1_activation_27b.npz`, seed 0,
+source commit `c04587c`. Analysis: `conda run -n msc-diss python -m phase1.analyse_wildchat_pool
+--pool data/c3_pool_probe_plain.npz`.

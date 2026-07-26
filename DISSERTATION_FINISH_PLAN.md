@@ -25,8 +25,8 @@ items unless the confirmatory track is blocked and their dependencies are met.
 |---|---|---|---|---:|
 | C1 | Unlabelled threshold transport | done (acceptance met), figure outstanding | — | 0 |
 | C2 | Layer aggregation diagnosis | done, figure outstanding | — | 0 |
-| C3 | Large negative pool / 0.1% FPR | not started | C4 (shares scoring job) | 1 |
-| C4 | Qwen3Guard + Llama Guard 4 | Qwen3Guard done; Llama Guard 4 blocked on the Meta licence (HF 403) | — | 1 of 2 |
+| C3 | Large negative pool / 0.1% FPR | probe half done; guards outstanding | — | 2 |
+| C4 | Qwen3Guard + Llama Guard 4 | Qwen3Guard done; Llama Guard 4 unblocked and staged, smoke not yet green | — | 1 of 2 |
 | C5 | Normalise-then-guard | not started | C4 | 2--3 |
 | C6 | Comprehension-conditional monitoring | not started | — | 1--2 |
 | C7 | External-source confirmation | not started | C4 | 3--4 |

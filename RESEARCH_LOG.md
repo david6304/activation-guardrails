@@ -5,6 +5,36 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-26 - C3 (probe half): a 0.1% operating point on real traffic
+
+50,000 unlabelled WildChat first-user-turn prompts (seed 0, no Phase 1 overlap, 47% English)
+give the operating point the 1,213 tune negatives could not support. At **0.1% background alert
+rate** the probe reaches 66.5/53.0/52.1/26.9/23.1% TPR (plain→zulu, reverse 0.0); at 1% it
+reaches 80.6→46.1%. Two deployment findings: the frozen §4 tune-negative threshold fires on only
+**0.41%** of real traffic, so calibrating on WildJailbreak benign prompts *overstates* alert
+volume; and the centroid collapses under pool calibration (56.5%→23.1% plain at 1%), so its §4
+row is not a deployment number. `RESULTS.md` §7.
+
+**Half done.** ShieldGemma and Qwen3Guard are not scored on the pool (~17 GPU-h each at the
+measured rate), so there is no cross-detector comparison at 0.1% yet. The whole-pool Swahili arm
+was cut: the pool is 47% English-labelled and the NLLB path assumes an English source, so it
+would confound language shift with source mis-specification.
+
+Also: `meta-llama/Llama-Guard-4-12B` access came through, weights staged on Eddie
+(`87acb4b94e930c3d679e6e7ee9d57e2feab9ea71`), and a continuous scorer is written — `safe`/`unsafe`
+are single tokens after the assistant turn opens, so the teacher-forced `\n\n` gives one decision
+position, as with Qwen3Guard. Its chat template needs multimodal content parts; a plain string
+renders an *empty* conversation, which is the bug latent in `guard_screen.run_llamaguard`. The
+smoke is not yet green.
+
+Reproducibility: MLP job 3567213 (2× RTX A6000, bf16, batch 4, 3h07m39s, exit 0); source commit
+`c04587c`; `google/gemma-3-27b-it` revision `005ad3404e59d6023443cb575daa05336842228a`; seed 0.
+Pool manifest SHA-256 `f7fcc84c2b46beb10acef951551b3ec896db53ab6a761803160bcb28c039dcc5`;
+`data/c3_pool_probe_plain.npz` SHA-256
+`8e07d9b9676e20b56918d9e14b8d205ae15918c9d36071349d3c70c2f468d081`;
+`data/c3_pool_results.json` SHA-256
+`3a19f53d9548b38a4a4f9da1d7b220f10d4ad9b980ed9ec47b28ca366ed6803a`.
+
 ## 2026-07-25 - C1/C2: unlabelled calibration works; layer concatenation is the reverse failure
 
 **C1 passes.** A threshold set from 300 *unlabelled* same-condition prompts at 1% harmful
