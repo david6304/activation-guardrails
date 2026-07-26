@@ -5,6 +5,30 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-27 - Two audit bugs fixed; Aegis clears the C7 source rule
+
+**The pool-guard audit was measuring the wrong thing.** It compared the cheap
+`logits_to_keep=1` scores, produced inside length-sorted batches, against a reference
+runner that re-batched the sampled rows, so left padding differed between the paths and
+the audit reported batch composition. Both paths now rescore at batch size 1. This is
+almost certainly also what the C4 audit's 0.0220 failure was, which reframes that entry:
+batch-composition sensitivity of an unsaturated score, not a defect in the guard forward.
+
+**Llama Guard 4 loads.** The checkpoint sets `attention_chunk_size` to null but
+transformers derives `layer_types` from `no_rope_layers` (all ones here), so all 48
+layers requested a chunked mask that cannot be built. Neither field is read elsewhere in
+`modeling_llama4`, so the fix is to name every layer full attention. Smoke pending.
+
+**C7 source pre-check: Aegis 2.0 passes on provenance and volume**, before the judge
+relabel. 28,216 rows (train+validation+test), all prompt labels human-assigned; 13,773
+safe against the ≥2,000 negatives rule, and 6,561 criminal-planning / 1,424 controlled
+substances / 855 weapons positives against the ≥300 rule even after the rubric drops
+hate and harassment. **Zero** normalised-text overlap with the 10,000 judged Phase 1
+prompts (0/25,503 unique). Relabelling is not started: the judge pass and the
+calibration/evaluation partition are protocol decisions still open.
+
+C1/C2 figures drawn (`figures/`); matplotlib is now in `msc-diss`.
+
 ## 2026-07-26 - C3 (probe half): a 0.1% operating point on real traffic
 
 50,000 unlabelled WildChat first-user-turn prompts (seed 0, no Phase 1 overlap, 47% English)
