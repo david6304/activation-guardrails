@@ -181,14 +181,30 @@ def score_guard(rows, detector, batch_size, audit):
         # logits at every position. Equality is the licence to use the cheap path.
         # Spread over the length range: rows are length-sorted, and the cheap
         # path is exactly what long sequences exercise.
+        #
+        # Both paths are rescored at batch size 1. The scores from the main pass
+        # were produced inside length-sorted batches, so comparing them directly
+        # against a re-batched reference measures left-padding composition rather
+        # than logits_to_keep -- which is how the C4 audit came to fail at 0.0220
+        # on unsaturated scores. At batch size 1 there is no padding either side
+        # and the only remaining difference is the one under test.
         picks = np.linspace(0, len(sorted_rows) - 1, audit).astype(int)
-        checked = [dict(sorted_rows[index]) for index in picks]
-        runner(checked, str(snapshot), batch_size)
+        cheap = [{"text": sorted_rows[index]["text"]} for index in picks]
+        run_guard_last_position(cheap, detector, str(snapshot), 1)
+        reference = [{"text": sorted_rows[index]["text"]} for index in picks]
+        runner(reference, str(snapshot), 1)
         difference = max(
-            abs(float(row["score"]) - float(sorted_rows[index]["score"]))
-            for row, index in zip(checked, picks)
+            abs(float(reference_row["score"]) - float(cheap_row["score"]))
+            for reference_row, cheap_row in zip(reference, cheap)
         )
-        print(f"[audit] rows={len(checked)} max_abs_difference={difference:.3g}", flush=True)
+        print(f"[audit] rows={len(picks)} max_abs_difference={difference:.3g}", flush=True)
+        if difference > 1e-3:
+            print(
+                "[audit] WARNING: above the 1e-3 tolerance; the cheap path is not "
+                "equivalent and the scores below should not be reported without "
+                "explaining this.",
+                flush=True,
+            )
     else:
         difference = None
     guard_rows = [None] * len(rows)
@@ -233,7 +249,8 @@ def main():
         "--audit",
         type=int,
         default=0,
-        help="rescore the first N rows with the Phase 1 guard forward and compare",
+        help="rescore N rows spread over the length range through both forwards "
+        "at batch size 1 and compare",
     )
     parser.add_argument("--shard", type=int, default=0)
     parser.add_argument("--num-shards", type=int, default=1)
