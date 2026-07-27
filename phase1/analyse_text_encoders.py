@@ -16,6 +16,7 @@ CURRENT_COMPARATORS = (
     "tfidf",
     "shieldgemma",
     "qwen3guard",
+    "llamaguard4",
 )
 EXPECTED_MODELS = {
     "small_guard": (
@@ -61,7 +62,7 @@ def score_source(
         return activation, "centroid"
     if detector in {"tfidf", "shieldgemma"}:
         return baselines, detector
-    if detector == "qwen3guard":
+    if detector in {"qwen3guard", "llamaguard4"}:
         return modern_guards, detector
     if detector == "small_guard":
         return small_guard, "scores"
@@ -164,8 +165,9 @@ def main():
                 modern_guards[f"{split}_ids"], activation[f"{split}_ids"]
             ):
                 raise ValueError(f"modern guard and activation {split} IDs differ")
-        if json.loads(str(modern_guards["modern_guard_json"]))["limit"]:
-            raise ValueError("refusing to analyse a smoke modern-guard artefact")
+        for key in ("modern_guard_json", "llamaguard4_json"):
+            if key in modern_guards and json.loads(str(modern_guards[key]))["limit"]:
+                raise ValueError("refusing to analyse a smoke modern-guard artefact")
     for name, artefact in (
         ("small_guard", small_guard),
         ("multilingual_e5", multilingual_e5),
