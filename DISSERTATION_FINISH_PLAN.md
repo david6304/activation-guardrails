@@ -23,10 +23,10 @@ items unless the confirmatory track is blocked and their dependencies are met.
 
 | ID | Item | Status | Depends on | Jobs |
 |---|---|---|---|---:|
-| C1 | Unlabelled threshold transport | done (acceptance met), figure outstanding | — | 0 |
-| C2 | Layer aggregation diagnosis | done, figure outstanding | — | 0 |
+| C1 | Unlabelled threshold transport | done (acceptance met) | — | 0 |
+| C2 | Layer aggregation diagnosis | done | — | 0 |
 | C3 | Large negative pool / 0.1% FPR | probe half done; guards outstanding | — | 2 |
-| C4 | Qwen3Guard + Llama Guard 4 | Qwen3Guard done; Llama Guard 4 unblocked and staged, smoke not yet green | — | 1 of 2 |
+| C4 | Qwen3Guard + Llama Guard 4 | **done** | — | 0 |
 | C5 | Normalise-then-guard | not started | C4 | 2--3 |
 | C6 | Comprehension-conditional monitoring | not started | — | 1--2 |
 | C7 | External-source confirmation | not started | C4 | 3--4 |
@@ -409,8 +409,17 @@ entry recording revisions and the audit result.
 Qwen3Guard done; the probe still leads in all five language conditions, so no
 chapter rewrite. **"Strongest guard from C4" is condition-dependent**: Qwen3Guard
 leads on plain/french/hindi, ShieldGemma on swahili/zulu. C5 and C7 must either
-carry both or say which condition selected the arm. Llama Guard 4 remains
-outstanding on the Meta licence — it is a missing comparator, not a resolved one.
+carry both or say which condition selected the arm.
+
+## Outcome (2026-07-27) — Llama Guard 4, C4 complete
+
+Llama Guard 4 scored on all six conditions; the probe leads every one, so the
+rewrite trigger does not fire. It **does not lead any condition**, so the arm
+split above is unchanged and C5/C7 gain no third candidate. Matched hindi is
+degenerate (0.0/0.0 at a float32 1.0 threshold against 0.889 AUROC) — a
+saturation/thresholding failure, not absent signal; report it as such. Its
+batch-composition audit fails at 0.0567 on 7/48 cells, all swahili or reverse.
+`RESULTS.md` §4.
 
 ---
 
