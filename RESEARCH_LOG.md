@@ -5,6 +5,30 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-27 - Direction: the cipher failure may be a read-position artefact
+
+`t_inst` sits before the model has decoded a ciphered prompt, so "reverse is not
+represented" may be "reverse is not represented *yet*". `DISSERTATION_FINISH_PLAN.md`
+rewritten around two items. **P1 (input):** base64 / shuffled-base64 / rot13 read at both
+the final ciphertext token and `t_inst`, gated on a base64 capability check that
+adjudicates the 2026-07-03 drop against David's hand test; primary test is base64 vs
+shuffled-base64 on AUROC *and* matched TPR. **P2 (output):** generate with abliterated
+27B (MLP), judge responses, teacher-force through the protected 27B (Eddie) in one
+forward pass, probe every response position; claim is off-policy detection *latency*
+against text on an identical token stream.
+
+Five decisions to keep: (1) **ciphers are instruments, not threats** — all invert
+deterministically without a model, so threat framing belongs to the language conditions
+and to lossy encodings; (2) P2's contrast must be **within harmful prompts** (harmful vs
+benign-non-refusal responses) — the naive benign-prompt negative class is separable at
+k=0 from prompt intent alone, which would have produced a strong-looking invalid
+headline; (3) the response judge needs an explicit refusal verdict, since the rubric
+currently folds refusals into `harmful=false`; (4) C7 needs a frozen disjoint external
+tune/test partition; (5) C7 confirms neither P1 nor P2, so both stay exploratory with no
+confirmatory set in budget. C5 downgraded to a CPU decode-then-guard ceiling, C6 folded
+into extras. Teacher-forcing over on-policy is settled by the 2026-06-29 result (0.810 vs
+0.772) and keeps the abliterated weights on MLP.
+
 ## 2026-07-27 - C4 complete: Llama Guard 4 is the weakest of the three guards
 
 Llama Guard 4 scored on all six conditions, so C4 is finished and C5/C7 are unblocked.
