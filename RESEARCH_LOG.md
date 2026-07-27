@@ -28,10 +28,12 @@ Where LG4 commits it is stable; where it is undecided it is padding-sensitive. O
 Reproducibility: Eddie job `57164545` (node1p07, 1× L40S, bf16, batch 8, 42m35s, exit 0);
 source commit `374c491`, analysis at `c2ae933`; `meta-llama/Llama-Guard-4-12B` revision
 `87acb4b94e930c3d679e6e7ee9d57e2feab9ea71`; seed 0; tune/test 1781/1781. Smoke `57164458`
-passed the free-generation check 96/96. Artefacts are on Eddie only —
-`data/c4_modern_guards_lg4.npz` (carries the Qwen3Guard arrays through, source SHA-256
-`418184f5…` verified identical to the recorded C4 file) and `data/c4_lg4_results.json`.
-Not yet copied off the cluster, and `RESULTS.md` §4 is not yet updated.
+passed the free-generation check 96/96. `data/c4_modern_guards_lg4.npz` SHA-256
+`6011e0a97af5ce734f6020e8faecac6d2e4cdeb2bf6d87ecc3315bedf4817b02` (carries the Qwen3Guard
+arrays through, source SHA-256 `418184f5…` verified identical to the recorded C4 file);
+`data/c4_lg4_results.json` SHA-256
+`0b5fe18cdf2a62aef08052debbcce1358ed74898a0174acf87363a88dc8a74ee`. Both copied off Eddie
+with hashes verified; `RESULTS.md` §4 updated.
 
 Loading needed a fix: the checkpoint sets `attention_chunk_size` to null but transformers
 derives `layer_types` from `no_rope_layers` (all ones), so all 48 layers requested a

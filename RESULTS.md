@@ -90,6 +90,7 @@ Strict transfer:
 | centroid (Zhao) | 0.939 / 56.5 / 2.2 | 0.932 / 30.8 / 1.0 | 0.923 / 19.5 / 0.1 | 0.895 / 9.7 / 0.2 | 0.886 / 6.9 / 0.2 | **0.767 / 0.0 / 0.0** |
 | ShieldGemma-9b | 0.940 / 45.2 / 1.4 | 0.925 / 36.8 / 0.6 | 0.902 / 34.3 / 1.7 | 0.886 / 30.1 / 1.1 | 0.833 / 8.8 / 0.2 | 0.659 / 0.0 / 0.0 |
 | Qwen3Guard-Gen-8B | 0.968 / 54.9 / 1.9 | 0.951 / 31.7 / 0.8 | 0.950 / 15.5 / 0.1 | 0.882 / 0.2 / 0.0 | 0.795 / 0.0 / 0.0 | 0.595 / 0.0 / 0.0 |
+| Llama-Guard-4-12B | 0.960 / 40.8 / 0.7 | 0.913 / 24.5 / 0.8 | 0.889 / 21.8 / 0.9 | 0.696 / 0.0 / 0.0 | 0.717 / 0.0 / 0.0 | 0.480 / 0.0 / 0.0 |
 | multilingual-e5-base | 0.967 / 56.3 / 0.9 | 0.947 / 51.2 / 1.6 | 0.906 / 18.3 / 0.7 | 0.837 / 2.1 / 0.1 | 0.813 / 0.9 / 0.0 | 0.616 / 0.0 / 0.0 |
 | DeBERTa-v3-small guard | 0.981 / 63.9 / 1.1 | 0.940 / 15.3 / 0.1 | 0.862 / 0.0 / 0.0 | 0.833 / 0.2 / 0.0 | 0.805 / 0.0 / 0.0 | 0.472 / 0.0 / 0.0 |
 | char TF–IDF | 0.962 / 45.2 / 1.0 | 0.731 / 0.5 / 0.1 | 0.531 / 0.0 / 0.0 | 0.596 / 0.0 / 0.0 | 0.580 / 0.0 / 0.0 | 0.543 / 0.0 / 0.0 |
@@ -102,6 +103,7 @@ Condition-matched calibration (TPR% / FPR%; AUROC is calibration-invariant, as a
 | centroid (Zhao) | 56.5 / 2.2 | 42.8 / 1.8 | 38.9 / 1.2 | 33.6 / 1.5 | 20.8 / 0.7 | **13.6 / 1.6** |
 | ShieldGemma-9b | 45.2 / 1.4 | 36.8 / 0.6 | 30.1 / 1.3 | 30.1 / 1.1 | 15.3 / 0.8 | 1.9 / 0.2 |
 | Qwen3Guard-Gen-8B | 54.9 / 1.9 | 49.1 / 1.7 | 41.5 / 1.2 | 16.4 / 1.0 | 9.2 / 1.2 | 1.6 / 1.2 |
+| Llama-Guard-4-12B | 40.8 / 0.7 | 30.5 / 1.2 | 0.0 / 0.0 † | 6.0 / 1.2 | 5.5 / 1.4 | 1.8 / 2.1 |
 | multilingual-e5-base | 56.3 / 0.9 | 41.2 / 0.7 | 31.9 / 1.7 | 16.7 / 1.6 | 14.1 / 1.4 | 5.1 / 2.1 |
 | DeBERTa-v3-small guard | 63.9 / 1.1 | 40.0 / 1.3 | 13.6 / 0.6 | 11.8 / 1.4 | 6.2 / 0.8 | 2.1 / 1.8 |
 | char TF–IDF | 45.2 / 1.0 | 8.8 / 0.8 | 5.8 / 0.9 | 3.9 / 0.8 | 3.3 / 1.2 | 3.7 / 1.5 |
@@ -118,12 +120,15 @@ Probe TPR retention vs plain: strict 84% / 82% / 50% / 46% / 0%; matched 96% / 9
 
 **Reading.** The all-layer activation probe leads every text baseline on AUROC *and* TPR in all
 five language conditions under both calibrations, including against multilingual-e5, a text
-encoder built for multilingual semantics, and against Qwen3Guard-Gen-8B, a purpose-built
-multilingual guard released 2025-09. Qwen3Guard is the strongest text comparator at the
+encoder built for multilingual semantics, and against both current-generation guards —
+Qwen3Guard-Gen-8B (purpose-built multilingual, 2025-09) and Llama-Guard-4-12B. Llama Guard 4 is
+the *weakest* of the three guards at the low-resource end despite being the newest and largest
+(matched swahili 6.0%, zulu 5.5%), and is below chance on reverse (AUROC 0.480). Qwen3Guard is
+the strongest text comparator at the
 mid-resource end (matched french 49.1%, hindi 41.5%, both well above ShieldGemma's 36.8% / 30.1%)
 but *not* at the low-resource end, where it falls below ShieldGemma (swahili 16.4% vs 30.1%, zulu
 9.2% vs 15.3%) — multilingual guard training moves french and hindi and leaves swahili and zulu
-roughly where they were. The probe's matched margin over the better of the two open guards in each
+roughly where they were. The probe's matched margin over the best of the three open guards in each
 condition is +20.5 / +23.4 / +28.0 / +29.2 / +35.9 points (plain → zulu). Degradation is monotone in language
 resource level
 (plain → french → hindi → swahili → zulu) for every detector, but far steeper for text: WildGuard
@@ -143,15 +148,31 @@ thresholds sit in the saturated region (0.995–0.997) and are unaffected; the s
 reverse thresholds (0.61, 0.071, 0.0034) are not, so a few alerts there are within score noise.
 All reported Qwen3Guard numbers come from one internally consistent batched pass.
 
-No Llama Guard 4: `meta-llama/Llama-Guard-4-12B` is still gated (HF 403 on 2026-07-25), so the
-second C4 guard is outstanding, not abandoned. Older LlamaGuard versions were deliberately not
-substituted — they do not answer the current-comparator objection.
+**† Llama Guard 4 hindi is degenerate, not blind.** Its P(unsafe) saturates hard: the matched
+hindi threshold is float32 **1.0** exactly, so the 99th percentile of hindi tune negatives sits on
+the saturation ceiling and no harmful prompt can exceed it, giving 0.0 / 0.0. AUROC is a
+respectable 0.889, so the rank signal is there — what fails is thresholding a score with a large
+tied mass at 1.0. Read the cell as a calibration failure of the guard's score distribution, never
+as "Llama Guard 4 detects no Hindi harm". The plain and hindi thresholds are both 1.0 and french
+0.999999.
+
+The same saturation drives Llama Guard 4's batch-composition audit failure: max 0.0567 over 7 of
+48 cells, and **every failing cell is swahili or reverse** — none are plain, french or hindi.
+Where the model commits, its score is stable to padding; where it is undecided, it is not. On zulu
+82% of prompts fall in the undecided band (0.01–0.99) at mean score 0.494, i.e. near coin-flip, so
+its low-resource rows carry more score noise than the other two guards.
+
+Llama Guard 4 **does not lead any condition**, so the strongest-guard-per-condition split used
+downstream is unchanged: Qwen3Guard at plain/french/hindi, ShieldGemma at swahili/zulu.
 
 Raw: `data/phase1_baselines_multilingual.npz` (Eddie job 57134364), `data/c4_modern_guards.npz`
-(Eddie job 57140956), `data/phase1_activation_multilingual_27b.npz`,
-`data/phase1_small_guard.npz`, `data/phase1_multilingual_e5.npz`; analysis
-`data/phase1_text_encoder_multilingual_results.json` and `data/c4_modern_guard_results.json`.
-Commits `59649dd` (rows through TF–IDF) and `00149bb` (Qwen3Guard), seed 0. Known-test status:
+(Eddie job 57140956), `data/c4_modern_guards_lg4.npz` (Eddie job 57164545, carries the Qwen3Guard
+arrays through), `data/phase1_activation_multilingual_27b.npz`, `data/phase1_small_guard.npz`,
+`data/phase1_multilingual_e5.npz`; analysis
+`data/phase1_text_encoder_multilingual_results.json`, `data/c4_modern_guard_results.json` and
+`data/c4_lg4_results.json`. Commits `59649dd` (rows through TF–IDF), `00149bb` (Qwen3Guard),
+`374c491` (Llama Guard 4) and `c2ae933` (analysis), seed 0. Revisions: ShieldGemma-9b
+`b8b63601…`, Qwen3Guard-Gen-8B `4505cb1a…`, Llama-Guard-4-12B `87acb4b9…`. Known-test status:
 exploratory development evidence — no model, layer, threshold or condition was selected on it.
 
 ## 5. C1 — threshold transport from *unlabelled* shifted traffic
