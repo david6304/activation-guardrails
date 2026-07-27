@@ -5,14 +5,48 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-27 - C4 complete: Llama Guard 4 is the weakest of the three guards
+
+Llama Guard 4 scored on all six conditions, so C4 is finished and C5/C7 are unblocked.
+**The probe leads every condition on both AUROC and matched TPR**, so C4's rewrite
+trigger does not fire. Matched TPR, plain→reverse: probe 75.4/72.5/69.5/59.3/51.2/2.1
+against LG4 40.8/30.5/**0.0**/6.0/5.5/1.8, with LG4 AUROC 0.960/0.913/0.889/0.696/0.717/0.480.
+
+Two things worth reporting. **LG4 does not win any condition**, so "strongest guard from
+C4" stays the existing Qwen3Guard (plain/french/hindi) versus ShieldGemma (swahili/zulu)
+split and C5/C7 gain no third arm. And **hindi is degenerate at the operating point**:
+0.000% TPR at 0.000% FPR against a respectable 0.889 AUROC, because LG4's score is
+heavily saturated (89% of hindi prompts below 0.01 or above 0.99) and the 1%-FPR quantile
+lands inside a mass of tied values. That is a thresholding limitation of a saturated
+guard score, not an absence of rank signal, and should be reported as such.
+
+The same saturation drives an audit failure of 0.0567 (7/48 cells over the 1e-3
+tolerance) — every failing cell is swahili or reverse, none are plain/french/hindi.
+Where LG4 commits it is stable; where it is undecided it is padding-sensitive. On zulu
+82% of prompts sit in the undecided band at mean score 0.494, i.e. near coin-flip.
+
+Reproducibility: Eddie job `57164545` (node1p07, 1× L40S, bf16, batch 8, 42m35s, exit 0);
+source commit `374c491`, analysis at `c2ae933`; `meta-llama/Llama-Guard-4-12B` revision
+`87acb4b94e930c3d679e6e7ee9d57e2feab9ea71`; seed 0; tune/test 1781/1781. Smoke `57164458`
+passed the free-generation check 96/96. Artefacts are on Eddie only —
+`data/c4_modern_guards_lg4.npz` (carries the Qwen3Guard arrays through, source SHA-256
+`418184f5…` verified identical to the recorded C4 file) and `data/c4_lg4_results.json`.
+Not yet copied off the cluster, and `RESULTS.md` §4 is not yet updated.
+
+Loading needed a fix: the checkpoint sets `attention_chunk_size` to null but transformers
+derives `layer_types` from `no_rope_layers` (all ones), so all 48 layers requested a
+chunked mask that cannot be built. Neither field is read elsewhere in `modeling_llama4`,
+so every layer is named full attention.
+
 ## 2026-07-27 - Two audit bugs fixed; Aegis clears the C7 source rule
 
 **The pool-guard audit was measuring the wrong thing.** It compared the cheap
 `logits_to_keep=1` scores, produced inside length-sorted batches, against a reference
 runner that re-batched the sampled rows, so left padding differed between the paths and
-the audit reported batch composition. Both paths now rescore at batch size 1. This is
-almost certainly also what the C4 audit's 0.0220 failure was, which reframes that entry:
-batch-composition sensitivity of an unsaturated score, not a defect in the guard forward.
+the audit reported batch composition. Both paths now rescore at batch size 1. (This is
+*not* the same as the C4 audit, which compares batched against batch-size-1 scoring on
+purpose and is correctly labelled; only the pool audit was measuring something other than
+what it claimed.)
 
 **Llama Guard 4 loads.** The checkpoint sets `attention_chunk_size` to null but
 transformers derives `layer_types` from `no_rope_layers` (all ones here), so all 48
