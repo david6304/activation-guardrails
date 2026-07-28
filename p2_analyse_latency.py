@@ -268,26 +268,8 @@ def main():
             grids["qwen3guard"] = guard_grid
             # A generative guard has no running score, so the probe is also read on
             # the guard's coarser grid for a like-for-like first-crossing comparison.
-            monitors["probe_on_guard_grid"] = grid_curve(
-                np.stack(
-                    [
-                        np.nanmax(
-                            np.where(
-                                np.arange(scores["response_logistic"].shape[1])[None, :]
-                                < np.minimum(k, lengths)[:, None],
-                                scores["response_logistic"],
-                                -np.inf,
-                            ),
-                            axis=1,
-                        )
-                        for k in guard_grid
-                    ],
-                    axis=1,
-                ),
-                guard_grid,
-                lengths,
-                scores["prompt_logistic"],
-            )
+            # The dense running maximum is already indexed by k, so this is a slice.
+            monitors["probe_on_guard_grid"] = monitors["probe"][:, guard_grid]
             grids["probe_on_guard_grid"] = guard_grid
 
         cell["monitors"] = {}
