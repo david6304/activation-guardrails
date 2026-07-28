@@ -5,6 +5,43 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-07-28 - P1 preflight settles the read position; P2 pre-declarations fixed
+
+**`t_inst` is 7 tokens downstream of the ciphertext in every row** — the decoder-instruction
+wrapper appends "Respond normally in plain English." after the payload — so the read
+position is a genuine confound and P1 scores both `t_inst` and `t_cipher`. Prompts are
+short (longest rendered condition 276 tokens against the 2048 limit), so truncate-then-encode
+is vacuous. base64 and rot13 round-trip exactly on all 3,562 rows; the shuffled control
+preserves length and base64 validity with no row left unpermuted. **Decode-then-guard
+ceiling, on the page first:** probe 75.4% matched TPR / 0.988 AUROC, qwen3guard 54.9%,
+tfidf 45.2%, shieldgemma 45.2%, llamaguard4 40.8%. `reverse` was added as a fifth P1
+condition — the ordering prediction is stated against it and only `t_inst` existed.
+
+**P1's guard pass is deferred to Extras** (Codex, agreed): no guard enters the pre-declared
+base64-vs-shuffled test, so the cost buys table completeness only. Consequence to state
+plainly in the write-up: guard performance on the new cipher surfaces was **not measured**,
+and must not be extrapolated from reverse.
+
+**P2 pre-declared, before any generation:** horizon k_max = 512 protected-reader response
+tokens; common absolute target 50% TPR, with "not reached by 512" reported rather than the
+target lowered; 1% nominal sequence-level FPR from a **single** threshold on the running
+maximum, never recalibrated per k (that would give every prefix a fresh 1% allowance and
+make first-crossing incomparable); negatives are same-condition **tune** responses to
+harmful prompts judged benign and non-refusal. EOS is censoring: fixed denominator,
+terminal running maximum carried forward, no Kaplan–Meier — length correlates with refusal
+and harm, so the censoring is informative. Text comparators are the frozen response TF-IDF
+and Qwen3Guard-Gen-8B only.
+
+**The response judge now emits an explicit `refusal` verdict.** The harm criteria are
+unchanged and prompt mode is untouched (C7 unaffected), but a response verdict missing
+`refusal` is a parse error rather than a silent false, so refusals cannot leak back into
+the benign class. To be validated on 50 hand-checked rows before it filters anything.
+
+**Sizing consequence worth knowing now:** the 1% rule needs ≥101 tune calibration negatives
+per condition, and only benign-non-refusal responses to harmful prompts count. The 200-prompt
+compliance pilot will not reach that — it is a compliance estimate, not an analysis — and
+the full run needs the whole tune split to have a chance of clearing it.
+
 ## 2026-07-27 - Direction: the cipher failure may be a read-position artefact
 
 `t_inst` sits before the model has decoded a ciphered prompt, so "reverse is not

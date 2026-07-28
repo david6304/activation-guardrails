@@ -105,15 +105,20 @@ def generate(rows, out_path, model_id, max_new_tokens, temperature, top_p, batch
     todo = [r for r in rows if r["id"] not in done_ids]
     print(f"[generate] {len(done_ids)} already done, {len(todo)} to go", flush=True)
 
+    # `prompt_sent` is what the model sees and `prompt` is the plaintext the judge
+    # scores against, so a ciphered condition is judged on the request it encodes.
+    def sent(row):
+        return row.get("prompt_sent", row["prompt"])
+
     # Length-sort prompts so each batch pads to a similar length (cuts wasted
     # padding compute).
-    order = sorted(todo, key=lambda r: len(r["prompt"]))
+    order = sorted(todo, key=lambda r: len(sent(r)))
 
     t0 = time.time()
     with out_path.open("a") as out:
         for start in range(0, len(order), batch_size):
             batch = order[start:start + batch_size]
-            msgs = [[{"role": "user", "content": r["prompt"]}] for r in batch]
+            msgs = [[{"role": "user", "content": sent(r)}] for r in batch]
             inputs = tok.apply_chat_template(
                 msgs, tokenize=True, add_generation_prompt=True,
                 return_dict=True, padding=True, return_tensors="pt",
@@ -129,6 +134,7 @@ def generate(rows, out_path, model_id, max_new_tokens, temperature, top_p, batch
                 r["response"] = tok.decode(ids, skip_special_tokens=True)
                 r["n_response_tokens"] = n_tok
                 r["truncated"] = n_tok >= max_new_tokens
+                r["generator"] = model_id
                 out.write(json.dumps(r) + "\n")
             out.flush()
             done = min(start + batch_size, len(order))
@@ -162,18 +168,26 @@ def main():
     ap.add_argument("--batch-size", type=int, default=16)
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--prompts", default="",
+                    help="JSONL of {id, prompt, data_type} rows to generate for, instead "
+                         "of sampling WildJailbreak (P2 generates for the frozen split)")
     ap.add_argument("--dry-run", action="store_true",
                     help="sample + write placeholder responses, no model load (local test)")
     args = ap.parse_args()
 
-    data_types = args.data_types.split(",")
-    print(f"[sample] data_types={data_types} prompt_col={args.prompt_col!r} n_per_type={args.n_per_type}")
-    df = load_wildjailbreak()
-    rows = sample_prompts(df, data_types, args.prompt_col, args.n_per_type, args.seed)
-    # id = position in the deterministic sampled order, so resume maps prompts
-    # back to the same id across restarts (same seed / n-per-type / data-types).
-    for i, r in enumerate(rows):
-        r["id"] = i
+    if args.prompts:
+        # Prompts carry their own ids, so resume keys on the caller's ids.
+        rows = [json.loads(line) for line in open(args.prompts) if line.strip()]
+        print(f"[prompts] {len(rows)} rows from {args.prompts}")
+    else:
+        data_types = args.data_types.split(",")
+        print(f"[sample] data_types={data_types} prompt_col={args.prompt_col!r} n_per_type={args.n_per_type}")
+        df = load_wildjailbreak()
+        rows = sample_prompts(df, data_types, args.prompt_col, args.n_per_type, args.seed)
+        # id = position in the deterministic sampled order, so resume maps prompts
+        # back to the same id across restarts (same seed / n-per-type / data-types).
+        for i, r in enumerate(rows):
+            r["id"] = i
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)

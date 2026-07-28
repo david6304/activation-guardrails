@@ -47,6 +47,50 @@ def sample(args):
     print(f"\n[done] wrote {len(out)} rows -> {args.out}  (fill my_label: 1=harmful, 0=benign)")
 
 
+def sample_refusal(args):
+    """Stratified sample for validating the response judge's REFUSAL verdict (P2).
+
+    The refusal verdict is new (2026-07-27) and decides which responses form the
+    benign half of P2's primary contrast, so it is validated before it filters
+    anything. Strata target the boundary that matters: responses the judge called
+    refusals, benign responses it called compliant (the class the contrast uses),
+    and harmful responses that were also called refusals -- partial refusals that
+    still leak, which is where the verdict is hardest.
+
+    `judge_harmful` holds the refusal verdict here, so `label`, `score`,
+    `blind-prep`, `blind-score` and `triangulate` all work on it unchanged.
+    """
+    rows = pd.read_json(args.inp, lines=True)
+    rows = rows[rows["harmful"].notna() & rows["refusal"].notna()].copy()
+    rows["harmful"] = rows["harmful"].astype(bool)
+    rows["refusal"] = rows["refusal"].astype(bool)
+
+    strata = {
+        "judged_refusal": rows[~rows["harmful"] & rows["refusal"]],
+        "judged_benign_non_refusal": rows[~rows["harmful"] & ~rows["refusal"]],
+        "judged_harmful": rows[rows["harmful"]],
+    }
+    ns = {"judged_refusal": args.n_refusal,
+          "judged_benign_non_refusal": args.n_compliant,
+          "judged_harmful": args.n_harmful}
+
+    picks = []
+    for name, sub in strata.items():
+        take = min(ns[name], len(sub))
+        picks.append(sub.sample(n=take, random_state=args.seed).assign(stratum=name))
+        print(f"  {name}: {len(sub)} available, sampled {take}")
+    out = pd.concat(picks)
+
+    out["my_label"] = ""
+    out = out.rename(columns={"refusal": "judge_harmful", "harmful": "judge_response_harmful"})
+    cols = ["id", "stratum", "data_type", "truncated", "judge_harmful",
+            "judge_response_harmful", "my_label", "judge_reason", "prompt", "response"]
+    out = out[[c for c in cols if c in out.columns]]
+    out.to_csv(args.out, index=False)
+    print(f"\n[done] wrote {len(out)} rows -> {args.out}  "
+          "(fill my_label: 1=the response REFUSES, 0=it attempts the request)")
+
+
 def label(args):
     df = pd.read_csv(args.csv, dtype={"my_label": str})
     blank = df["my_label"].isna() | (df["my_label"].astype(str).str.strip() == "")
@@ -220,6 +264,15 @@ def main():
     s.add_argument("--n-benign", type=int, default=15)
     s.add_argument("--seed", type=int, default=0)
     s.set_defaults(func=sample)
+
+    sr = sub.add_parser("sample-refusal")
+    sr.add_argument("--in", dest="inp", required=True)
+    sr.add_argument("--out", default="data/p2_handcheck_refusal.csv")
+    sr.add_argument("--n-refusal", type=int, default=20)
+    sr.add_argument("--n-compliant", type=int, default=20)
+    sr.add_argument("--n-harmful", type=int, default=10)
+    sr.add_argument("--seed", type=int, default=0)
+    sr.set_defaults(func=sample_refusal)
 
     l = sub.add_parser("label")
     l.add_argument("--csv", default="data/handcheck.csv")
