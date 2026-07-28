@@ -6,6 +6,7 @@ from pathlib import Path
 
 from capability_qa import LANGS
 from phase1.prepare_external_aegis import NLLB_MODEL, NLLB_REVISION
+from phase1.prepare_multilingual_translations import verified_cached_revision
 from probe_prompt import file_sha256, load_or_translate
 
 
@@ -17,6 +18,7 @@ def main():
     parser.add_argument("--manifest", default="data/c7_external_manifest.json")
     args = parser.parse_args()
 
+    verified_cached_revision(NLLB_MODEL, NLLB_REVISION)
     partition = json.loads(Path(args.partition).read_text())
     keep = set(partition["tune_ids"]) | set(partition["test_ids"])
     prompts = []
