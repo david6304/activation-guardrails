@@ -12,6 +12,8 @@
 #SBATCH --output=p2_generate_%j.out
 set -euo pipefail
 
+# toolchain.rc reads LD_LIBRARY_PATH unguarded, which is fatal under `set -u`.
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
 source /home/htang2/toolchain-20251006/toolchain.rc
 source ~/venvs/ml/bin/activate
 cd ~/activation-guardrails
