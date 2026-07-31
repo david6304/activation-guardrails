@@ -354,3 +354,72 @@ bf16, batch 4, 3h07m39s, exit 0), `google/gemma-3-27b-it` revision `005ad3404e59
 `t_inst`, frozen probe and centroid parameters from `data/phase1_activation_27b.npz`, seed 0,
 source commit `c04587c`. Analysis: `conda run -n msc-diss python -m phase1.analyse_wildchat_pool
 --pool data/c3_pool_probe_plain.npz`.
+
+## 8. C7 — external-source confirmation on NVIDIA Aegis 2.0
+
+Source transfer, not language transfer: train and test in §§3–4 are both WildJailbreak. The
+frozen probe, centroid and ShieldGemma are scored on 22,305 Aegis 2.0 prompts relabelled under
+the frozen operational rubric. **No retraining, no layer reselection, no threshold fitted on
+external positives.** Thresholds come only from the 7,480 external *tune* negatives; TPR and
+realised FPR are reported on the disjoint external *test* partition (7,345 positives /
+7,480 negatives). Paired 10,000-repeat bootstrap resamples calibration negatives, test positives
+and test negatives jointly and re-estimates every threshold inside each replicate.
+
+TPR / realised FPR, with the probe−ShieldGemma TPR difference and its 95% interval:
+
+| condition | calibration | probe | centroid | ShieldGemma | probe − guard |
+|---|---|---|---|---|---|
+| plain | frozen WJ threshold | 55.5 / 1.79 | 20.4 / 3.98 | 74.5 / 6.76 | −19.1 [−20.3, −17.8] |
+| plain | external English | 50.0 / 1.19 | 8.8 / 0.90 | 46.4 / 0.88 | +4.1 [−0.6, +9.1] |
+| swahili | frozen WJ threshold | 23.2 / 0.76 | 4.2 / 0.28 | 34.2 / 2.90 | −11.0 [−12.1, −9.9] |
+| swahili | external English | 18.9 / 0.44 | 0.1 / 0.01 | 5.8 / 0.16 | +13.4 [+10.4, +16.6] |
+| swahili | external Swahili (matched) | 27.7 / 1.00 | 8.4 / 0.95 | 18.9 / 0.88 | +8.8 [+3.7, +14.3] |
+
+AUROC: probe 0.934 plain / 0.837 swahili; centroid 0.580 / 0.556; ShieldGemma 0.937 / 0.862.
+
+**The C7 acceptance criterion is not met.** It required a ≥10-point matched-TPR advantage over
+the strongest guard at realised FPR ≤1.5%. The matched Swahili advantage is **+8.8 points
+[+3.7, +14.3]** at 1.00% against 0.88% FPR — real and interval-excluding-zero, but below the
+pre-declared bar, and the interval does not reach +10.
+
+Four things this section must state plainly.
+
+1. **Source transfer costs more than language transfer.** Plain AUROC falls 0.988 → 0.934 and
+   Swahili 0.967 → 0.837 moving off WildJailbreak; matched Swahili TPR falls 59.3 → 27.7. The
+   magnitude matches the leave-one-dataset-out collapse reported in
+   `papers/notes/2602.14161-fomin-when-benchmarks-lie.md`.
+2. **ShieldGemma leads the probe on AUROC in both external conditions** (0.937 vs 0.934;
+   0.862 vs 0.837). The §4 claim that the probe beats every text baseline on AUROC *and*
+   TPR@1%FPR is a within-source claim and does not survive the source change. The probe's
+   external advantage is confined to the operating point under matched calibration.
+3. **The frozen-threshold rows are not FPR-matched and support no TPR comparison.** ShieldGemma's
+   frozen WildJailbreak threshold lands at 6.76% (plain) and 2.90% (swahili) realised FPR against
+   the probe's 1.79% and 0.76%; its higher TPR there is bought with alert volume. The probe's
+   threshold transfers to a new source far more stably than the guard's.
+4. **The centroid does not transfer across sources at all** — 0.580 / 0.556 AUROC is
+   approximately chance. Its §4 row is a within-source artefact.
+
+Label quality: judge parse-error rate 1.14% (268/23,489). Blind Claude-vs-judge hand-check on 48
+stratified rows gives 81.2% raw and **94.3% population-weighted** agreement, against 87.5% for the
+Phase 1 judge validation; disagreement is one-directional (judge broader). Estimated label noise
+is ~12.2% of positives and ~2.5% of negatives, which depresses every detector's absolute TPR
+equally and so does not bias the comparison. 916 positives were excluded as protected-group
+harassment, per the frozen construct. Aegis-versus-judge disagreement is large in both directions
+(4,409 Aegis-unsafe judged benign; 570 Aegis-safe judged harmful), driven by Aegis's broader
+taxonomy (Profanity, Sexual, Harassment, Unauthorized Advice).
+
+Pool construction: 28,216 raw rows → 27,224 after dropping REDACTED/empty → 25,806 after
+normalised-text dedupe → **zero** overlap with the 10,000 Phase 1 prompts → 23,489 after dropping
+prompts exceeding 256 NLLB tokens, so the English and Swahili arms cover byte-identical rows.
+Swahili translation left 33 rows (0.1%) identical to their source, all ≤4-word fragments.
+
+Raw: `data/c7_external_scores.npz` (SHA-256 `ef6e7e7d…`), `data/c7_external_guard.npz`
+(`edb78b74…`), `data/c7_external_results.json` (`a6f7cb80…`), `data/c7_judged_all.jsonl`
+(`dbd4001e…`), `data/c7_partition.json` (`4c4ea38b…`), `data/c7_translations/swahili.jsonl`
+(`6ebf79b8…`). MLP jobs 3569598/3569599 (judge, Qwen3.6-27B), 3571703 (NLLB translation,
+53m32s), 3573545 (probe scoring, 33m00s), 3577169 (ShieldGemma, 28m56s), all
+`h200_3g.71gb`, exit 0. `google/gemma-3-27b-it` `005ad3404e59d6023443cb575daa05336842228a`;
+`google/shieldgemma-9b` `b8b636016df4540721a098c7aab91c97ec6ee508`; NLLB
+`f8d333a098d19b4fd9a8b18f94170487ad3f821d`; `nvidia/Aegis-AI-Content-Safety-Dataset-2.0`
+`d86bb8bedff51d25ac834ab7838f1cc61acb7a2c`; seed 0; source commit `c7c29e2`. Analysis:
+`conda run -n msc-diss python -m phase1.analyse_c7_external`.
