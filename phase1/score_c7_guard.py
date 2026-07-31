@@ -1,7 +1,7 @@
-"""Score ShieldGemma on the C7 external pool, plain and Swahili.
+"""Score a text guard on the C7 external pool, plain and Swahili.
 
-ShieldGemma is the C4-preselected comparator for the Swahili condition. Same
-label-token probability as the frozen Phase 1 matrix, same prompts and partition as
+ShieldGemma is the C4-preselected comparator for Swahili, Qwen3Guard for plain English.
+Same label-token probability as the frozen Phase 1 matrix, same prompts and partition as
 `score_c7_external.py`.
 """
 
@@ -16,6 +16,7 @@ from phase1.extend_multilingual_guards import (
     SHIELD_MODEL,
     resolve_cached_snapshot,
 )
+from phase1.score_modern_guards import QWEN_MODEL, run_qwen3guard
 from phase1.phase1_baselines import guard_rows, unpack_guard
 from probe_prompt import file_sha256, strings_sha256
 
@@ -26,6 +27,8 @@ def main():
     parser.add_argument("--partition", default="data/c7_partition.json")
     parser.add_argument("--translations", default="data/c7_translations/swahili.jsonl")
     parser.add_argument("--manifest", default="data/c7_external_manifest.json")
+    parser.add_argument("--guard", choices=("shieldgemma", "qwen3guard"),
+                        default="shieldgemma")
     parser.add_argument("--out", default="data/c7_external_guard.npz")
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--limit", type=int, default=0, help="score only N rows per split")
@@ -55,7 +58,9 @@ def main():
     if args.limit:
         splits = {name: ids[: args.limit] for name, ids in splits.items()}
 
-    snapshot, revision = resolve_cached_snapshot(SHIELD_MODEL)
+    model_id = SHIELD_MODEL if args.guard == "shieldgemma" else QWEN_MODEL
+    runner = run_shieldgemma if args.guard == "shieldgemma" else run_qwen3guard
+    snapshot, revision = resolve_cached_snapshot(model_id)
 
     scored = []
     conditions_by_split = {}
@@ -65,7 +70,7 @@ def main():
         conditions_by_split[split] = conditions
         batch = guard_rows(split, conditions)
         print(f"[score] {split} n={len(batch)}", flush=True)
-        run_shieldgemma(batch, str(snapshot), args.batch_size)
+        runner(batch, str(snapshot), args.batch_size)
         scored.extend(batch)
 
     output = {}
@@ -74,20 +79,20 @@ def main():
             scores = unpack_guard(scored, split, condition, "score").astype(np.float32)
             if len(scores) != len(ids) or not np.isfinite(scores).all():
                 raise ValueError(f"invalid guard scores for {split} {condition}")
-            output[f"{split}_{condition}_shieldgemma"] = scores
+            output[f"{split}_{condition}_{args.guard}"] = scores
         output[f"{split}_ids"] = np.asarray(ids)
         output[f"{split}_labels"] = np.asarray(
             [int(bool(rows[i]["harmful"])) for i in ids]
         )
 
     metadata = {
-        "model": SHIELD_MODEL,
+        "model": model_id,
         "model_revision": revision,
         "batch_size": args.batch_size,
         "judged_sha256": file_sha256(Path(args.judged)),
         "partition_sha256": file_sha256(Path(args.partition)),
         "swahili_sha256": manifest["swahili"]["sha256"],
-        "score": "P(Yes) at the ShieldGemma decision position",
+        "score": "unsafe-label probability at the guard decision position",
     }
     output["metadata_json"] = np.asarray(json.dumps(metadata))
     output["inputs_sha256"] = np.asarray(
