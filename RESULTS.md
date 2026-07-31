@@ -377,6 +377,23 @@ TPR / realised FPR, with the probe−ShieldGemma TPR difference and its 95% inte
 
 AUROC: probe 0.934 plain / 0.837 swahili; centroid 0.580 / 0.556; ShieldGemma 0.937 / 0.862.
 
+**The Swahili ROC curves cross, and the crossing is the result.** Standardised partial AUROC over
+FPR ∈ [0, 1.5%], paired 2,000-repeat bootstrap over test rows:
+
+| condition | metric | probe − ShieldGemma |
+|---|---|---|
+| plain | pAUC@1.5% | −0.004 [−0.023, +0.014] |
+| plain | full AUROC | −0.004 [−0.008, +0.001] |
+| swahili | pAUC@1.5% | **+0.034 [+0.019, +0.050]** |
+| swahili | full AUROC | **−0.026 [−0.032, −0.019]** |
+
+On Swahili the probe is significantly *worse* over the whole curve and significantly *better* in
+the low-FPR region; both intervals exclude zero in opposite directions. The +8.8-point matched-TPR
+advantage is therefore a stable property of the operating region, not an artefact of one quantile.
+On plain English both metrics are ties. Since the ≤1%-FPR regime was pre-declared and is the
+deployment-relevant one, the operating-point comparison stands as primary — but the full-curve
+reversal must be reported beside it, and no general external-discrimination claim is available.
+
 The difference column is the **bootstrap mean** of the paired per-replicate difference, so it does
 not equal the difference of the two point estimates in the same row (plain external English:
 50.0 − 46.4 = 3.6, bootstrap mean +4.1). Realised FPRs are close but not identical, so these are

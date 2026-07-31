@@ -24,6 +24,11 @@ its §4 row is not a cross-source number. Also: the frozen-threshold rows are no
 6.76%/2.90% against the probe's 1.79%/0.76%), so they support no TPR comparison — but they do show
 the probe's threshold transfers to a new source far more stably than the guard's.
 
+**The Swahili ROC curves cross**: partial AUROC over FPR<=1.5% is +0.034 [+0.019, +0.050] for the
+probe while full AUROC is -0.026 [-0.032, -0.019]; both exclude zero, opposite directions. So the
++8.8 operating-point advantage is a stable property of the low-FPR region, not one quantile. Plain
+is a tie on both (-0.004 each, intervals cross zero).
+
 Judge parse errors 1.14%; blind hand-check 94.3% population-weighted (48 rows, four strata);
 estimated label noise ~12.2% of positives, ~2.5% of negatives (48 checks, so wide uncertainty;
 noise lowers every detector's TPR but does not automatically leave the comparison unbiased).
