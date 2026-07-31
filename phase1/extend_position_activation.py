@@ -216,6 +216,53 @@ def score_cell(
     return scores, statistics
 
 
+def collect_layer_features(texts, payloads, model, tokenizer, batch_size, position_name):
+    """Per-layer features for a whole cell, float16 to keep the train split in RAM.
+
+    5341 train rows x 63 layers x 5376 dims is 3.6 GB at float16; the all-layer
+    concatenation a single probe would need is 7.2 GB at float32, which liblinear
+    will not fit. Per-layer probes are also the more informative answer: they say
+    *where* in depth base64 harm becomes linearly readable, if it ever does.
+    """
+    features = None
+    for indices, batch in iter_batches(
+        texts, payloads, model, tokenizer, batch_size, position_name
+    ):
+        if features is None:
+            features = np.empty(
+                (len(texts), batch.shape[1], batch.shape[2]), dtype=np.float16
+            )
+        features[indices] = batch.astype(np.float16)
+    return features
+
+
+def fit_condition_probe(train_features, train_labels, cells, seed):
+    """One logistic probe per layer, trained on this condition's own activations.
+
+    The frozen probe reads the plain-English harmfulness direction. If it is at
+    chance under base64 the content may still be represented, just not on that
+    direction -- a probe trained on base64 activations separates "not represented"
+    from "represented elsewhere". Nothing frozen is touched.
+    """
+    from sklearn.linear_model import LogisticRegression
+
+    layer_count = train_features.shape[1]
+    scores = {name: np.empty((len(f), layer_count), dtype=np.float32) for name, f in cells.items()}
+    for layer in range(layer_count):
+        classifier = LogisticRegression(
+            C=1.0,
+            class_weight="balanced",
+            random_state=seed,
+            solver="liblinear",
+            max_iter=2000,
+        ).fit(train_features[:, layer, :].astype(np.float32), train_labels)
+        for name, features in cells.items():
+            scores[name][:, layer] = classifier.decision_function(
+                features[:, layer, :].astype(np.float32)
+            ).astype(np.float32)
+    return scores
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--in", dest="inp", default="data/judged_main_prompts.jsonl")
@@ -361,6 +408,45 @@ def main():
                     f"{split} {condition} t_inst does not reproduce the frozen artefact"
                 )
 
+    # Does base64 harm live anywhere linearly readable, or nowhere? Train on this
+    # condition's own train-split activations and score its own tune/test rows.
+    train_plaintexts = [row["prompt"] for row in train_rows]
+    train_conditions, train_payloads = build_p1_conditions(train_plaintexts, args.seed)
+    train_labels = np.asarray([int(bool(row["harmful"])) for row in train_rows])
+    train_take = min(args.limit, len(train_rows)) if args.limit else len(train_rows)
+    for position in ("t_inst", "t_cipher"):
+        print(f"[selftrain] base64 {position} train n={train_take}", flush=True)
+        train_features = collect_layer_features(
+            train_conditions["base64"][:train_take],
+            train_payloads["base64"][:train_take],
+            model,
+            tokenizer,
+            args.batch_size,
+            position,
+        )
+        cells = {}
+        for split, offset, count in (
+            ("tune", 0, len(tune_labels)),
+            ("test", len(tune_rows), len(test_labels)),
+        ):
+            print(f"[selftrain] base64 {position} {split} n={count}", flush=True)
+            cells[split] = collect_layer_features(
+                conditions["base64"][offset : offset + count],
+                payloads["base64"][offset : offset + count],
+                model,
+                tokenizer,
+                args.batch_size,
+                position,
+            )
+        if len(np.unique(train_labels[:train_take])) < 2:
+            print("[selftrain] skipped, one class under --limit", flush=True)
+            continue
+        scores = fit_condition_probe(
+            train_features, train_labels[:train_take], cells, args.seed
+        )
+        for split, values in scores.items():
+            output[f"{split}_base64_{position}_selftrained"] = values
+
     metadata = {
         "model": EXPECTED_MODEL,
         "model_revision": EXPECTED_REVISION,
@@ -377,7 +463,11 @@ def main():
         "frozen_layerwise": str(Path(args.layerwise)),
         "frozen_layerwise_sha256": file_sha256(Path(args.layerwise)),
         "conditions_manifest_sha256": file_sha256(Path(args.manifest)),
-        "training": "none; all detector parameters reused frozen",
+        "training": (
+            "frozen detectors reused unchanged; additionally one per-layer "
+            "logistic probe per read position trained on base64 train-split "
+            "activations at C=1.0, saved as *_selftrained"
+        ),
         "frozen_audit": audits,
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
