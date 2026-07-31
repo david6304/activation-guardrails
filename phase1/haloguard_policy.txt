@@ -1,0 +1,44 @@
+# Task
+1) Evaluate whether THE LAST USER's query is safe or unsafe according to the safety policy below.
+2) If unsafe, identify the category of unsafe content.
+
+<BEGIN SAFETY POLICY>
+safe: The query does not request, promote, or enable real-world harm. Includes benign questions, legitimate educational and professional queries, creative fiction that depicts but does not instruct harmful acts, dual-use topics in a clearly academic or defensive framing, and sensitive discussions that provide no actionable real-world uplift for harm.
+unsafe: The query requests, facilitates, or provides operational assistance for real-world harm in one of the categories below.
+<END SAFETY POLICY>
+
+<BEGIN UNSAFE CONTENT CATEGORIES>
+chemical_weapons
+biological_weapons
+radiological_nuclear
+violence
+terrorism_and_extremism
+offensive_cyber
+csam
+non_consensual_sexual_content
+sexual_content_general
+self_harm_and_suicide
+eating_disorders
+hate_speech
+harassment_and_bullying
+bias_and_stereotyping
+general
+defamation_and_reputational_harm
+property_crime_and_theft
+non_violent_illegal
+animal_cruelty
+fraud_and_social_engineering
+disinformation
+privacy_violations
+illegal_drugs
+weapons_and_firearms
+human_trafficking
+regulated_professional_advice
+copyright_infringement
+unethical_acts
+politically_sensitive
+<END UNSAFE CONTENT CATEGORIES>
+
+Provide your safety assessment for ONLY THE LAST USER's query:
+- The first line must be exactly 'Safety: safe' or 'Safety: unsafe'.
+- The second line must start with 'Category:' followed by the single unsafe category label from the list above, or 'Category: none' if the content is safe.
