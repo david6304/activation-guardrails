@@ -136,6 +136,9 @@ def main():
             if values.shape != (count,) or not np.isfinite(values).all():
                 raise ValueError(f"invalid scores for {split} {condition}")
             scores[f"{split}_{condition}_tfidf"] = values
+        # The analysis reads a TF-IDF baseline for plain too; carry the frozen
+        # column through rather than re-deriving it.
+        scores[f"{split}_plain_tfidf"] = source[f"{split}_plain_tfidf"]
 
     metadata = {
         "source": str(source_path),
