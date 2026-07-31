@@ -10,20 +10,23 @@ direction. Do not record routine coding work.
 Frozen probe, centroid and ShieldGemma scored on 22,305 Aegis 2.0 prompts relabelled under the
 frozen rubric; thresholds from 7,480 external tune negatives only, reported on a disjoint test
 partition. **Matched Swahili advantage is +8.8 TPR points [+3.7, +14.3]** at 1.00% vs 0.88% FPR
-— real, but short of the pre-declared >=10-point bar, so **C7's acceptance criterion is not met**.
+— real, but the point estimate is short of the pre-declared >=10-point bar, so **C7's acceptance
+criterion is not met**. The interval contains +10, so a >=10-point effect is not demonstrated but
+also not excluded.
 
 Three things that change what the dissertation can claim. **ShieldGemma leads on AUROC in both
 external conditions** (0.937/0.862 vs the probe's 0.934/0.837), so "beats every text baseline on
 AUROC and TPR" is a within-source claim only; the external advantage is confined to the operating
 point under matched calibration. **Source transfer costs more than language transfer** — plain
 AUROC 0.988->0.934, matched Swahili TPR 59.3->27.7, matching the Fomin leave-one-dataset-out
-collapse. **The centroid is at chance out of source** (0.580/0.556), so its §4 row is a
-within-source artefact. Also: the frozen-threshold rows are not FPR-matched (ShieldGemma realises
+collapse. **The centroid fails to transfer usefully** (0.580/0.556 — weak, not chance), so
+its §4 row is not a cross-source number. Also: the frozen-threshold rows are not FPR-matched (ShieldGemma realises
 6.76%/2.90% against the probe's 1.79%/0.76%), so they support no TPR comparison — but they do show
 the probe's threshold transfers to a new source far more stably than the guard's.
 
 Judge parse errors 1.14%; blind hand-check 94.3% population-weighted (48 rows, four strata);
-estimated label noise ~12.2% of positives, ~2.5% of negatives, which is detector-independent.
+estimated label noise ~12.2% of positives, ~2.5% of negatives (48 checks, so wide uncertainty;
+noise lowers every detector's TPR but does not automatically leave the comparison unbiased).
 `RESULTS.md` §8. Full reproducibility block there.
 
 ## 2026-07-28 - P1 preflight settles the read position; P2 pre-declarations fixed

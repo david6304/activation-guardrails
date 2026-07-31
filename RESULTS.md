@@ -377,10 +377,16 @@ TPR / realised FPR, with the probe−ShieldGemma TPR difference and its 95% inte
 
 AUROC: probe 0.934 plain / 0.837 swahili; centroid 0.580 / 0.556; ShieldGemma 0.937 / 0.862.
 
+The difference column is the **bootstrap mean** of the paired per-replicate difference, so it does
+not equal the difference of the two point estimates in the same row (plain external English:
+50.0 − 46.4 = 3.6, bootstrap mean +4.1). Realised FPRs are close but not identical, so these are
+detectors nominally calibrated to 1%, not exactly FPR-matched.
+
 **The C7 acceptance criterion is not met.** It required a ≥10-point matched-TPR advantage over
 the strongest guard at realised FPR ≤1.5%. The matched Swahili advantage is **+8.8 points
 [+3.7, +14.3]** at 1.00% against 0.88% FPR — real and interval-excluding-zero, but below the
-pre-declared bar, and the interval does not reach +10.
+pre-declared bar. The interval *does* contain +10, so a true ≥10-point effect is not excluded —
+it simply was not demonstrated. Report it as "not demonstrated", never as "disproved".
 
 Four things this section must state plainly.
 
@@ -394,16 +400,20 @@ Four things this section must state plainly.
    external advantage is confined to the operating point under matched calibration.
 3. **The frozen-threshold rows are not FPR-matched and support no TPR comparison.** ShieldGemma's
    frozen WildJailbreak threshold lands at 6.76% (plain) and 2.90% (swahili) realised FPR against
-   the probe's 1.79% and 0.76%; its higher TPR there is bought with alert volume. The probe's
-   threshold transfers to a new source far more stably than the guard's.
-4. **The centroid does not transfer across sources at all** — 0.580 / 0.556 AUROC is
-   approximately chance. Its §4 row is a within-source artefact.
+   the probe's 1.79% and 0.76%; its higher TPR there is bought with alert volume. Read these rows
+   as threshold portability, not detector quality: the probe's old threshold survives the source
+   change better than the guard's, though at 1.79% it still breaks the 1.5% budget, so it is not
+   fully portable either.
+4. **The centroid fails to transfer usefully** — 0.580 / 0.556 AUROC is weak but above chance,
+   so its §4 row should not be read as a cross-source number.
 
 Label quality: judge parse-error rate 1.14% (268/23,489). Blind Claude-vs-judge hand-check on 48
 stratified rows gives 81.2% raw and **94.3% population-weighted** agreement, against 87.5% for the
 Phase 1 judge validation; disagreement is one-directional (judge broader). Estimated label noise
-is ~12.2% of positives and ~2.5% of negatives, which depresses every detector's absolute TPR
-equally and so does not bias the comparison. 916 positives were excluded as protected-group
+is ~12.2% of positives and ~2.5% of negatives, from 48 checks, so both estimates carry wide
+uncertainty. Noise depresses absolute TPR for every detector, but it does **not** follow that the
+comparison is unbiased: mislabelled rows may correlate differently with each detector's scores.
+916 positives were excluded as protected-group
 harassment, per the frozen construct. Aegis-versus-judge disagreement is large in both directions
 (4,409 Aegis-unsafe judged benign; 570 Aegis-safe judged harmful), driven by Aegis's broader
 taxonomy (Profanity, Sexual, Harassment, Unauthorized Advice).
