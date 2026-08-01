@@ -91,6 +91,7 @@ Strict transfer:
 | ShieldGemma-9b | 0.940 / 45.2 / 1.4 | 0.925 / 36.8 / 0.6 | 0.902 / 34.3 / 1.7 | 0.886 / 30.1 / 1.1 | 0.833 / 8.8 / 0.2 | 0.659 / 0.0 / 0.0 |
 | Qwen3Guard-Gen-8B | 0.968 / 54.9 / 1.9 | 0.951 / 31.7 / 0.8 | 0.950 / 15.5 / 0.1 | 0.882 / 0.2 / 0.0 | 0.795 / 0.0 / 0.0 | 0.595 / 0.0 / 0.0 |
 | Llama-Guard-4-12B | 0.960 / 40.8 / 0.7 | 0.913 / 24.5 / 0.8 | 0.889 / 21.8 / 0.9 | 0.696 / 0.0 / 0.0 | 0.717 / 0.0 / 0.0 | 0.480 / 0.0 / 0.0 |
+| HaloGuard-1.0-4B | 0.924 / 8.8 / 0.8 | 0.908 / 27.1 / 4.0 | 0.832 / 4.4 / 0.5 | 0.817 / 3.2 / 0.2 | 0.745 / 0.4 / 0.1 | 0.625 / 0.0 / 0.0 |
 | multilingual-e5-base | 0.967 / 56.3 / 0.9 | 0.947 / 51.2 / 1.6 | 0.906 / 18.3 / 0.7 | 0.837 / 2.1 / 0.1 | 0.813 / 0.9 / 0.0 | 0.616 / 0.0 / 0.0 |
 | DeBERTa-v3-small guard | 0.981 / 63.9 / 1.1 | 0.940 / 15.3 / 0.1 | 0.862 / 0.0 / 0.0 | 0.833 / 0.2 / 0.0 | 0.805 / 0.0 / 0.0 | 0.472 / 0.0 / 0.0 |
 | char TF–IDF | 0.962 / 45.2 / 1.0 | 0.731 / 0.5 / 0.1 | 0.531 / 0.0 / 0.0 | 0.596 / 0.0 / 0.0 | 0.580 / 0.0 / 0.0 | 0.543 / 0.0 / 0.0 |
@@ -104,6 +105,7 @@ Condition-matched calibration (TPR% / FPR%; AUROC is calibration-invariant, as a
 | ShieldGemma-9b | 45.2 / 1.4 | 36.8 / 0.6 | 30.1 / 1.3 | 30.1 / 1.1 | 15.3 / 0.8 | 1.9 / 0.2 |
 | Qwen3Guard-Gen-8B | 54.9 / 1.9 | 49.1 / 1.7 | 41.5 / 1.2 | 16.4 / 1.0 | 9.2 / 1.2 | 1.6 / 1.2 |
 | Llama-Guard-4-12B | 40.8 / 0.7 | 30.5 / 1.2 | 0.0 / 0.0 † | 6.0 / 1.2 | 5.5 / 1.4 | 1.8 / 2.1 |
+| HaloGuard-1.0-4B | 8.8 / 0.8 | 8.5 / 1.6 | 10.4 / 1.6 | 8.5 / 1.6 | 6.0 / 0.9 | 9.7 / 1.2 |
 | multilingual-e5-base | 56.3 / 0.9 | 41.2 / 0.7 | 31.9 / 1.7 | 16.7 / 1.6 | 14.1 / 1.4 | 5.1 / 2.1 |
 | DeBERTa-v3-small guard | 63.9 / 1.1 | 40.0 / 1.3 | 13.6 / 0.6 | 11.8 / 1.4 | 6.2 / 0.8 | 2.1 / 1.8 |
 | char TF–IDF | 45.2 / 1.0 | 8.8 / 0.8 | 5.8 / 0.9 | 3.9 / 0.8 | 3.3 / 1.2 | 3.7 / 1.5 |
@@ -121,7 +123,9 @@ Probe TPR retention vs plain: strict 84% / 82% / 50% / 46% / 0%; matched 96% / 9
 **Reading.** The all-layer activation probe leads every text baseline on AUROC *and* TPR in all
 five language conditions under both calibrations, including against multilingual-e5, a text
 encoder built for multilingual semantics, and against both current-generation guards —
-Qwen3Guard-Gen-8B (purpose-built multilingual, 2025-09) and Llama-Guard-4-12B. Llama Guard 4 is
+Qwen3Guard-Gen-8B (purpose-built multilingual, 2025-09), Llama-Guard-4-12B, and
+HaloGuard-1.0-4B (2026-07, the newest guard evaluated here and the only one declaring Swahili
+and isiZulu coverage by design). Llama Guard 4 is
 the *weakest* of the three guards at the low-resource end despite being the newest and largest
 (matched swahili 6.0%, zulu 5.5%), and is below chance on reverse (AUROC 0.480). Qwen3Guard is
 the strongest text comparator at the
@@ -129,7 +133,16 @@ mid-resource end (matched french 49.1%, hindi 41.5%, both well above ShieldGemma
 but *not* at the low-resource end, where it falls below ShieldGemma (swahili 16.4% vs 30.1%, zulu
 9.2% vs 15.3%) — multilingual guard training moves french and hindi and leaves swahili and zulu
 roughly where they were. The probe's matched margin over the best of the three open guards in each
-condition is +20.5 / +23.4 / +28.0 / +29.2 / +35.9 points (plain → zulu). Degradation is monotone in language
+condition is +20.5 / +23.4 / +28.0 / +29.2 / +35.9 points (plain → zulu). Adding HaloGuard does not change
+those margins: it ranks acceptably (AUROC 0.924 plain, 0.817 swahili) but **never produces a
+usable operating point**, returning 6--10% matched TPR in every condition including plain
+English. Its scores pile up at 0 and 1 — the 1%-FPR quantile lands inside a mass of ties — so
+this is a *calibration* failure, not an absence of rank signal, and it should be reported as
+such. Its batch-composition audit also fails (12/48 cells over the 1e-3 tolerance, max 0.0156),
+the padding sensitivity expected of a score that is undecided on most rows. Treat the HaloGuard
+row as one current-generation datapoint, not as evidence about multilingual guards in general:
+the model is three weeks old at time of scoring, with no independent replication of its
+published claims. Degradation is monotone in language
 resource level
 (plain → french → hindi → swahili → zulu) for every detector, but far steeper for text: WildGuard
 falls 97.4% → 0.4%, ShieldGemma 45.2% → 15.3% (matched), the probe 75.4% → 51.2%. ShieldGemma is
@@ -377,6 +390,23 @@ TPR / realised FPR, with the probe−ShieldGemma TPR difference and its 95% inte
 
 AUROC: probe 0.934 plain / 0.837 swahili; centroid 0.580 / 0.556; ShieldGemma 0.937 / 0.862.
 
+**Qwen3Guard collapses out of source, and this reorders the guards.** Qwen3Guard was the
+*strongest* guard on plain English in §4 (matched 54.9 against ShieldGemma's 45.2). On the
+external pool, matched to condition, it falls to 21.2 / 0.94 plain and 3.0 / 1.30 swahili
+(AUROC 0.924 / 0.763). The probe beats it by **+28.4 [+23.5, +33.6]** plain and
+**+24.7 [+20.6, +29.5]** swahili, paired 10,000-repeat bootstrap.
+
+| condition | probe | ShieldGemma | Qwen3Guard |
+|---|---|---|---|
+| plain | 50.0 / 1.19 / 0.934 | 46.4 / 0.88 / 0.937 | 21.2 / 0.94 / 0.924 |
+| swahili | 27.7 / 1.00 / 0.837 | 18.9 / 0.88 / 0.862 | 3.0 / 1.30 / 0.763 |
+
+Two consequences. **ShieldGemma is the strongest guard on the external pool in both conditions**,
+so the C7 comparator selected from C4 was the correct one and the acceptance test above stands
+as computed. And **guard rankings are source-dependent**: the newest purpose-built multilingual
+guard generalises worst across a source change, which is itself a reportable finding and a
+caution against reading any single-source guard leaderboard as a deployment ordering.
+
 **The Swahili ROC curves cross, and the crossing is the result.** Standardised partial AUROC over
 FPR ∈ [0, 1.5%], paired 2,000-repeat bootstrap over test rows:
 
@@ -441,7 +471,8 @@ prompts exceeding 256 NLLB tokens, so the English and Swahili arms cover byte-id
 Swahili translation left 33 rows (0.1%) identical to their source, all ≤4-word fragments.
 
 Raw: `data/c7_external_scores.npz` (SHA-256 `ef6e7e7d…`), `data/c7_external_guard.npz`
-(`edb78b74…`), `data/c7_external_results.json` (`a6f7cb80…`), `data/c7_judged_all.jsonl`
+(ShieldGemma, `edb78b74…`), `data/c7_external_guard_qwen.npz` (Qwen3Guard, `f1b0be87…`, MLP job
+3577642, 34m13s), `data/c7_external_results.json` (`a6f7cb80…`), `data/c7_judged_all.jsonl`
 (`dbd4001e…`), `data/c7_partition.json` (`4c4ea38b…`), `data/c7_translations/swahili.jsonl`
 (`6ebf79b8…`). MLP jobs 3569598/3569599 (judge, Qwen3.6-27B), 3571703 (NLLB translation,
 53m32s), 3573545 (probe scoring, 33m00s), 3577169 (ShieldGemma, 28m56s), all

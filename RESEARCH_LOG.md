@@ -5,6 +5,29 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-08-01 - Guard rankings are source-dependent; HaloGuard cannot operate
+
+Two additions close out C7's comparator question. **Qwen3Guard collapses on the external pool** —
+matched 21.2% plain / 3.0% swahili against its in-source 54.9% / 16.4%, so the probe beats it by
++28.4 [+23.5, +33.6] and +24.7 [+20.6, +29.5]. ShieldGemma is the strongest guard externally in
+both conditions, confirming C7 used the right comparator. The finding worth reporting: **the
+newest purpose-built multilingual guard generalises worst across a source change**, so a
+single-source guard leaderboard is not a deployment ordering.
+
+**HaloGuard-1.0-4B (2026-07) added to the §4 matrix** to answer the "current guards" objection —
+it is the only guard evaluated that declares Swahili and isiZulu coverage. It ranks acceptably
+(AUROC 0.924 plain, 0.817 swahili) but returns **6-10% matched TPR in every condition including
+plain English**: its scores saturate at 0/1 and the 1%-FPR quantile lands inside a mass of ties.
+A calibration failure, not absent rank signal — report it that way. Batch audit fails (12/48
+cells, max 0.0156). Three weeks old with no independent replication, so it is one datapoint, not
+evidence about multilingual guards generally.
+
+Reproducibility: MLP jobs 3577642 (Qwen3Guard external, 34m13s) and 3577657 (HaloGuard matrix,
+29m11s), both `h200_3g.71gb`, exit 0. `astroware/HaloGuard1-Gen-4B` revision `f157c1f8...`,
+policy prompt committed verbatim at `phase1/haloguard_policy.txt` (SHA-256 `c4c34771...`),
+generation check 96/96. `data/c4_haloguard.npz` SHA-256 `421a41af...`,
+`data/c7_external_guard_qwen.npz` `f1b0be87...`. `RESULTS.md` §§4, 8.
+
 ## 2026-07-31 - C7: the probe survives source transfer, but the acceptance bar is missed
 
 Frozen probe, centroid and ShieldGemma scored on 22,305 Aegis 2.0 prompts relabelled under the
