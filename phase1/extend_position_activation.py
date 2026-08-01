@@ -250,6 +250,7 @@ def fit_condition_probe(train_features, train_labels, cells, seed):
     from "represented elsewhere". Nothing frozen is touched.
     """
     from sklearn.linear_model import LogisticRegression
+    from sklearn.preprocessing import StandardScaler
 
     layer_count = train_features.shape[1]
     scores = {
@@ -257,16 +258,23 @@ def fit_condition_probe(train_features, train_labels, cells, seed):
         for name, f in cells.items()
     }
     for layer in range(layer_count):
+        # Standardise on train and drop dead dimensions, as probe_prompt.train_probe
+        # does. Gemma's massive activations leave the raw features so badly
+        # conditioned that liblinear crawled -- 126 unscaled fits overran a 6 h wall
+        # clock (job 57329554), against seconds once scaled.
+        # copy=True: these are views into the feature block, not private arrays.
+        scaler = StandardScaler().fit(train_features[:, layer, :])
+        keep = scaler.var_ > 0
         classifier = LogisticRegression(
             C=1.0,
             class_weight="balanced",
             random_state=seed,
-            solver="liblinear",
+            solver="lbfgs",
             max_iter=2000,
-        ).fit(train_features[:, layer, :], train_labels)
+        ).fit(scaler.transform(train_features[:, layer, :])[:, keep], train_labels)
         for name, features in cells.items():
             scores[name][:, layer] = classifier.decision_function(
-                features[:, layer, :]
+                scaler.transform(features[:, layer, :])[:, keep]
             ).astype(np.float32)
     return scores
 
