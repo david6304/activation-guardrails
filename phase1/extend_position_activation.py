@@ -217,12 +217,15 @@ def score_cell(
 
 
 def collect_layer_features(texts, payloads, model, tokenizer, batch_size, position_name):
-    """Per-layer features for a whole cell, float16 to keep the train split in RAM.
+    """Per-layer features for a whole cell, held in float32.
 
-    5341 train rows x 63 layers x 5376 dims is 3.6 GB at float16; the all-layer
-    concatenation a single probe would need is 7.2 GB at float32, which liblinear
-    will not fit. Per-layer probes are also the more informative answer: they say
-    *where* in depth base64 harm becomes linearly readable, if it ever does.
+    Not float16: Gemma-3's residual stream carries massive activations well past
+    float16's 65504 ceiling, so the cast overflows to inf and the fit dies (job
+    57303314). 5341 train rows x 63 layers x 5376 dims is 7.2 GB at float32 and
+    the node has already peaked at 119 GB, so the memory is there. Probes are fit
+    per layer rather than on the all-layer concatenation, which liblinear will not
+    take at this width -- and per-layer is the more informative answer anyway: it
+    says *where* in depth base64 harm becomes linearly readable, if it ever does.
     """
     features = None
     for indices, batch in iter_batches(
@@ -230,9 +233,11 @@ def collect_layer_features(texts, payloads, model, tokenizer, batch_size, positi
     ):
         if features is None:
             features = np.empty(
-                (len(texts), batch.shape[1], batch.shape[2]), dtype=np.float16
+                (len(texts), batch.shape[1], batch.shape[2]), dtype=np.float32
             )
-        features[indices] = batch.astype(np.float16)
+        features[indices] = batch
+    if not np.isfinite(features).all():
+        raise ValueError(f"non-finite {position_name} features")
     return features
 
 
@@ -247,7 +252,10 @@ def fit_condition_probe(train_features, train_labels, cells, seed):
     from sklearn.linear_model import LogisticRegression
 
     layer_count = train_features.shape[1]
-    scores = {name: np.empty((len(f), layer_count), dtype=np.float32) for name, f in cells.items()}
+    scores = {
+        name: np.empty((len(f), layer_count), dtype=np.float32)
+        for name, f in cells.items()
+    }
     for layer in range(layer_count):
         classifier = LogisticRegression(
             C=1.0,
@@ -255,10 +263,10 @@ def fit_condition_probe(train_features, train_labels, cells, seed):
             random_state=seed,
             solver="liblinear",
             max_iter=2000,
-        ).fit(train_features[:, layer, :].astype(np.float32), train_labels)
+        ).fit(train_features[:, layer, :], train_labels)
         for name, features in cells.items():
             scores[name][:, layer] = classifier.decision_function(
-                features[:, layer, :].astype(np.float32)
+                features[:, layer, :]
             ).astype(np.float32)
     return scores
 
