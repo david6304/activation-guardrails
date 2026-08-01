@@ -14,7 +14,9 @@ set -euo pipefail
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
 source /home/htang2/toolchain-20251006/toolchain.rc
 source ~/venvs/ml/bin/activate
-cd ~/activation-guardrails
+# Run from the submitted checkout, not the shared ~/activation-guardrails tree,
+# which is moved by other work in flight (job 3574121 died on exactly that).
+cd "${SLURM_SUBMIT_DIR:?sbatch must run from the intended checkout}"
 
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1

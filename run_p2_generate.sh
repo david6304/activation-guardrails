@@ -28,6 +28,9 @@ PROMPTS=${1:-data/p2_pilot_prompts.jsonl}
 OUT=${2:-data/p2_pilot_responses.jsonl}
 BATCH=${3:-16}
 MODEL=${4:-$HOME/models/gemma-3-27b-it-heretic}
+# The latency horizon is frozen at 512; this is raised only for the truncation
+# diagnostic, which asks whether a 512-token cap changes the response label.
+MAX_NEW_TOKENS=${5:-512}
 
 for path in "$PROMPTS" "$MODEL"; do
     if [[ ! -e "$path" ]]; then
@@ -41,11 +44,11 @@ hostname
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 git rev-parse HEAD
 git status --short
-echo "PROMPTS=$PROMPTS OUT=$OUT BATCH=$BATCH MODEL=$MODEL"
+echo "PROMPTS=$PROMPTS OUT=$OUT BATCH=$BATCH MODEL=$MODEL MAX_NEW_TOKENS=$MAX_NEW_TOKENS"
 
 python generate_responses.py \
   --prompts "$PROMPTS" \
   --model "$MODEL" \
   --batch-size "$BATCH" \
-  --max-new-tokens 512 \
+  --max-new-tokens "$MAX_NEW_TOKENS" \
   --out "$OUT"
