@@ -265,6 +265,15 @@ def fit_condition_probe(train_features, train_labels, cells, seed):
         # copy=True: these are views into the feature block, not private arrays.
         scaler = StandardScaler().fit(train_features[:, layer, :])
         keep = scaler.var_ > 0
+        # Layer 0 is the embedding, and at t_inst every wrapped prompt ends with
+        # the same instruction sentence, so that token embeds identically in every
+        # row and nothing survives (job 57336811). A constant layer carries no
+        # information: score it flat rather than failing the job.
+        if not keep.any():
+            print(f"  [selftrain] layer {layer}: constant, scored flat", flush=True)
+            for name in cells:
+                scores[name][:, layer] = 0.0
+            continue
         classifier = LogisticRegression(
             C=1.0,
             class_weight="balanced",
