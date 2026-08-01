@@ -17,7 +17,7 @@ computation harm becomes readable.**
 
 | ID | Item | Status | Jobs |
 |---|---|---|---:|
-| C7 | External-source confirmation (Aegis) | source prepared; judge pass pending | 3–4 |
+| C7 | External-source confirmation (Aegis) | **done** — acceptance not met, `RESULTS.md` §8 | 0 |
 | P1 | Input side — is harm represented before the model decodes? | not started | 2 GPU (capability gate, then scoring) + CPU preflight |
 | P2 | Output side — when during generation does harm become readable? | not started | 3 GPU (generate MLP, judge, extract Eddie) |
 | E* | Extras | unblocked, non-blocking, take whenever | 0–1 each |
