@@ -132,23 +132,52 @@ def first_crossing(curve, threshold, grid):
 
 
 def paired_first_crossing(left, right, left_crossed, right_crossed, repeats, seed):
-    """Paired bootstrap over the same responses; non-crossers censored at K_MAX+1."""
+    """Paired bootstrap over the same responses; non-crossers censored at K_MAX+1.
+
+    The median is the pre-declared statistic and stays primary. It saturates, though:
+    once over half an arm never crosses, that arm's median *is* the censoring value by
+    construction, so two arms that differ in how fast their detectable responses are
+    caught both report K_MAX+1 and the difference is a null we cannot interpret. The
+    restricted mean of min(T, K_MAX+1) is reported alongside it -- same censoring, same
+    resamples, but every row moves it, so it degrades gracefully instead of pinning.
+
+    Declared before any latency curve exists. Where the two disagree, the median is the
+    result and the restricted mean is the diagnostic that says why.
+    """
     rng = np.random.default_rng(seed)
     censored = float(K_MAX + 1)
     left_values = np.where(left_crossed, left, censored)
     right_values = np.where(right_crossed, right, censored)
     deltas = np.empty(repeats)
+    mean_deltas = np.empty(repeats)
     count = len(left_values)
     for repeat in range(repeats):
         sample = rng.integers(0, count, size=count)
         deltas[repeat] = np.median(left_values[sample]) - np.median(
             right_values[sample]
         )
-    interval = np.quantile(deltas, [0.025, 0.975]).tolist()
+        mean_deltas[repeat] = left_values[sample].mean() - right_values[sample].mean()
+
+    def summarise(values, point):
+        interval = np.quantile(values, [0.025, 0.975]).tolist()
+        return {
+            "delta": float(point),
+            "95ci": interval,
+            "excludes_zero": bool(interval[0] > 0 or interval[1] < 0),
+        }
+
+    median = summarise(deltas, np.median(left_values) - np.median(right_values))
     return {
-        "median_delta": float(np.median(left_values) - np.median(right_values)),
-        "95ci": interval,
-        "excludes_zero": bool(interval[0] > 0 or interval[1] < 0),
+        # Flat keys kept for the pre-declared median so existing readers still work.
+        "median_delta": median["delta"],
+        "95ci": median["95ci"],
+        "excludes_zero": median["excludes_zero"],
+        "restricted_mean": summarise(
+            mean_deltas, left_values.mean() - right_values.mean()
+        ),
+        "median_saturated": bool(
+            np.median(left_values) == censored and np.median(right_values) == censored
+        ),
         "left_never_crossed": int((~left_crossed).sum()),
         "right_never_crossed": int((~right_crossed).sum()),
     }
@@ -213,6 +242,12 @@ def main():
             ),
             "sequence_rule": "max score so far, one threshold per monitor",
             "censoring": "terminal running maximum carried forward, denominator fixed",
+            "latency_statistic": (
+                "median paired first crossing, non-crossers censored at K_MAX+1, is "
+                "primary; a paired restricted mean of min(T, K_MAX+1) is reported "
+                "alongside it because the median saturates once over half an arm "
+                "never crosses"
+            ),
         },
         "strata": counts,
         "conditions": {},
@@ -328,10 +363,19 @@ def main():
         for comparison, result in cell["paired_first_crossing"].items():
             if not isinstance(result, dict):
                 continue
+            mean = result["restricted_mean"]
             print(
                 f"  {comparison}: median delta k={result['median_delta']:+.1f} "
                 f"[{result['95ci'][0]:+.1f}, {result['95ci'][1]:+.1f}] "
                 f"excl0={result['excludes_zero']}"
+                + ("  [MEDIAN SATURATED]" if result["median_saturated"] else "")
+            )
+            print(
+                f"      restricted mean delta k={mean['delta']:+.1f} "
+                f"[{mean['95ci'][0]:+.1f}, {mean['95ci'][1]:+.1f}] "
+                f"excl0={mean['excludes_zero']}  "
+                f"never crossed: {result['left_never_crossed']}/"
+                f"{result['right_never_crossed']}"
             )
 
     output_path = Path(args.out)
