@@ -5,6 +5,24 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-08-05 - P1: the base64 null is transfer failure, not absent representation
+
+The pre-declared primary test (base64 vs base64_shuffled, both intervals excluding zero)
+**fails** at both read positions for the probe. What the run does establish is better than
+that test was: **plain_wrapped**, English in the identical cipher scaffold, recovers the
+ceiling (0.9873 t_cipher vs 0.9878 bare plain), so the base64 null is not the read position
+or the wrapper; and a **base64-trained probe reaches 0.912 AUROC** where the frozen
+plain-trained probe sits at 0.480, so the harm is represented and the plain direction simply
+cannot reach it.
+
+Correction to an earlier reading: rot13 0.817 with TF-IDF at 0.502 is **not** evidence of
+internal decoding. rot13 is already 0.82 at layer 1 and the self-trained probe is 0.671 at
+the embedding, i.e. lexical, before computation. Char n-grams failing does not prove absence
+of surface signal. Drop the locality framing; keep the transfer claim.
+
+Eddie job 57340069, exit 0, 7051s. `data/p1_position_scores_57340069.npz` SHA-256
+`4004a506...d060`. RESULTS.md section 9.
+
 ## 2026-08-01 - Guard rankings are source-dependent; HaloGuard cannot operate
 
 Two additions close out C7's comparator question. **Qwen3Guard collapses on the external pool** —

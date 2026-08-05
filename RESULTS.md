@@ -481,3 +481,68 @@ Raw: `data/c7_external_scores.npz` (SHA-256 `ef6e7e7d…`), `data/c7_external_gu
 `f8d333a098d19b4fd9a8b18f94170487ad3f821d`; `nvidia/Aegis-AI-Content-Safety-Dataset-2.0`
 `d86bb8bedff51d25ac834ab7838f1cc61acb7a2c`; seed 0; source commit `c7c29e2`. Analysis:
 `conda run -n msc-diss python -m phase1.analyse_c7_external`.
+
+## 9. P1 — cipher conditions and read position (27B, frozen plain-trained probe)
+
+**The pre-declared primary test fails.** `base64` vs `base64_shuffled`, paired, required
+*both* the matched-TPR and AUROC intervals to exclude zero. Neither position delivers that
+for the probe:
+
+| position | detector | ΔTPR (95% CI) | excl 0 | ΔAUROC (95% CI) | excl 0 |
+|---|---|---|---|---|---|
+| t_inst | logistic | −0.54% [−2.29, +0.88] | no | **−0.055** [−0.091, −0.018] | yes (wrong sign) |
+| t_cipher | logistic | +4.68% [+0.88, +9.69] | yes | +0.025 [−0.004, +0.053] | no |
+| t_inst | centroid | +3.22% [+0.88, +5.99] | yes | +0.075 [+0.042, +0.108] | yes |
+| t_cipher | centroid | +2.55% [−0.88, +5.46] | no | +0.061 [+0.041, +0.081] | yes |
+
+Only the centroid at `t_inst` satisfies both, and it does so between two detectors that are
+both at chance in absolute terms (base64 TPR 1.06%, shuffled 1.23%). Report the primary test
+as failed; the centroid cell is not a result.
+
+**Matched calibration, logistic probe, test split.** TF-IDF char(3-5) is the surface control.
+
+| condition | position | AUROC | TPR@1%FPR | FPR | TF-IDF AUROC |
+|---|---|---|---|---|---|
+| plain (ceiling) | t_inst | 0.9878 | 75.35% | 1.07% | 0.9622 |
+| plain_wrapped | t_inst | 0.9685 | 54.58% | 0.74% | 0.9607 |
+| plain_wrapped | t_cipher | 0.9873 | 74.12% | 1.15% | 0.9607 |
+| base64 | t_inst | 0.4795 | 1.06% | 1.32% | 0.5369 |
+| base64 | t_cipher | 0.5066 | 5.46% | 1.15% | 0.5369 |
+| base64_shuffled | t_cipher | 0.4820 | 1.06% | 0.82% | 0.5195 |
+| rot13 | t_inst | 0.2294 | 0.53% | 0.99% | 0.5021 |
+| rot13 | t_cipher | 0.8169 | 3.70% | 0.74% | 0.5021 |
+| vowel | t_cipher | 0.9201 | 26.23% | 1.15% | 0.7552 |
+| reverse | t_cipher | 0.5003 | 2.64% | 1.73% | 0.5429 |
+
+**Base64-trained probe** (trained on base64's own train split, layer chosen on tune):
+`t_inst` L55 test AUROC **0.9116** (TPR 21.48%); `t_cipher` L58 0.8792 (TPR 11.97%).
+
+Three findings worth carrying:
+
+1. **The base64 null is not an artefact of read position or the wrapper.** `plain_wrapped`
+   places English in the identical scaffold and recovers the ceiling (0.9873 at `t_cipher`,
+   0.9685 at `t_inst` against a bare-plain 0.9878). Reading seven tokens downstream through
+   the instruction costs ~20 points of TPR but little AUROC.
+2. **The harm signal exists under base64; the plain-English direction cannot reach it.** A
+   condition-specific probe reaches 0.912 where the frozen probe sits at 0.480. This is a
+   *transfer* failure, not absence of representation — the stronger and more useful claim.
+3. **High AUROC without usable TPR recurs.** rot13 0.817 AUROC at 3.70% TPR, vowel 0.920 at
+   26.23%. Neither is an operational success at 1% FPR.
+
+**Do not claim internal decoding.** Per-layer test AUROC: rot13 `t_cipher` is 0.82 at
+**layer 1**; the self-trained base64 probe is 0.671 at **layer 0** (the embedding) and 0.858
+by layer 1. Signal that high before any meaningful computation is lexical/token-level, so
+TF-IDF failing at 0.502 does not establish "no surface signal" — char n-grams miss
+correlations that subword token identity carries. The one exception is self-trained `t_inst`,
+which climbs 0.716 (L1) → 0.916 (L40): the only depth signature in this data consistent with
+computation rather than lookup.
+
+Reproducibility: Eddie job 57340069, exit 0, 7051s, 8×L40S. `google/gemma-3-27b-it`
+`005ad3404e59d6023443cb575daa05336842228a`, seed 0, batch 4, all 8903 rows, frozen split
+5341/1781/1781. `data/p1_position_scores_57340069.npz` SHA-256 `4004a506…d060`;
+`data/p1_position_results.json`; conditions frozen in `data/p1_conditions_manifest.json`;
+TF-IDF `data/p1_baselines_tfidf.npz`; ceiling `data/p1_decode_then_guard_ceiling.json`.
+Decode-fidelity gate (`p1_decode_fidelity.py`): token F1 0.970 overall, 0.973 within the
+≤90-char capability gate vs 0.968 beyond, so the null is not a decode failure. Analysis:
+`conda run -n msc-diss python -m phase1.analyse_p1_position --scores
+data/p1_position_scores_57340069.npz`.
