@@ -75,12 +75,17 @@ def score_positions(hidden_states, rows, positions, weight, intercept,
     import torch
 
     count = len(rows)
-    logistic = torch.full((count,), float(intercept), dtype=torch.float32,
-                          device=hidden_states[0].device)
-    harmful_cosine = torch.zeros(count, dtype=torch.float32, device=logistic.device)
+    # With device_map="auto" over two cards the model shards, so hidden states for
+    # different layers live on different devices (docs/EDDIE.md, multi-GPU caveat).
+    # Accumulate on one device and move each layer's slice and parameters to it.
+    device = weight.device
+    logistic = torch.full((count,), float(intercept), dtype=torch.float32, device=device)
+    harmful_cosine = torch.zeros(count, dtype=torch.float32, device=device)
     harmless_cosine = torch.zeros_like(harmful_cosine)
     for layer, states in enumerate(hidden_states):
-        slice_ = states[rows, positions, :].float()
+        layer_rows = rows.to(states.device)
+        layer_positions = positions.to(states.device)
+        slice_ = states[layer_rows, layer_positions, :].float().to(device)
         logistic += slice_ @ weight[layer]
         if layer == 0:
             continue  # the centroid is fitted on transformer outputs 1..L
