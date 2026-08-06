@@ -65,7 +65,9 @@ def score_prefixes(conversations, model, tokeniser, ids, batch_size):
             texts, return_tensors="pt", padding=True, add_special_tokens=False
         ).to(model.device)
         with torch.no_grad():
-            logits = model(**encoded).logits[:, -1, ids]
+            # Only the decision position is read, so keep one row of the head:
+            # the full [batch, tokens, vocab] tensor is what fails on a MIG slice.
+            logits = model(**encoded, logits_to_keep=1).logits[:, -1, ids]
         probabilities = torch.softmax(logits.float(), dim=-1)
         for index, probability in zip(batch, probabilities.tolist()):
             unsafe[index] = probability[1]
