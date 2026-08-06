@@ -227,9 +227,17 @@ def main():
                     "quantile is the sample maximum below that"
                 )
             else:
+                # The guard is carried as a third point estimate so one table can hold
+                # every monitor at both targets. It is not part of the paired test,
+                # which stays probe minus TF-IDF as declared, and it is dropped at
+                # k=0, where a generative guard has no score.
                 entry["by_k"] = {
                     str(k): paired_operating_point(
-                        {"probe": curves["probe"], "tfidf": curves["tfidf"]},
+                        {
+                            name: curve
+                            for name, curve in curves.items()
+                            if k > 0 or name != "qwen3guard"
+                        },
                         calibration,
                         positive,
                         negative,
@@ -278,11 +286,12 @@ def main():
                 result = entry["by_k"][str(k)]
                 delta = result["delta_tpr_probe_minus_tfidf"]
                 point = result["point"]
+                monitors = "  ".join(
+                    f"{name} TPR={value['tpr']:.1%} (FPR {value['fpr']:.1%})"
+                    for name, value in point.items()
+                )
                 print(
-                    f"    k={k:>3} probe TPR={point['probe']['tpr']:.1%} "
-                    f"(FPR {point['probe']['fpr']:.1%})  "
-                    f"tfidf TPR={point['tfidf']['tpr']:.1%} "
-                    f"(FPR {point['tfidf']['fpr']:.1%})  "
+                    f"    k={k:>3} {monitors}  "
                     f"delta={delta['mean']:+.1%} "
                     f"[{delta['95ci'][0]:+.1%},{delta['95ci'][1]:+.1%}] "
                     f"excl0={delta['excludes_zero']}"

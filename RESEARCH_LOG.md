@@ -5,6 +5,26 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-08-06 - Qwen3Guard closes the P2 comparator gap, and it beats the probe
+
+Qwen3Guard-Gen-8B scored over the same 1061 response prefixes (MLP job 3585833, exit 0,
+35m37s). The pre-declared 1%-FPR outcome is unchanged and still the headline: **no monitor
+reaches the 50% TPR target** — the best terminal number is the guard at 18.6% TPR (1.1% FPR),
+against TF-IDF 14.9% and the probe 1.2%.
+
+What it costs us: **the probe's early-readability advantage was over TF-IDF only.** The guard
+leads on AUROC at every k from 8 onward in both conditions (plain 0.796 -> 0.876, base64
+0.771 -> 0.913, versus the probe's 0.738 -> 0.754 and 0.503 -> 0.793), and the probe crosses
+its 1% threshold **66.7 tokens later** than the guard [+39.6, +94.2]. The paired probe-minus-
+TF-IDF 5% result stands as before (plain k=0-32, base64 k=32). So RQ2 is a negative for
+response-stream deployment: the prompt-trained direction does not transfer to response
+positions well enough to compete with a purpose-built guard on the stream.
+
+The guard also does not degrade under base64 — it reads the English response, not the
+ciphered request — which is the cleaner way to state why P2 does not test ciphered outputs.
+
+`data/p2_guard_monitor.npz` SHA-256 `fac55bb8…f962`. RESULTS.md section 10.
+
 ## 2026-08-05 - P1: the base64 null is transfer failure, not absent representation
 
 The pre-declared primary test (base64 vs base64_shuffled, both intervals excluding zero)

@@ -546,3 +546,64 @@ Decode-fidelity gate (`p1_decode_fidelity.py`): token F1 0.970 overall, 0.973 wi
 ≤90-char capability gate vs 0.968 beyond, so the null is not a decode failure. Analysis:
 `conda run -n msc-diss python -m phase1.analyse_p1_position --scores
 data/p1_position_scores_57340069.npz`.
+
+## 10. P2 — response-stream monitoring, with the Qwen3Guard comparator
+
+Responses to harmful prompts only, judged-harmful positives against judged-benign
+non-refusals; refusals are excluded everywhere. Strata: plain 161 harmful / 187 benign
+test (196 tune negatives), base64 90 / 90 (94 tune negatives). Every TPR is shown with
+its realised FPR. `k` is the response-token horizon; the probe reads a running maximum
+over response positions, TF-IDF and the guard are scored on a coarse grid.
+
+**The pre-declared 1%-FPR test fails for every monitor.** The target was 50% TPR. The
+best terminal result is Qwen3Guard at 18.6%, and the probe reaches 1.2%.
+
+| condition | k | AUROC probe / TF-IDF / Qwen3Guard | TPR@1% probe / TF-IDF / guard | TPR@5% probe / TF-IDF / guard |
+|---|---|---|---|---|
+| plain | 0 | 0.719 / — / — | 1.2% (0.5) / 0.0% (0.0) / — | 23.6% (8.6) / 0.0% (0.0) / — |
+| plain | 8 | 0.738 / 0.689 / **0.796** | 1.2% (0.5) / 1.9% (0.0) / 10.6% (0.5) | 21.1% (8.0) / 1.9% (0.0) / 24.8% (1.1) |
+| plain | 32 | 0.754 / 0.730 / **0.809** | 1.2% (0.5) / 3.1% (1.1) / 11.2% (1.1) | 21.7% (6.4) / 3.1% (1.1) / 24.8% (3.7) |
+| plain | 64 | 0.768 / 0.744 / **0.836** | 1.2% (0.5) / 8.1% (1.1) / 12.4% (1.1) | 23.6% (6.4) / 8.1% (1.1) / 28.0% (4.3) |
+| plain | 512 | 0.754 / 0.789 / **0.876** | 1.2% (0.5) / 14.9% (2.1) / **18.6%** (1.1) | 19.9% (5.9) / 18.6% (2.7) / 36.0% (4.8) |
+| base64 | 0 | 0.642 / — / — | not representable | 6.7% (3.3) / 0.0% (0.0) / — |
+| base64 | 8 | 0.503 / 0.473 / **0.771** | not representable | 1.1% (4.4) / 0.0% (0.0) / 42.2% (10.0) |
+| base64 | 32 | 0.703 / 0.670 / **0.796** | not representable | 28.9% (4.4) / 8.9% (3.3) / 47.8% (10.0) |
+| base64 | 512 | 0.793 / 0.838 / **0.913** | not representable | 27.8% (4.4) / 28.9% (3.3) / 53.3% (5.6) |
+
+base64's 1% column is empty because 94 tune calibration negatives cannot resolve a 1%
+quantile (≥101 required). That is a reported gate failure; it is not repaired by pooling
+conditions or by borrowing benign-prompt responses as negatives. AUROC needs no threshold,
+so the base64 trajectory is still readable.
+
+Three things the guard changes.
+
+1. **The probe's early advantage is over TF-IDF only.** The paired probe−TF-IDF test at
+   5% FPR still favours the probe at k=0/8/16/32 in plain (+20.8/+18.8/+19.7/+18.2 points,
+   all excluding zero) and at k=32 in base64 (+21.5% [+7.8, +35.6]). Qwen3Guard beats the
+   probe on AUROC at **every** k from 8 onward in both conditions, so the "early readability"
+   claim cannot be stated against a purpose-built guard.
+2. **Qwen3Guard is the strongest response-stream monitor here**, terminal AUROC 0.876 plain
+   and 0.913 base64 — and unlike the probe it does not degrade under base64, because it reads
+   the English response, not the ciphered request.
+3. **Latency goes the wrong way for the probe.** First-crossing at 1% FPR, restricted mean:
+   probe crosses **+66.7 tokens later** than Qwen3Guard [+39.6, +94.2] and +50.6 later than
+   TF-IDF [+26.1, +75.7]; both exclude zero. Medians are saturated (159/1061 probe rows never
+   cross).
+
+Caveat on the base64 5% cells: the guard realises 10-11% FPR at k=8-32 against a 5% target,
+so those TPRs are not calibrated comparisons — the 94-negative calibration set is the same
+weakness the 1% gate names.
+
+The length confound was checked and does not explain the base64 rise: length-only AUROC
+0.603 (plain 0.507), but restricting to responses still generating at k gives the same
+values (k=32: 0.706 vs 0.703), so it is not short negatives freezing their running maximum.
+
+Reproducibility: guard scores from MLP job 3585833, exit 0, 35m37s, 3×`h200_1g.18gb`,
+`Qwen/Qwen3Guard-Gen-8B`, batch 16, all 1061 rows, commit `df9ca34`.
+`data/p2_guard_monitor.npz` SHA-256 `fac55bb8…f962`, keyed to
+`data/p2_latency_scores.npz` `01a95671…b04f`. Inputs `data/p2_judged_analysis.jsonl`
+(1061 non-refusal rows) and `data/p2_text_monitor.npz`. Analysis:
+`conda run -n msc-diss python p2_analyse_readability.py --guard data/p2_guard_monitor.npz
+--bootstrap 2000` and `conda run -n msc-diss python p2_analyse_latency.py --guard
+data/p2_guard_monitor.npz` → `data/p2_readability_results.json`,
+`data/p2_latency_results.json`, `figures/p2_latency.png`.
