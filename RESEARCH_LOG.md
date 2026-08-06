@@ -5,6 +5,27 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-08-06 - The 27B cannot emit harmful content in cipher, which sharpens the future work
+
+The obfuscated-output venue had never been run; the future-work claim rested on assertion.
+50 harmful prompts through the abliterated 27B, judged after decoding: plain ceiling **40%**
+harmful, base64 output with plaintext input **22%**, base64 in *and* out **2%**, reverse
+output **0%** in both conditions. Writing the cipher costs 18 points; adding ciphered input
+costs nearly all the rest, so the read and write error sources compound.
+
+The failure mode is specific and worth stating: the model operates the *encoding* fine —
+valid base64 decoding to English — but the content is corrupted ("phqsical", "techinques")
+and carries no instructions. reverse output decodes to degenerate repetition, so its
+100% decode_ok is an artefact of a self-inverse cipher, not a capability.
+
+So the future-work framing becomes "obfuscated output is a real but currently unreliable
+channel at this scale", not "frontier models can already do this". Caveats: 512-token
+truncation binds hardest on base64 (~4/3 expansion) so the ciphered rates are conservative,
+and refusal counts from an abliterated model mean "no usable answer", not safety behaviour.
+
+MLP jobs 3585962 (generation) and 3586168 (judging), both exit 0, 0 parse errors.
+`data/cap_outobf_27b_judged.jsonl` SHA-256 `7f50e5c8…5821`. RESULTS.md section 11.
+
 ## 2026-08-06 - Qwen3Guard closes the P2 comparator gap, and it beats the probe
 
 Qwen3Guard-Gen-8B scored over the same 1061 response prefixes (MLP job 3585833, exit 0,

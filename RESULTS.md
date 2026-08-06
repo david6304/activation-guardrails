@@ -607,3 +607,51 @@ Reproducibility: guard scores from MLP job 3585833, exit 0, 35m37s, 3×`h200_1g.
 --bootstrap 2000` and `conda run -n msc-diss python p2_analyse_latency.py --guard
 data/p2_guard_monitor.npz` → `data/p2_readability_results.json`,
 `data/p2_latency_results.json`, `figures/p2_latency.png`.
+
+## 11. Obfuscated *output* capability at 27B (future-work evidence)
+
+The dissertation's future-work argument assumes a model could emit harmful content
+directly in ciphered form, defeating a text guard that never sees plaintext. That was
+assertion; this measures it. 50 WildJailbreak `vanilla_harmful` prompts through the
+**abliterated** 27B (so a failure is a cipher failure, not a refusal), 512 new tokens,
+judged after decoding with the same rubric as every other harm number here.
+
+| cell | in | out | harmful | decode_ok | truncated |
+|---|---|---|---|---|---|
+| plain (ceiling) | plain | plain | **40%** | 100% | 100% |
+| base64 `out` | plain | base64 | **22%** | 74% | 52% |
+| base64 `inout` | base64 | base64 | **2%** | 78% | 58% |
+| reverse `out` | plain | reverse | **0%** | 100% | 98% |
+| reverse `inout` | reverse | reverse | **0%** | 100% | 12% |
+
+**The 27B cannot carry harmful content through a cipher in the realistic venue.** Writing
+base64 alone costs 18 of the 40 available points; adding ciphered *input* costs almost all
+of the rest (22% → 2%). The two error sources compound, which is the pattern the capability
+design was built to detect. Reverse output fails outright: the raw text is well-formed
+reversed English, but decoded it is degenerate repetition ("...to home only, you hould be
+affected by aspect and distance" looping), so `decode_ok=100%` is trivially satisfied by a
+self-inverse cipher and says nothing about content. `reverse:inout` also gives up early —
+median 69 response tokens against 512 everywhere else.
+
+What survives in base64 is fluent-looking but corrupted: valid base64 decoding to English
+with systematic character errors ("phqsical", "bealated", "techinques") and no instructional
+content. The model can operate the *encoding* and cannot carry *substance* through it.
+
+Two caveats. Truncation at 512 tokens binds hardest on base64, which expands ~4/3, so the
+ciphered harm rates are conservative — within `base64:out`, truncated rows are judged
+harmful more often (30.8%) than untruncated ones (12.5%). And the high refusal counts in
+ciphered cells (36/50 for `reverse:inout`) come from an abliterated model, so they are
+better read as failures to produce a usable answer than as safety behaviour.
+
+For the writeup: this supports "obfuscated output is a real but currently unreliable
+channel at this scale", not "frontier models can already do this". Size is a proxy, not the
+demonstrated variable — the experiment isolates read and write capability at one scale.
+
+Reproducibility: MLP job 3585962 (generation, exit 0, 1h32m, 5×`h200_1g.18gb`,
+`~/models/gemma-3-27b-it-heretic`, seed 0, batch 4, 512 new tokens, temperature 0.7,
+top-p 0.9) and 3586168 (judging, exit 0, 22m39s, `Qwen/Qwen3.6-27B`, batch 8,
+`--max-new-tokens 256`, 0 parse errors). Commit `ff8aab0`.
+`data/cap_outobf_27b.jsonl` → `data/cap_outobf_27b_judged.jsonl` SHA-256 `7f50e5c8…5821`.
+Command: `sbatch -p Teaching --gres=gpu:h200_1g.18gb:5 --time=02:00:00 run_capcheck.sh
+~/models/gemma-3-27b-it-heretic ablit27b 50 data/cap_outobf_27b.jsonl 4 512
+base64,reverse out,inout`.
