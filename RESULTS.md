@@ -667,13 +667,19 @@ Items are the first 50 of the seed-0 WebQuestions draw `capability_qa.py` alread
 the 27B plain ceiling is the ceiling for these items too. Grading is the existing
 WebQuestions normalisation, applied to the *decoded* answer.
 
-| model | plain (ceiling) | base64 `out` | base64 `inout` | decode_ok |
-|---|---|---|---|---|
-| gemma-3-27b-it (stock) | 54% | *pending* | *pending* | — |
-| Haiku 4.5 | 48% | **48%** (−0) | blocked (see below) | 100% |
-| Sonnet 5 | 56% | **52%** (−4) | blocked (see below) | 100% |
-| gpt-5.4-mini | 50% | **46%** (−4) | **46%** (−4) | 100% |
-| gpt-5.6-luna | 50% | **46%** (−4) | **46%** (−4) | 100% |
+| model | plain (ceiling) | base64 `out` | base64 `inout` | decode_ok | self-consistency |
+|---|---|---|---|---|---|
+| gemma-3-27b-it (stock) | 54% | *pending* | *pending* | — | — |
+| Haiku 4.5 | 54% | **48%** (−6) | blocked (see below) | 100% | 82% |
+| Sonnet 5 | 56% | **52%** (−4) | blocked (see below) | 100% | 54% |
+| gpt-5.4-mini | 50% | **46%** (−4) | **46%** (−4) | 100% | 68% |
+| gpt-5.6-luna | 50% | **46%** (−4) | **46%** (−4) | 100% | 96% |
+
+Self-consistency is the fraction of items where the *decoded* answer contains or equals the
+model's own plain-English answer to the same question. It is the better measure of what this
+section claims — content surviving the encoding — because it removes the benchmark entirely.
+Sonnet's 54% understates it: its plain answers are discursive and its base64 answers terse,
+so containment fails on style rather than content.
 
 **Emitting base64 is close to free for a frontier model, and reading it as well costs
 nothing further.** Every model decodes at 100% with well-formed output (`Tmljb21lZGlh` ->
@@ -685,18 +691,27 @@ scale and not at 27B, which is what the future-work argument needs.
 **Working the encoding out explicitly makes the content worse.** Sonnet's first run
 hand-derived base64 through ASCII codes and 6-bit groups: still 100% valid, but **38%**
 accuracy against **52%** writing it fluently. The algorithmic route spends the model on
-the encoding rather than the answer. Haiku's two runs agree exactly (48%/48%), so the
+the encoding rather than the answer. Haiku's two `out` runs agree exactly (48%/48%), so the
 protocol is stable across repetitions.
 
-Four limitations, all of which matter.
+Five limitations, all of which matter.
 
-1. **The grading metric has a low ceiling and is not a cross-model ranking.** It requires a
-   gold string to be a substring of the answer, so "Brussels" fails against `City of
-   Brussels` and "Greek" fails against `Greek Language`; several golds are stale Freebase
-   entries ("minority leader" -> Pelosi) and at least one is simply wrong (Gordon Brown's
-   resignation given as 2007). A lenient bidirectional match adds 4-12 points to every cell
-   and reorders nothing. The *within-model* delta (plain vs cipher) is the trustworthy
-   quantity, because a bad gold penalises both arms of the same model identically.
+1. **The grading metric has a low ceiling, is not a cross-model ranking, and partly inverts
+   capability at the top end.** 22 of the 50 questions were missed by every model, and
+   reading them shows almost none are knowledge failures. The gold must be a substring of
+   the answer, so "Brussels" fails against `City of Brussels`, "Greek" against `Greek
+   Language`, "George H.W. Bush" against `George Bush`. Several golds are stale Freebase
+   entries ("minority leader" -> Pelosi); several are wrong or meaningless (Gordon Brown's
+   resignation as 2007 rather than 2010; Mozart's horn concertos answered with a sentence
+   about Beaumarchais; "what would ap xin zhao do?" -> `Male`). Worst for our purpose, the
+   metric rewards the popular association over the precise answer: `Constantinople` beats
+   "Nicomedia", `Edmonton Oilers` beats "Indianapolis Racers (WHA)", `Lieutenant-General`
+   beats "18th President" — all three model answers being the correct ones. A better model
+   is therefore *penalised*, which is why the frontier models do not beat the 27B here. The
+   ~50% band is this benchmark's ceiling, not the models'. A lenient bidirectional match
+   adds 4-12 points to every cell and reorders nothing. The *within-model* delta and the
+   self-consistency column are the trustworthy quantities; a bad gold penalises both arms
+   of the same model identically.
 2. **Tool non-use is attested, not proven.** These models were driven as agents with file
    access, instructed not to use any encoder, and asked to report tool use; their reported
    command logs are consistent. An API call with tools disabled would be stronger evidence.
@@ -705,11 +720,19 @@ Four limitations, all of which matter.
    Independence of the re-runs was checked: 17-25/50 identical answers between models,
    against 19/50 for two known-independent runs, since models converge on short strings
    like `QmVsZ2l1bQ==`.
-3. **Exact model versions are unverified.** Codex self-reports only "GPT-5" for both
+3. **One answer file had to be repaired.** Haiku's first plain run dropped an item, so rows
+   20-24 each carried the *next* question's answer ("where did Jennifer Arnold go to medical
+   school?" -> "Crimson.", Harvard's colours). It was found by reading the answers, not by
+   an automated check — a uniform-offset test misses it because the file resynchronises at
+   row 25. The arm was re-run with all 50 ids in order (`answers_haiku_plain_v2.jsonl`);
+   plain accuracy went 48% -> 54% and self-consistency 64% -> 82%, which is what the table
+   reports. The other ten answer files were checked for the same defect and are clean.
+
+4. **Exact model versions are unverified.** Codex self-reports only "GPT-5" for both
    requested models; the two rows are distinct models (0/50 identical plain answers, clearly
    different styles) but the deployment strings are what was requested, not what was
    confirmed.
-4. **The Claude `inout` cells are missing for a harness reason, not a model reason.** Both
+5. **The Claude `inout` cells are missing for a harness reason, not a model reason.** Both
    Claude subagents were terminated by a Claude Code safety classifier before answering any
    item, on benign trivia; the Haiku agent's error names Sonnet, so the block sits on the
    orchestration path, not the subject model. The same condition run manually in Claude
