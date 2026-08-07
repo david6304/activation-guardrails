@@ -24,6 +24,7 @@ JUDGED=${2:-data/p2_judged_analysis.jsonl}
 OUT=${3:-data/p2_guard_monitor.npz}
 BATCH=${4:-8}
 LIMIT=${5:-0}
+REQFIELD=${6:-prompt}
 
 for path in "$SCORES" "$JUDGED"; do
     if [[ ! -e "$path" ]]; then
@@ -37,7 +38,7 @@ hostname
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader
 git rev-parse HEAD
 git status --short
-echo "SCORES=$SCORES JUDGED=$JUDGED OUT=$OUT BATCH=$BATCH LIMIT=$LIMIT"
+echo "SCORES=$SCORES JUDGED=$JUDGED OUT=$OUT BATCH=$BATCH LIMIT=$LIMIT REQFIELD=$REQFIELD"
 
 python p2_guard_monitor.py --scores "$SCORES" --judged "$JUDGED" \
-  --out "$OUT" --batch-size "$BATCH" --limit "$LIMIT"
+  --out "$OUT" --batch-size "$BATCH" --limit "$LIMIT" --request-field "$REQFIELD"
