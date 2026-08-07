@@ -125,7 +125,14 @@ def generate(rows, model_id, max_new_tokens, batch_size, out_path):
                                      do_sample=False, pad_token_id=tok.pad_token_id)
             new = gen[:, inputs["input_ids"].shape[1]:]
             for r, ids in zip(batch, new):
-                ans = tok.decode(ids, skip_special_tokens=True).strip()
+                raw = tok.decode(ids, skip_special_tokens=True).strip()
+                # Output-obfuscated rows are graded on the decoded answer, as the
+                # harmful out_obf cells in RESULTS.md section 11 are.
+                if r.get("out_obf"):
+                    ans, r["decode_ok"] = CIPHERS[r["cipher"]]["dec"](raw)
+                else:
+                    ans, r["decode_ok"] = raw, True
+                r["answer_raw"] = raw
                 r["answer"] = ans
                 r["correct"] = is_correct(ans, r["golds"])
                 out.write(json.dumps(r) + "\n")
@@ -138,8 +145,11 @@ def summarise(rows):
     import pandas as pd
 
     df = pd.DataFrame(rows)
+    key = "data_type" if "data_type" in df.columns else "cipher"
+    if key != "cipher":
+        df = df.rename(columns={"cipher": "_cipher"}).rename(columns={key: "cipher"})
     acc = df.groupby("cipher")["correct"].mean()
-    plain = acc.get("plain", float("nan"))
+    plain = acc.get("plain", acc.get("base64:plain", float("nan")))
     print("\n[decode accuracy on WebQuestions]  retention = acc / plain")
     for cipher in df["cipher"].unique():
         g = df[df["cipher"] == cipher]
@@ -160,18 +170,26 @@ def main():
     ap.add_argument("--out", default="data/cap_qa_27b.jsonl")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--nllb", default="facebook/nllb-200-distilled-600M")
+    ap.add_argument("--items", default="", help="prebuilt rows, e.g. from prepare_outobf_qa.py")
     args = ap.parse_args()
 
-    ciphers = args.ciphers.split(",")
-    n = args.limit or args.n
-    qa = load_qa(n, args.seed, args.max_q_chars)
-    rows = build_rows(qa, ciphers, args.nllb)
-    print(f"[rows] {len(rows)} = {len(qa)} questions x {len(ciphers)} conditions", flush=True)
+    if args.items:
+        rows = [json.loads(line) for line in Path(args.items).open() if line.strip()]
+        print(f"[rows] {len(rows)} prebuilt from {args.items}", flush=True)
+    else:
+        ciphers = args.ciphers.split(",")
+        n = args.limit or args.n
+        qa = load_qa(n, args.seed, args.max_q_chars)
+        rows = build_rows(qa, ciphers, args.nllb)
+        print(
+            f"[rows] {len(rows)} = {len(qa)} questions x {len(ciphers)} conditions",
+            flush=True,
+        )
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     generate(rows, args.model, args.max_new_tokens, args.batch_size, out)
-    summarise([json.loads(l) for l in out.open() if l.strip()])
+    summarise([json.loads(line) for line in out.open() if line.strip()])
 
 
 if __name__ == "__main__":

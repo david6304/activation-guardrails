@@ -23,6 +23,7 @@ OUT=${3:-data/cap_qa_27b.jsonl}
 BATCH=${4:-16}
 LIMIT=${5:-0}
 MODEL=${6:-google/gemma-3-27b-it}
+ITEMS=${7:-}  # prebuilt rows from prepare_outobf_qa.py; overrides N/CIPHERS when set
 
 date --iso-8601=seconds
 hostname
@@ -32,4 +33,5 @@ git status --short
 echo "N=$N CIPHERS=$CIPHERS OUT=$OUT BATCH=$BATCH LIMIT=$LIMIT MODEL=$MODEL"
 
 python capability_qa.py --n "$N" --ciphers "$CIPHERS" --out "$OUT" \
-  --batch-size "$BATCH" --limit "$LIMIT" --model "$MODEL"
+  --batch-size "$BATCH" --limit "$LIMIT" --model "$MODEL" \
+  ${ITEMS:+--items "$ITEMS"} ${ITEMS:+--max-new-tokens 128}
