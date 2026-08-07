@@ -608,6 +608,65 @@ Reproducibility: guard scores from MLP job 3585833, exit 0, 35m37s, 3×`h200_1g.
 data/p2_guard_monitor.npz` → `data/p2_readability_results.json`,
 `data/p2_latency_results.json`, `figures/p2_latency.png`.
 
+### 10b. Matched-input rerun of the Qwen3Guard base64 cells
+
+The table above gives Qwen3Guard the **plaintext** request in the base64 condition, while
+the protected reader received the **encoded** one (`judged['prompt']` vs
+`judged['prompt_sent']`). The base64 guard cells were therefore not a matched comparison.
+This is the rerun with `--request-field prompt_sent`; the plain condition is unaffected,
+because `prompt == prompt_sent` there for all 705 plain rows.
+
+| k | probe | TF-IDF | Qwen, plaintext request | Qwen, **matched** request |
+|---|---|---|---|---|
+| 8 | 0.503 | 0.473 | 0.771 [0.70, 0.84] | **0.435** [0.35, 0.52] |
+| 16 | 0.567 | 0.484 | 0.760 [0.69, 0.82] | **0.435** [0.35, 0.52] |
+| 32 | 0.702 | 0.670 | 0.796 [0.73, 0.86] | 0.722 [0.65, 0.80] |
+| 64 | 0.753 | 0.732 | 0.851 [0.79, 0.90] | 0.858 [0.80, 0.91] |
+| 128 | 0.780 | 0.804 | 0.869 [0.81, 0.92] | 0.884 [0.83, 0.93] |
+| 256 | 0.783 | 0.816 | 0.897 [0.85, 0.94] | 0.895 [0.85, 0.93] |
+| 512 | 0.793 | 0.838 | 0.913 [0.87, 0.95] | 0.901 [0.86, 0.94] |
+
+TPR at the 5% target with realised FPR in brackets (the 1% gate is still not representable
+on 94 tune negatives):
+
+| k | probe | TF-IDF | Qwen, plaintext request | Qwen, matched request |
+|---|---|---|---|---|
+| 8 | 1.1% (4.4) | 0.0% (0.0) | 42.2% (10.0) | 1.1% (4.4) |
+| 16 | 2.2% (3.3) | 1.1% (0.0) | 43.3% (11.1) | 3.3% (2.2) |
+| 32 | 28.9% (4.4) | 8.9% (3.3) | 47.8% (10.0) | 16.7% (1.1) |
+| 64 | 37.8% (6.7) | 31.1% (10.0) | 25.6% (2.2) | 41.1% (4.4) |
+| 512 | 27.8% (4.4) | 28.9% (3.3) | 53.3% (5.6) | 53.3% (7.8) |
+
+**The guard's early base64 advantage was an artefact of the unmatched request.** Given the
+same encoded request the reader saw, Qwen3Guard is *below chance* at k=8-16 (0.435) — the
+base64 blob misleads it — where the plaintext-request run reported 0.771. From k=64 the two
+curves converge (0.858 vs 0.851 at k=64, 0.901 vs 0.913 at k=512): by then the guard is
+reading enough English response that the request contributes little. The old k=8-32 cells
+also realised 10-11% FPR against a 5% target, so those TPRs were never calibrated; the
+matched ones sit at 1-4%.
+
+This narrows claim 1 of section 10. Qwen3Guard beats the probe on AUROC at every k from 8
+onward **in plain**; in base64 under matched inputs the probe leads at k=8, 16 and 32, and
+the guard's lead begins at k=64. The terminal conclusion — Qwen3Guard is the strongest
+response-stream monitor, and it does not degrade under base64 once the response is long
+enough — survives unchanged.
+
+Figure 4.4 now draws the guard in both panels, from this matched artefact.
+
+Reproducibility: MLP job **3588363**, exit 0, 19m45s, 1×`h200_3g.71gb`, batch 16, all 1061
+rows, commit `11dc563`. `sbatch -p Teaching --gres=gpu:h200_3g.71gb:1 --time=02:00:00
+run_p2_guard_mlp.sh data/p2_latency_scores.npz data/p2_judged_analysis.jsonl
+data/p2_guard_monitor_matched.npz 16 0 prompt_sent`, preceded by an 8-row smoke on the same
+model and slice (job 3588354, exit 0). Output `data/p2_guard_monitor_matched.npz` (ids and
+`k_grid` identical to `data/p2_latency_scores.npz` and to the original artefact; all scores
+finite), analysed by `conda run -n msc-diss python p2_analyse_readability.py --guard
+data/p2_guard_monitor_matched.npz --out data/p2_readability_results_matched.json --figure
+msc-writeup/figures/p2_response_readability.pdf --bootstrap 2000`. The original
+`data/p2_guard_monitor.npz` and `data/p2_readability_results.json` are unchanged and remain
+the source for every plain number in section 10. Plain scores differ between the two runs
+only by bf16/batching noise (median 0.000, max 0.045, 9% of cells above 0.01), which moves
+no analysed plain statistic at three decimal places.
+
 ## 11. Obfuscated *output* capability at 27B (future-work evidence)
 
 The dissertation's future-work argument assumes a model could emit harmful content

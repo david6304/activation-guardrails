@@ -5,6 +5,18 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-08-07 - The guard's early Base64 lead was an unmatched-input artefact
+
+Qwen3Guard was moderating Base64 responses against the *plaintext* request while the
+protected reader saw the encoded one. Rerun matched (`--request-field prompt_sent`, MLP job
+3588363): the guard falls from 0.771 to **0.435 AUROC** at k=8-16 -- below chance, the
+encoded request misleads it -- and converges to the old values from k=64 (0.858 vs 0.851).
+So in Base64 the probe leads the guard at k=8/16/32 and the guard's lead starts at k=64;
+plain is unchanged. Terminal conclusion (guard strongest, robust to Base64 once the
+response is long) survives. Old artefact and results JSON preserved; new ones are
+`data/p2_guard_monitor_matched.npz` and `data/p2_readability_results_matched.json`.
+Figure 4.4 now draws the guard in both panels. RESULTS.md section 10b.
+
 ## 2026-08-07 - Frontier models work fully in base64; the 27B keeps 6% of its ceiling
 
 Section 12's WebQuestions instrument was knowledge-bound and capped at ~50%, so it could

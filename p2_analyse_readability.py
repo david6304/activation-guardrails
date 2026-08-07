@@ -151,12 +151,54 @@ def length_confound(lengths, probe, positive, negative):
     return result
 
 
+def plot_trajectory(report, path):
+    """Compact RQ2 display of AUROC across the evaluated response prefixes."""
+    import matplotlib.pyplot as plt
+
+    landmarks = list(LANDMARKS)
+    x = np.arange(len(landmarks))
+    styles = {
+        "probe": ("Activation probe", "#0072B2", "o"),
+        "tfidf": ("TF-IDF", "#D55E00", "s"),
+        "qwen3guard": ("Qwen3Guard", "#009E73", "^"),
+    }
+    # The guard is drawn in both panels only when it read the same request the reader
+    # did (--guard data/p2_guard_monitor_matched.npz); the original artefact moderates
+    # base64 responses against the plaintext request, which is not a matched comparison.
+    panels = (("plain", tuple(styles)), ("base64", tuple(styles)))
+    figure, axes = plt.subplots(1, 2, figsize=(7.2, 2.55), sharey=True)
+    for axis, (condition, monitors) in zip(axes, panels, strict=True):
+        values = report["conditions"][condition]["auroc_by_k"]
+        for monitor in monitors:
+            points = [
+                values[str(k)].get(monitor, {}).get("auroc", np.nan)
+                for k in landmarks
+            ]
+            label, colour, marker = styles[monitor]
+            axis.plot(x, points, marker=marker, color=colour, label=label, linewidth=1.7)
+        axis.axhline(0.5, color="0.55", linestyle="--", linewidth=1)
+        axis.set_title("Plain prompt" if condition == "plain" else "Base64 prompt")
+        axis.set_xticks(x, landmarks, rotation=45)
+        axis.set_xlabel("Response-token horizon, $k$")
+        axis.set_ylim(0.40, 0.95)
+        axis.grid(axis="y", alpha=0.2)
+    axes[0].set_ylabel("AUROC")
+    handles, labels = axes[0].get_legend_handles_labels()
+    figure.legend(handles, labels, loc="upper center", ncol=3, frameon=False)
+    figure.tight_layout(rect=(0, 0, 1, 0.88))
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(output, bbox_inches="tight")
+    plt.close(figure)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--scores", default="data/p2_latency_scores.npz")
     parser.add_argument("--text", default="data/p2_text_monitor.npz")
     parser.add_argument("--guard", default="", help="optional data/p2_guard_monitor.npz")
     parser.add_argument("--out", default="data/p2_readability_results.json")
+    parser.add_argument("--figure", default="", help="optional compact AUROC figure")
     parser.add_argument("--bootstrap", type=int, default=2000)
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
@@ -254,6 +296,8 @@ def main():
     output = Path(args.out)
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2) + "\n")
+    if args.figure:
+        plot_trajectory(report, args.figure)
 
     for condition, cell in report["conditions"].items():
         print(
