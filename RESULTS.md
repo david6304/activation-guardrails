@@ -683,7 +683,7 @@ so containment fails on style rather than content.
 
 **Emitting base64 is close to free for a frontier model, and reading it as well costs
 nothing further.** Every model decodes at 100% with well-formed output (`Tmljb21lZGlh` ->
-"Nicomedia"), and the accuracy cost of the cipher is 0-4 points. The compound `inout`
+"Nicomedia"), and the accuracy cost of the cipher is 4-6 points. The compound `inout`
 condition — the one where the 27B fell to 2% harmful in section 11 — costs the GPT models
 nothing beyond `out`. So the obfuscated-output venue is a real capability at frontier
 scale and not at 27B, which is what the future-work argument needs.
