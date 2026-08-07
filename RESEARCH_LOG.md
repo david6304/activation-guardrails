@@ -5,6 +5,18 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-08-07 - Frontier models work fully in base64; the 27B keeps 6% of its ceiling
+
+Section 12's WebQuestions instrument was knowledge-bound and capped at ~50%, so it could
+not separate the models. Redone on SQuAD v1.1 (answer is a span of a supplied passage,
+exact EM/F1 grading, oracle scores 100%). Retention = cipher F1 / own plain F1: Sonnet 5
+keeps **97%** reading *and* writing base64, Haiku 4.5 90% on write; gemma-3-27b keeps 44%
+on write and **6%** on the compound condition, gemma-3-12b 5%. Both Gemma cells still
+decode at 76-86%, so the failure is corrupted substance, not malformed base64 -- the
+section-11 pattern on benign content. Writing base64 improves with scale (12B 5% -> 27B
+44%); doing both at once does not. This is the future-work motivation: the obfuscated-output
+venue is already real at frontier scale and not at 27B. RESULTS.md section 13 supersedes 12.
+
 ## 2026-08-06 - The 27B cannot emit harmful content in cipher, which sharpens the future work
 
 The obfuscated-output venue had never been run; the future-work claim rested on assertion.

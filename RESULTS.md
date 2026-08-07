@@ -745,3 +745,72 @@ first 50 of the 150-question draw, `--max-q-chars 90`). Raw answers under
 Codex MCP with `sandbox=workspace-write`, one isolated working directory per run. No seed
 or temperature control was available for any hosted model — a real reproducibility gap
 against the 27B's seed 0.
+
+## 13. Cipher capability on SQuAD — supersedes section 12
+
+Section 12's WebQuestions instrument could not answer the question it was asked. Its golds
+are stale Freebase entries, its substring test rewards the popular association over the
+correct answer, and every model landed in a ~50% band that turned out to be the benchmark's
+ceiling rather than the models'. This is the same measurement on **SQuAD v1.1**, where the
+answer is a literal span of a passage supplied in the prompt: exact grading, no world
+knowledge, no staleness, and the standard EM/F1 scorer.
+
+50 items (seed 0, contexts ≤80 words, answers ≤5 words, one item per passage), three
+conditions matching `capability_check.CONDS`, graded on the **decoded** answer.
+
+| model | plain F1 (EM) | base64 `out` F1 (EM) | base64 `inout` F1 (EM) | retention `out` / `inout` |
+|---|---|---|---|---|
+| gemma-3-12b-it | 62 (34) | 3 (0) | 4 (0) | 5% / 6% |
+| gemma-3-27b-it | 55 (34) | 25 (6) | 3 (0) | 44% / **6%** |
+| Haiku 4.5 | 93 (80) | 84 (70) | *pending* | 90% / — |
+| Sonnet 5 | 93 (82) | 90 (76) | **90 (74)** | 97% / **97%** |
+
+Retention is each model's cipher F1 over its own plain F1, so per-model verbosity and any
+residual instrument bias cancel. F1 is the headline rather than EM because the Gemmas answer
+in sentences ("Six-time Grammy winner" for gold `Six`), which costs them EM on the *plain*
+ceiling and would understate their retention.
+
+**The capability gap is the result.** Sonnet 5 keeps 97% of its plain ceiling while reading
+*and* writing base64 — the venue costs it essentially nothing. The 27B keeps 6%. Both Gemma
+cells decode at 76-86%, so this is not a failure to produce base64: the output is well-formed
+base64 that decodes to corrupted English. Its `inout` answers are the section-11 pattern
+exactly — "Hello there:\nThe passage has been decoded... The Panthers used the San Jose S…",
+"Levis's Stadium", "anewser", "Android Anthuropologist". The model operates the encoding and
+loses the substance through it.
+
+Within the Gemma family, `out` improves with scale (12B 5% → 27B 44%) and `inout` does not
+(6% → 6%). Writing base64 is the capability that is arriving; reading and writing it at once
+is not there yet at 27B.
+
+Instrument checks, since section 12's instrument was the thing that failed:
+
+- **No ceiling.** An oracle answering with the gold span, encoded, scores 100% EM/F1 in all
+  three conditions. Section 12's instrument capped at ~50%.
+- **Alignment.** Every hosted answer decodes to a literal span of *its own* passage, so the
+  row-offset defect that corrupted a section-12 arm cannot hide here. SQuAD supplies this
+  check for free.
+- **Contamination.** Haiku and Sonnet agree on 42/50 `out` answers, *below* the 46/50 the two
+  independent plain runs agree on — span extraction converges, and neither run copied.
+- **Decoder floor.** `capability_check.dec_b64` requires 8 characters; `6.7` encodes to four.
+  `score_squad_cipher.py` uses a 4-character floor (longest valid decode still wins, so this
+  can only add candidates shorter than an existing winner).
+
+Limitations. Tool non-use by the hosted models is attested, not proven — they were driven as
+agents, instructed against any encoder and against deriving the encoding character by
+character, and reported their tool use. No seed or temperature control was available for the
+hosted models, against the Gemmas' seed 0 and greedy decoding. The Haiku `inout` cell is
+missing for a harness reason, not a model reason: the Claude Code safety classifier
+terminated that subagent twice on benign SQuAD passages (the error names Sonnet even for the
+Haiku agent, so the block sits on the orchestration path). Sonnet's `inout` agent ran
+unblocked, and the Desktop fallback prompts are in `data/squad_cipher_inout_desktop_{0..4}.txt`.
+This is exploratory future-work evidence at N=50, not a benchmark result.
+
+Reproducibility: items `data/squad_cipher_items.jsonl` (SHA-256 `84aa609f…`) from
+`conda run -n msc-diss python prepare_squad_cipher.py`. Gemma arms on Eddie, jobs **57558068**
+(27B, 2×L40S, `node1p06`, 150 rows) and **57558071** (12B, 1×L40S), both
+`qsub [-l gpu=2] run_capqa_eddie.sh 0 plain data/squad_cipher_{27b,12b}.jsonl 8 0
+google/gemma-3-{27b,12b}-it data/squad_cipher_items.jsonl 128`, seed 0, greedy, 128 new
+tokens. Hosted arms as Claude Code subagents, one directory per (model, condition) under
+`data/squad_cipher_runs/` containing only that run's prompts. Grading:
+`conda run -n msc-diss python score_squad_cipher.py --answers <model>=<path> …` →
+`data/squad_cipher_graded.jsonl`.
