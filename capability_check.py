@@ -65,9 +65,14 @@ def enc_b64(text):
 
 
 def dec_b64(text):
-    """Longest base64-looking blob that decodes to valid UTF-8; else ('', False)."""
+    """Longest base64-looking blob that decodes to valid UTF-8; else ('', False).
+
+    The floor is 8 characters, not 32: short answers ("Tmljb21lZGlh" -> "Nicomedia")
+    are real outputs in the benign QA arm. Lowering it cannot change an existing result,
+    since the longest decode wins and a shorter blob cannot decode to a longer string.
+    """
     best = ""
-    for c in re.findall(r"[A-Za-z0-9+/=\s]{32,}", text):
+    for c in re.findall(r"[A-Za-z0-9+/=\s]{8,}", text):
         s = re.sub(r"\s+", "", c)
         for pad in range(4):
             try:
