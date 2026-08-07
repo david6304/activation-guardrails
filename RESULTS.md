@@ -655,3 +655,70 @@ top-p 0.9) and 3586168 (judging, exit 0, 22m39s, `Qwen/Qwen3.6-27B`, batch 8,
 Command: `sbatch -p Teaching --gres=gpu:h200_1g.18gb:5 --time=02:00:00 run_capcheck.sh
 ~/models/gemma-3-27b-it-heretic ablit27b 50 data/cap_outobf_27b.jsonl 4 512
 base64,reverse out,inout`.
+
+## 12. Benign obfuscated-output capability across model scales
+
+Section 11 found the 27B cannot carry harmful content through a cipher, but that mixes
+capability with residual refusal, and it cannot say whether the *venue* is realistic on
+stronger models. This is the benign counterpart: the same three conditions on ordinary
+factual questions, so frontier models can be measured without asking for harmful content.
+
+Items are the first 50 of the seed-0 WebQuestions draw `capability_qa.py` already used, so
+the 27B plain ceiling is the ceiling for these items too. Grading is the existing
+WebQuestions normalisation, applied to the *decoded* answer.
+
+| model | plain (ceiling) | base64 `out` | base64 `inout` | decode_ok |
+|---|---|---|---|---|
+| gemma-3-27b-it (stock) | 54% | *pending* | *pending* | — |
+| Haiku 4.5 | 48% | **48%** (−0) | blocked (see below) | 100% |
+| Sonnet 5 | 56% | **52%** (−4) | blocked (see below) | 100% |
+| gpt-5.4-mini | 50% | **46%** (−4) | **46%** (−4) | 100% |
+| gpt-5.6-luna | 50% | **46%** (−4) | **46%** (−4) | 100% |
+
+**Emitting base64 is close to free for a frontier model, and reading it as well costs
+nothing further.** Every model decodes at 100% with well-formed output (`Tmljb21lZGlh` ->
+"Nicomedia"), and the accuracy cost of the cipher is 0-4 points. The compound `inout`
+condition — the one where the 27B fell to 2% harmful in section 11 — costs the GPT models
+nothing beyond `out`. So the obfuscated-output venue is a real capability at frontier
+scale and not at 27B, which is what the future-work argument needs.
+
+**Working the encoding out explicitly makes the content worse.** Sonnet's first run
+hand-derived base64 through ASCII codes and 6-bit groups: still 100% valid, but **38%**
+accuracy against **52%** writing it fluently. The algorithmic route spends the model on
+the encoding rather than the answer. Haiku's two runs agree exactly (48%/48%), so the
+protocol is stable across repetitions.
+
+Four limitations, all of which matter.
+
+1. **The grading metric has a low ceiling and is not a cross-model ranking.** It requires a
+   gold string to be a substring of the answer, so "Brussels" fails against `City of
+   Brussels` and "Greek" fails against `Greek Language`; several golds are stale Freebase
+   entries ("minority leader" -> Pelosi) and at least one is simply wrong (Gordon Brown's
+   resignation given as 2007). A lenient bidirectional match adds 4-12 points to every cell
+   and reorders nothing. The *within-model* delta (plain vs cipher) is the trustworthy
+   quantity, because a bad gold penalises both arms of the same model identically.
+2. **Tool non-use is attested, not proven.** These models were driven as agents with file
+   access, instructed not to use any encoder, and asked to report tool use; their reported
+   command logs are consistent. An API call with tools disabled would be stronger evidence.
+   One Codex run *was* contaminated — it read another model's answer file and returned all
+   50 answers byte-identical — and was discarded and re-run in an isolated directory.
+   Independence of the re-runs was checked: 17-25/50 identical answers between models,
+   against 19/50 for two known-independent runs, since models converge on short strings
+   like `QmVsZ2l1bQ==`.
+3. **Exact model versions are unverified.** Codex self-reports only "GPT-5" for both
+   requested models; the two rows are distinct models (0/50 identical plain answers, clearly
+   different styles) but the deployment strings are what was requested, not what was
+   confirmed.
+4. **The Claude `inout` cells are missing for a harness reason, not a model reason.** Both
+   Claude subagents were terminated by a Claude Code safety classifier before answering any
+   item, on benign trivia; the Haiku agent's error names Sonnet, so the block sits on the
+   orchestration path, not the subject model. The same condition run manually in Claude
+   Desktop complies. Do not report this as a refusal by the model.
+
+Reproducibility: items `data/outobf_qa_items.jsonl` from `prepare_outobf_qa.py` (seed 0,
+first 50 of the 150-question draw, `--max-q-chars 90`). Raw answers under
+`data/outobf_qa_answers/`, graded by `score_outobf_qa.py` into
+`data/outobf_qa_frontier.jsonl`. Claude arms run as Claude Code subagents; GPT arms via the
+Codex MCP with `sandbox=workspace-write`, one isolated working directory per run. No seed
+or temperature control was available for any hosted model — a real reproducibility gap
+against the 27B's seed 0.
