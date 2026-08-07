@@ -84,6 +84,9 @@ def main():
     parser.add_argument("--model", default=QWEN_MODEL)
     parser.add_argument("--tokenizer", default=READER_MODEL)
     parser.add_argument("--out", default="data/p2_guard_monitor.npz")
+    parser.add_argument("--request-field", default="prompt", choices=("prompt", "prompt_sent"),
+                        help="prompt = plaintext request (the original artefact); "
+                             "prompt_sent = the request the reader actually received")
     parser.add_argument("--batch-size", type=int, default=8)
     parser.add_argument("--limit", type=int, default=0, help="first N rows (smoke)")
     args = parser.parse_args()
@@ -103,9 +106,10 @@ def main():
     missing = [value for value in row_ids if value not in judged]
     if missing:
         raise ValueError(f"{len(missing)} scored rows absent from {args.judged}")
-    # The guard reads the request the response answers, so ciphered conditions are
-    # moderated against the plaintext request, as the judge is.
-    prompts = [judged[value]["prompt"] for value in row_ids]
+    # Which request the guard sees. `prompt` (default) is the plaintext request, as the
+    # judge is given; `prompt_sent` is what the protected reader actually received, which
+    # is the matched comparison in ciphered conditions. They are identical in plain.
+    prompts = [judged[value][args.request_field] for value in row_ids]
 
     token_ids = scores["response_token_ids"]
     lengths = scores["response_length"]
@@ -131,7 +135,8 @@ def main():
     metadata = {
         "monitor": args.model,
         "score": "softmax P('Unsafe') over the three verdict branches at 'Safety:'",
-        "moderates": "the last assistant turn, given the plaintext request",
+        "moderates": f"the last assistant turn, given judged['{args.request_field}']",
+        "request_field": args.request_field,
         "prefixes": "decoded from the protected reader's response token ids",
         "tokenizer": args.tokenizer,
         "k_grid": grid,
