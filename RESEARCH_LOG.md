@@ -5,6 +5,25 @@ direction. Do not record routine coding work.
 
 ## YYYY-MM-DD - Short title
 
+## 2026-08-20 - Final MSc dissertation and materials submitted
+
+The University of Edinburgh Informatics submission portal accepted the MSc
+dissertation `msc-writeup/thesis.pdf` and materials archive
+`submission/activation-guardrails.zip` at 22:25:46 on 20 August 2026 for
+*Activation-Based Guardrails for Large Language Models*. The full receipt is
+retained locally in the ignored `submission/SUBMISSION_RECEIPT.md`.
+
+The portal-reported MD5, `92d406818c932af120315689de4ddf26`, matches the
+submitted local `thesis.pdf` exactly. The intended materials archive has MD5
+`c6cd52fd96d60a94f8b49f62811da376` and SHA-256
+`73ca10910bdfb3bd2568002ccd7a876c8696d955778118832410608ee6763fc7`; the
+receipt displayed no separate materials checksum, so only the dissertation has
+independent portal checksum confirmation. Repository HEAD at submission was
+`cb2d7ef`; the curated archive also contained then-uncommitted final changes and
+is therefore identified exactly by its archive digests. This freezes the
+submitted artefacts: subsequent repository changes are not part of the assessed
+submission unless explicitly resubmitted.
+
 ## 2026-08-07 - The guard's early Base64 lead was an unmatched-input artefact
 
 Qwen3Guard was moderating Base64 responses against the *plaintext* request while the

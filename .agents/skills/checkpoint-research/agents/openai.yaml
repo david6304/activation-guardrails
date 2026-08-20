@@ -1,0 +1,4 @@
+interface:
+  display_name: "Checkpoint Research"
+  short_description: "Record consequential research state and evidence"
+  default_prompt: "Use $checkpoint-research to add a concise, reproducible checkpoint to RESEARCH_LOG.md."

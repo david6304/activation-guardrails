@@ -396,12 +396,12 @@ a CPU afternoon appears. None may delay C7, P1 or P2. Ranked by value.
    intent, not refusal precursors. Specified 2026-07-17 and dropped for time;
    the model now exists, and it doubles as the probe-transfer check P2 would
    want.
-3. **Translation fidelity** (1 generation + 1 judge pass). Back-translate the
-   568 test positives per language with `gemma-3-27b-it` — a different system
-   from NLLB, so forward and backward error are not measured against each other
-   — and re-judge. If 15% of Zulu positives no longer read as harmful, the
-   ceiling in that condition is 85%, not 100%. Converts a concession into a
-   quantified limitation.
+3. **Translation fidelity** (small API audit; Swahili first). Back-translate
+   the prepared stratified sample of 50 harmful and 50 benign Swahili prompts
+   with `gpt-5.6-luna`, then assess preservation of intent and the operational-
+   harm label with a separate judge. Inspect disagreements manually and retain
+   semantic drift as a limitation. Extend beyond the sample or to other
+   languages only if the initial audit makes it necessary.
 4. **Vowel-removal, the one non-invertible condition** (rides P1's job + CPU).
    Vowel-removal has no row in `RESULTS.md` §4. Score the probe and the four
    guards on it at the frozen protocol. Then, on CPU, recompute the centroid's

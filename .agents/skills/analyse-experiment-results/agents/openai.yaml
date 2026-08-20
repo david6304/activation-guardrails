@@ -1,0 +1,4 @@
+interface:
+  display_name: "Analyse Experiment Results"
+  short_description: "Inspect and compare saved experiment outputs"
+  default_prompt: "Use $analyse-experiment-results to inspect the relevant run outputs and report evidence without changing scientific definitions."

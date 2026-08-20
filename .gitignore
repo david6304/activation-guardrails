@@ -44,8 +44,14 @@ __pycache__/
 .claude/
 .codex/
 
+# Local render previews and scratch analyses
+/tmp/
+
 # Packaging metadata
 *.egg-info/
+
+# Final dissertation software-archive staging
+/submission/
 
 # Slurm job logs
 *.out
